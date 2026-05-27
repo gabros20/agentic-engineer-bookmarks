@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --paper: #f7f1e6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: #211d19;
+  background:
+    linear-gradient(90deg, rgba(33, 29, 25, 0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(rgba(33, 29, 25, 0.026) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--paper);
+  font-family: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+}
+
+::selection {
+  color: #fffdf8;
+  background: #211d19;
+}
