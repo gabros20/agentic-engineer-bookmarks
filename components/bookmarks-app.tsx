@@ -92,9 +92,9 @@ export function BookmarksApp() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[680px] border-x border-[#eff3f4] bg-white">
+    <main className="mx-auto min-h-screen w-full bg-[#f7f9f9]">
       <header className="sticky top-0 z-20 border-b border-[#eff3f4] bg-white/90 px-4 py-3 backdrop-blur-xl">
-        <div className="flex items-start justify-between gap-4">
+        <div className="mx-auto flex max-w-[1480px] items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold leading-6 text-[#0f1419]">Claude Code Bookmarks</h1>
             <p className="text-[13px] leading-5 text-[#536471]">
@@ -108,7 +108,7 @@ export function BookmarksApp() {
         </div>
       </header>
 
-      <section className="grid gap-3 border-b border-[#eff3f4] bg-white p-4">
+      <section className="mx-auto grid max-w-[1480px] gap-3 border-b border-[#eff3f4] bg-white p-4">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#536471]" size={18} />
           <input
@@ -161,12 +161,12 @@ export function BookmarksApp() {
         </div>
       </section>
 
-      <p className="border-b border-[#eff3f4] px-4 py-3 text-sm text-[#536471]">
+      <p className="mx-auto max-w-[1480px] border-b border-[#eff3f4] bg-white px-4 py-3 text-sm text-[#536471]">
         {error ? error : `${number(visiblePosts.length)} of ${number(posts.length)} bookmarks from /data/claude-code-bookmarks.json`}
       </p>
 
       {error ? null : (
-        <section>
+        <section className="mx-auto max-w-[1480px] columns-1 gap-4 p-4 sm:columns-2 lg:columns-3 2xl:columns-4">
           {visiblePosts.map((post) => (
             <BookmarkCard
               key={post.id}
@@ -179,7 +179,7 @@ export function BookmarksApp() {
       )}
 
       {!error && visiblePosts.length === 0 ? (
-        <section className="p-12 text-center text-[#536471]">
+        <section className="mx-auto max-w-[1480px] p-12 text-center text-[#536471]">
           No bookmarks match this filter.
         </section>
       ) : null}
