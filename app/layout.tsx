@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Atkinson_Hyperlegible } from "next/font/google";
 import "./globals.css";
+
+const atkinson = Atkinson_Hyperlegible({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-readable",
+});
 
 export const metadata: Metadata = {
   title: "Claude Code Bookmarks",
@@ -13,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={atkinson.variable}>{children}</body>
     </html>
   );
 }
