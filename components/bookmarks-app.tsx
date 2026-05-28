@@ -13,7 +13,7 @@ import {
 } from "@/lib/bookmark-search";
 import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
 
-const FAVORITES_KEY = "claude-code-bookmarks:favorites";
+const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
 const PAGE_SIZE = 240;
 

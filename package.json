@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-bookmarks",
+  "name": "agentic-engineer-bookmarks",
   "private": true,
   "scripts": {
     "dev": "next dev",

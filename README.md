@@ -6,8 +6,8 @@ The app renders a static JSON export as searchable cards, supports local hybrid 
 
 ## Live App
 
-- Production: <https://claude-code-bookmarks.vercel.app>
-- Repository: <https://github.com/gabros20/claude-code-bookmarks>
+- Production: <https://agentic-engineer-bookmarks.vercel.app>
+- Repository: <https://github.com/gabros20/agentic-engineer-bookmarks>
 
 ## Data
 
@@ -35,7 +35,7 @@ Current export:
 The deployed app is static. Favorites are personal to each browser and are saved under:
 
 ```text
-localStorage["claude-code-bookmarks:favorites"]
+localStorage["agentic-engineer-bookmarks:favorites"]
 ```
 
 ## Features
