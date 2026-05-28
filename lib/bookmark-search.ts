@@ -8,10 +8,10 @@ export type SearchIndexPayload = {
   source?: string;
   model: string;
   dimensions: number;
+  encoding?: "float32" | "int8_normalized";
   count: number;
   items: Array<{
     id: string;
-    text: string;
     embedding: number[];
   }>;
 };

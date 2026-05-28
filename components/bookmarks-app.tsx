@@ -14,6 +14,7 @@ import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
 
 const FAVORITES_KEY = "claude-code-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
+const PAGE_SIZE = 240;
 
 let extractorPromise: Promise<unknown> | null = null;
 
@@ -62,13 +63,14 @@ export function BookmarksApp() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sort, setSort] = useState("newest");
   const [scope, setScope] = useState("all");
+  const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
   const [searchStatus, setSearchStatus] = useState("Keyword search");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/data/claude-code-bookmarks.json")
+    fetch("/data/all-bookmarks.json")
       .then((response) => {
         if (!response.ok) throw new Error(`Could not load bookmarks (${response.status})`);
         return response.json() as Promise<BookmarkPayload>;
@@ -107,6 +109,10 @@ export function BookmarksApp() {
     return () => window.clearTimeout(timeout);
   }, [query]);
 
+  useEffect(() => {
+    setVisibleLimit(PAGE_SIZE);
+  }, [query, scope, sort]);
+
   const posts = payload?.data ?? [];
   const keywordIndex = useMemo(() => (posts.length ? buildKeywordIndex(posts) : null), [posts]);
 
@@ -132,7 +138,7 @@ export function BookmarksApp() {
     embedQuery(q, searchIndex.model)
       .then((embedding) => {
         if (cancelled) return;
-        const vectorResults = vectorSearch(searchIndex, embedding);
+        const vectorResults = vectorSearch(searchIndex, embedding).slice(0, 600);
         const merged = mergeHybridResults(keywordResults, vectorResults);
         setHybridResults(new Map(merged.map((result) => [result.id, result.score])));
         setSearchStatus("Hybrid semantic search");
@@ -150,7 +156,15 @@ export function BookmarksApp() {
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const scoped = scope === "favorites" ? posts.filter((post) => favorites.has(post.id)) : posts;
+    const scoped = posts.filter((post) => {
+      if (scope === "favorites") return favorites.has(post.id);
+      if (scope === "articles") return Boolean(post.articleTitle);
+      if (scope === "media") return Boolean(post.media?.length);
+      if (scope === "photos") return post.media?.some((item) => item.type === "photo");
+      if (scope === "videos") return post.media?.some((item) => item.type === "video" || item.type === "animated_gif");
+      if (scope === "text") return !post.media?.length && !post.articleTitle;
+      return true;
+    });
     const filtered = q
       ? hybridResults
         ? scoped.filter((post) => hybridResults.has(post.id))
@@ -166,6 +180,8 @@ export function BookmarksApp() {
     });
   }, [favorites, hybridResults, posts, query, scope, sort]);
 
+  const displayedPosts = visiblePosts.slice(0, visibleLimit);
+
   function toggleFavorite(id: string) {
     setFavorites((current) => {
       const next = new Set(current);
@@ -180,9 +196,9 @@ export function BookmarksApp() {
       <header className="sticky top-0 z-20 border-b border-[#eff3f4] bg-white/90 px-4 py-3 backdrop-blur-xl">
         <div className="flex w-full items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-extrabold leading-6 text-[#0f1419]">Claude Code Bookmarks</h1>
+            <h1 className="text-xl font-extrabold leading-6 text-[#0f1419]">X Bookmarks</h1>
             <p className="text-[13px] leading-5 text-[#536471]">
-              {number(posts.length)} matches from {number(payload?.metadata?.scanned_count ?? posts.length)} saved posts
+              {number(posts.length)} saved posts searchable locally
             </p>
           </div>
 
@@ -226,8 +242,13 @@ export function BookmarksApp() {
               onChange={(event) => setScope(event.target.value)}
               className="min-h-10 w-full appearance-none rounded-full border border-[#cfd9de] bg-white pl-9 pr-3 text-sm font-semibold text-[#0f1419] outline-none focus:ring-2 focus:ring-[#1d9bf0]"
             >
-              <option value="all">All</option>
+              <option value="all">All saved</option>
               <option value="favorites">Starred</option>
+              <option value="articles">Articles</option>
+              <option value="media">Media</option>
+              <option value="photos">Photos</option>
+              <option value="videos">Videos</option>
+              <option value="text">Text only</option>
             </select>
           </label>
 
@@ -248,12 +269,12 @@ export function BookmarksApp() {
       <p className="w-full border-b border-[#eff3f4] bg-white px-4 py-3 text-sm text-[#536471]">
         {error
           ? error
-          : `${number(visiblePosts.length)} of ${number(posts.length)} bookmarks from /data/claude-code-bookmarks.json · ${searchStatus}`}
+          : `Showing ${number(displayedPosts.length)} of ${number(visiblePosts.length)} matching saved posts from /data/all-bookmarks.json · ${searchStatus}`}
       </p>
 
       {error ? null : (
         <section className="w-full columns-1 gap-4 p-4 sm:columns-[20rem]">
-          {visiblePosts.map((post) => (
+          {displayedPosts.map((post) => (
             <BookmarkCard
               key={post.id}
               post={post}
@@ -263,6 +284,18 @@ export function BookmarksApp() {
           ))}
         </section>
       )}
+
+      {!error && visiblePosts.length > displayedPosts.length ? (
+        <div className="grid w-full place-items-center px-4 pb-8">
+          <button
+            type="button"
+            onClick={() => setVisibleLimit((current) => current + PAGE_SIZE)}
+            className="min-h-11 rounded-full border border-[#cfd9de] bg-white px-5 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
+          >
+            Load {number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length))} more
+          </button>
+        </div>
+      ) : null}
 
       {!error && visiblePosts.length === 0 ? (
         <section className="w-full p-12 text-center text-[#536471]">

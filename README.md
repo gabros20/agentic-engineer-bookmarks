@@ -1,6 +1,6 @@
-# Claude Code Bookmarks
+# X Bookmarks
 
-A small Next.js app for browsing Claude Code-related posts saved from X bookmarks.
+A small Next.js app for browsing saved X bookmarks.
 
 The app renders a static JSON export as searchable cards, supports local hybrid semantic search, lets you sort and filter the collection, and stores starred posts in browser `localStorage`.
 
@@ -14,7 +14,7 @@ The app renders a static JSON export as searchable cards, supports local hybrid 
 Bookmark data lives at:
 
 ```text
-public/data/claude-code-bookmarks.json
+public/data/all-bookmarks.json
 ```
 
 The semantic search index lives at:
@@ -25,8 +25,10 @@ public/data/search-index.json
 
 Current export:
 
-- `306` Claude Code-related bookmark matches
-- `4,610` total bookmarks scanned
+- `4,610` saved posts
+- `112` X Article bookmarks
+- `3,883` posts with media
+- `2,001` posts with video/GIF media
 - Generated at `2026-05-27T19:40:10+00:00`
 - Source: X bookmarks fetched through `twitter-cli`
 
@@ -41,7 +43,8 @@ localStorage["claude-code-bookmarks:favorites"]
 - Hybrid search with local semantic embeddings plus keyword matching
 - Search by post text, author, handle, URL, article title, and quoted post text
 - Sort by newest, oldest, most bookmarked, or most liked
-- Filter to starred posts
+- Filter to starred, article, media, photo, video, or text-only posts
+- Load the full archive in browser-friendly chunks
 - Star/unstar posts with local persistence
 - Open the original post on `x.com`
 - Responsive card layout built with Tailwind CSS
@@ -109,7 +112,7 @@ vercel --prod
 Replace the static JSON file:
 
 ```text
-public/data/claude-code-bookmarks.json
+public/data/all-bookmarks.json
 ```
 
 Then rebuild:
@@ -122,7 +125,7 @@ npm run build
 Commit and push:
 
 ```bash
-git add public/data/claude-code-bookmarks.json public/data/search-index.json
+git add public/data/all-bookmarks.json public/data/search-index.json
 git commit -m "Update bookmark export"
 git push
 ```
