@@ -92,82 +92,81 @@ export function BookmarksApp() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-[min(1240px,calc(100vw-32px))] py-8 md:py-12">
-      <header className="grid gap-6 border-b-2 border-[#211d19] pb-6 md:grid-cols-[1fr_auto] md:items-end">
-        <div>
-          <p className="mb-3 max-w-xl text-sm font-bold uppercase tracking-[0.16em] text-[#c9432f]">
-            X bookmarks, locally curated
-          </p>
-          <h1 className="max-w-3xl font-serif text-[clamp(44px,7vw,100px)] font-black leading-[0.86] tracking-normal">
-            Claude Code Bookmarks
-          </h1>
-        </div>
+    <main className="mx-auto min-h-screen w-full max-w-[680px] border-x border-[#eff3f4] bg-white">
+      <header className="sticky top-0 z-20 border-b border-[#eff3f4] bg-white/90 px-4 py-3 backdrop-blur-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-extrabold leading-6 text-[#0f1419]">Claude Code Bookmarks</h1>
+            <p className="text-[13px] leading-5 text-[#536471]">
+              {number(posts.length)} matches from {number(payload?.metadata?.scanned_count ?? posts.length)} saved posts
+            </p>
+          </div>
 
-        <section className="grid grid-cols-2 border border-[#211d19] bg-[#fffdf8] shadow-[0_18px_50px_rgba(33,29,25,0.08)] sm:grid-cols-4">
-          <Stat value={posts.length} label="matches" />
-          <Stat value={visiblePosts.length} label="visible" />
-          <Stat value={favorites.size} label="starred" />
-          <Stat value={payload?.metadata?.scanned_count ?? posts.length} label="scanned" />
-        </section>
+          <div className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold text-white">
+            {number(favorites.size)} starred
+          </div>
+        </div>
       </header>
 
-      <section className="sticky top-0 z-10 my-5 grid gap-2 border border-[#211d19] bg-[#f7f1e6]/95 p-2 backdrop-blur md:grid-cols-[minmax(220px,1fr)_190px_160px_112px]">
+      <section className="grid gap-3 border-b border-[#eff3f4] bg-white p-4">
         <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#746b61]" size={17} />
+          <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#536471]" size={18} />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-h-11 w-full rounded border border-[#211d19] bg-[#fffdf8] pl-10 pr-3 text-[#211d19] outline-none focus:ring-4 focus:ring-[#c9432f]/15"
+            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-4 text-[15px] text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
             placeholder="Filter bookmarks"
             type="search"
           />
         </label>
 
-        <label className="relative block">
-          <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#746b61]" size={17} />
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value)}
-            className="min-h-11 w-full appearance-none rounded border border-[#211d19] bg-[#fffdf8] pl-10 pr-3 text-[#211d19] outline-none focus:ring-4 focus:ring-[#c9432f]/15"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="bookmarks">Most bookmarked</option>
-            <option value="likes">Most liked</option>
-          </select>
-        </label>
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+          <label className="relative block">
+            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#536471]" size={16} />
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+              className="min-h-10 w-full appearance-none rounded-full border border-[#cfd9de] bg-white pl-9 pr-3 text-sm font-semibold text-[#0f1419] outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="bookmarks">Saves</option>
+              <option value="likes">Likes</option>
+            </select>
+          </label>
 
-        <label className="relative block">
-          <Star className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#746b61]" size={17} />
-          <select
-            value={scope}
-            onChange={(event) => setScope(event.target.value)}
-            className="min-h-11 w-full appearance-none rounded border border-[#211d19] bg-[#fffdf8] pl-10 pr-3 text-[#211d19] outline-none focus:ring-4 focus:ring-[#c9432f]/15"
-          >
-            <option value="all">All posts</option>
-            <option value="favorites">Starred only</option>
-          </select>
-        </label>
+          <label className="relative block">
+            <Star className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#536471]" size={16} />
+            <select
+              value={scope}
+              onChange={(event) => setScope(event.target.value)}
+              className="min-h-10 w-full appearance-none rounded-full border border-[#cfd9de] bg-white pl-9 pr-3 text-sm font-semibold text-[#0f1419] outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+            >
+              <option value="all">All</option>
+              <option value="favorites">Starred</option>
+            </select>
+          </label>
 
-        <button
-          type="button"
-          onClick={() => {
-            setQuery("");
-            setSort("newest");
-            setScope("all");
-          }}
-          className="min-h-11 rounded border border-[#211d19] bg-[#fffdf8] px-3 font-extrabold text-[#211d19] transition hover:bg-[#211d19] hover:text-[#fffdf8]"
-        >
-          Clear
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setSort("newest");
+              setScope("all");
+            }}
+            className="min-h-10 rounded-full border border-[#cfd9de] bg-white px-4 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
+          >
+            Clear
+          </button>
+        </div>
       </section>
 
-      <p className="mb-3 text-sm text-[#746b61]">
+      <p className="border-b border-[#eff3f4] px-4 py-3 text-sm text-[#536471]">
         {error ? error : `${number(visiblePosts.length)} of ${number(posts.length)} bookmarks from /data/claude-code-bookmarks.json`}
       </p>
 
       {error ? null : (
-        <section className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4">
+        <section>
           {visiblePosts.map((post) => (
             <BookmarkCard
               key={post.id}
@@ -180,19 +179,10 @@ export function BookmarksApp() {
       )}
 
       {!error && visiblePosts.length === 0 ? (
-        <section className="border border-[#211d19] bg-[#fffdf8] p-10 text-center text-[#746b61]">
+        <section className="p-12 text-center text-[#536471]">
           No bookmarks match this filter.
         </section>
       ) : null}
     </main>
-  );
-}
-
-function Stat({ value, label }: { value?: number; label: string }) {
-  return (
-    <div className="min-w-24 border-l border-[#d7cbbd] p-3 first:border-l-0">
-      <strong className="block text-2xl leading-none">{number(value)}</strong>
-      <span className="mt-1.5 block text-[11px] uppercase tracking-[0.08em] text-[#746b61]">{label}</span>
-    </div>
   );
 }

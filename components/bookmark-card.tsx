@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Star } from "lucide-react";
+import { BarChart3, Heart, MessageCircle, Repeat2, Star } from "lucide-react";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 
 type BookmarkCardProps = {
@@ -26,6 +26,7 @@ function openPost(post: BookmarkPost) {
 export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCardProps) {
   const metrics = post.metrics ?? {};
   const date = post.createdAtLocal ?? post.createdAtISO ?? post.createdAt ?? "";
+  const media = post.media ?? [];
 
   return (
     <article
@@ -33,39 +34,39 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
       tabIndex={0}
       onClick={(event) => {
         const target = event.target as HTMLElement;
-        if (target.closest("a,button")) return;
+        if (target.closest("a,button,video")) return;
         openPost(post);
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") openPost(post);
       }}
-      className={[
-        "group grid min-w-0 cursor-pointer gap-4 rounded-lg border bg-[#fffdf8] p-4 shadow-[0_18px_50px_rgba(33,29,25,0.08)] transition",
-        isFavorite
-          ? "border-[#b98318] ring-4 ring-[#b98318]/20"
-          : "border-[#211d19] hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(33,29,25,0.12)]",
-      ].join(" ")}
+      className="group grid min-w-0 cursor-pointer grid-cols-[44px_1fr] gap-3 border-b border-[#eff3f4] bg-white px-4 py-3 transition hover:bg-[#f7f9f9]"
     >
-      <div className="grid min-w-0 grid-cols-[48px_1fr_auto] items-center gap-3">
+      <div className="pt-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          className="h-12 w-12 rounded-full border border-[#211d19] bg-[#e4ded3] object-cover"
+          className="h-11 w-11 rounded-full bg-[#eff3f4] object-cover"
           src={post.author.profileImageUrl ?? ""}
           alt=""
         />
-        <div className="min-w-0">
-          <div className="truncate font-extrabold">{post.author.name || "Unknown"}</div>
-          <div className="text-sm text-[#746b61]">@{post.author.screenName || "unknown"}</div>
-        </div>
-        <time className="text-right text-xs text-[#746b61]">{date}</time>
       </div>
 
-      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#211d19]">{post.text}</p>
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-[15px] leading-5">
+          <span className="truncate font-bold text-[#0f1419]">{post.author.name || "Unknown"}</span>
+          <span className="truncate text-[#536471]">@{post.author.screenName || "unknown"}</span>
+          <span className="text-[#536471]">·</span>
+          <time className="text-[#536471]">{date}</time>
+        </div>
 
-      {(post.articleTitle || (post.urls && post.urls.length > 0)) && (
-        <div className="flex flex-wrap gap-2">
+        <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-5 text-[#0f1419]">{post.text}</p>
+
+        {media.length > 0 ? <MediaGrid media={media} /> : null}
+
+        {(post.articleTitle || (post.urls && post.urls.length > 0)) && (
+          <div className="mt-3 flex flex-wrap gap-2">
           {post.articleTitle ? (
-            <span className="max-w-full truncate rounded-full border border-[#d7cbbd] bg-[#f3ede2] px-2.5 py-1 text-xs text-[#176c65]">
+            <span className="max-w-full truncate rounded-full border border-[#cfd9de] bg-[#f7f9f9] px-3 py-1 text-sm text-[#536471]">
               {post.articleTitle}
             </span>
           ) : null}
@@ -75,58 +76,124 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="max-w-full truncate rounded-full border border-[#d7cbbd] bg-[#f3ede2] px-2.5 py-1 text-xs text-[#176c65] underline-offset-2 hover:underline"
+              className="max-w-full truncate rounded-full border border-[#cfd9de] bg-white px-3 py-1 text-sm text-[#1d9bf0] hover:bg-[#eff3f4]"
             >
               {url}
             </a>
           ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex max-w-md items-center justify-between text-[#536471]">
+          <Metric icon={<MessageCircle size={18} />} value={metrics.replies} tone="reply" />
+          <Metric icon={<Repeat2 size={18} />} value={metrics.retweets} tone="repost" />
+          <Metric icon={<Heart size={18} />} value={metrics.likes} tone="like" />
+          <Metric icon={<BarChart3 size={18} />} value={metrics.views} tone="view" />
+          <button
+            type="button"
+            aria-pressed={isFavorite}
+            onClick={() => onToggleFavorite(post.id)}
+            className={[
+              "inline-flex h-9 min-w-9 items-center justify-center gap-1 rounded-full px-2 text-sm transition",
+              isFavorite ? "text-[#f91880] hover:bg-[#f91880]/10" : "text-[#536471] hover:bg-[#f91880]/10 hover:text-[#f91880]",
+            ].join(" ")}
+            title={isFavorite ? "Remove star" : "Star"}
+          >
+            <Star size={18} strokeWidth={2.2} fill={isFavorite ? "currentColor" : "none"} />
+            <span className="sr-only">{isFavorite ? "Starred" : "Star"}</span>
+          </button>
         </div>
-      )}
-
-      <div className="grid grid-cols-4 gap-2 border-t border-[#d7cbbd] pt-3 text-xs text-[#746b61]">
-        <span>
-          <b className="block text-[15px] text-[#211d19]">{formatNumber(metrics.bookmarks)}</b>
-          saves
-        </span>
-        <span>
-          <b className="block text-[15px] text-[#211d19]">{formatNumber(metrics.likes)}</b>
-          likes
-        </span>
-        <span>
-          <b className="block text-[15px] text-[#211d19]">{formatNumber(metrics.retweets)}</b>
-          reposts
-        </span>
-        <span>
-          <b className="block text-[15px] text-[#211d19]">{formatNumber(metrics.views)}</b>
-          views
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <a
-          href={postUrl(post)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-9 items-center gap-2 rounded border border-[#211d19] px-3 text-sm font-extrabold transition hover:bg-[#211d19] hover:text-[#fffdf8]"
-        >
-          Open
-          <ExternalLink size={15} strokeWidth={2.4} />
-        </a>
-        <button
-          type="button"
-          aria-pressed={isFavorite}
-          onClick={() => onToggleFavorite(post.id)}
-          className={[
-            "inline-flex min-h-9 items-center gap-2 rounded border px-3 text-sm font-extrabold transition",
-            isFavorite
-              ? "border-[#b98318] bg-[#fff3cf] text-[#6f4600]"
-              : "border-[#211d19] bg-[#fffdf8] text-[#211d19] hover:bg-[#211d19] hover:text-[#fffdf8]",
-          ].join(" ")}
-        >
-          <Star size={16} strokeWidth={2.4} fill={isFavorite ? "currentColor" : "none"} />
-          {isFavorite ? "Starred" : "Star"}
-        </button>
       </div>
     </article>
+  );
+}
+
+function Metric({
+  icon,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  value?: number;
+  tone: "reply" | "repost" | "like" | "view";
+}) {
+  const toneClass = {
+    reply: "hover:bg-[#1d9bf0]/10 hover:text-[#1d9bf0]",
+    repost: "hover:bg-[#00ba7c]/10 hover:text-[#00ba7c]",
+    like: "hover:bg-[#f91880]/10 hover:text-[#f91880]",
+    view: "hover:bg-[#1d9bf0]/10 hover:text-[#1d9bf0]",
+  }[tone];
+
+  return (
+    <span className={`inline-flex h-9 items-center gap-1 rounded-full px-2 text-sm transition ${toneClass}`}>
+      {icon}
+      <span>{formatNumber(value)}</span>
+    </span>
+  );
+}
+
+function MediaGrid({ media }: { media: NonNullable<BookmarkPost["media"]> }) {
+  const items = media.slice(0, 4);
+  const count = items.length;
+  const gridClass =
+    count === 1
+      ? "grid-cols-1"
+      : count === 2
+        ? "grid-cols-2"
+        : "grid-cols-2";
+
+  return (
+    <div className={`mt-3 grid overflow-hidden rounded-2xl border border-[#cfd9de] bg-[#eff3f4] ${gridClass}`}>
+      {items.map((item, index) => (
+        <MediaItem key={`${item.url}-${index}`} item={item} count={count} index={index} />
+      ))}
+    </div>
+  );
+}
+
+function MediaItem({
+  item,
+  count,
+  index,
+}: {
+  item: NonNullable<BookmarkPost["media"]>[number];
+  count: number;
+  index: number;
+}) {
+  const isVideo = item.type === "video" || item.type === "animated_gif";
+  const single = count === 1;
+  const tallThird = count === 3 && index === 0;
+
+  const className = [
+    "min-h-0 w-full bg-[#eff3f4] object-cover",
+    single ? "max-h-[520px] aspect-video" : "aspect-square border-[#cfd9de]",
+    count > 1 && index % 2 === 1 ? "border-l" : "",
+    count > 2 && index > 1 ? "border-t" : "",
+    tallThird ? "row-span-2 h-full" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (isVideo) {
+    return (
+      <video
+        className={className}
+        src={item.url}
+        controls
+        muted
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      src={item.url}
+      alt=""
+      loading="lazy"
+    />
   );
 }
