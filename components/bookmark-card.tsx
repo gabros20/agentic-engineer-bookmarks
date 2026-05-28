@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Film, Heart, MessageCircle, PlayCircle, Repeat2, Star } from "lucide-react";
+import { BarChart3, BookOpenText, Film, Heart, MessageCircle, PlayCircle, Repeat2, Star } from "lucide-react";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 
 type BookmarkCardProps = {
@@ -27,6 +27,8 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
   const metrics = post.metrics ?? {};
   const date = post.createdAtLocal ?? post.createdAtISO ?? post.createdAt ?? "";
   const media = post.media ?? [];
+  const articleUrl = (post.urls ?? []).find((url) => url.includes("/i/article/"));
+  const visibleUrls = (post.urls ?? []).filter((url) => url !== articleUrl).slice(0, 2);
 
   return (
     <article
@@ -62,26 +64,23 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
 
         {media.length > 0 ? <MediaGrid media={media} /> : null}
 
-        {(post.articleTitle || (post.urls && post.urls.length > 0)) && (
+        {post.articleTitle ? <ArticlePreview title={post.articleTitle} url={articleUrl} /> : null}
+
+        {visibleUrls.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-2">
-          {post.articleTitle ? (
-            <span className="max-w-full truncate rounded-full border border-[#cfd9de] bg-[#f7f9f9] px-2.5 py-1 text-xs text-[#536471]">
-              {post.articleTitle}
-            </span>
-          ) : null}
-          {(post.urls ?? []).slice(0, 2).map((url) => (
-            <a
-              key={url}
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="max-w-full truncate rounded-full border border-[#cfd9de] bg-white px-2.5 py-1 text-xs text-[#1d9bf0] hover:bg-[#eff3f4]"
-            >
-              {url}
-            </a>
-          ))}
+            {visibleUrls.map((url) => (
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="max-w-full truncate rounded-full border border-[#cfd9de] bg-white px-2.5 py-1 text-xs text-[#1d9bf0] hover:bg-[#eff3f4]"
+              >
+                {url}
+              </a>
+            ))}
           </div>
-        )}
+        ) : null}
 
         <div className="mt-2 flex items-center justify-between text-[#536471]">
           <Metric icon={<MessageCircle size={16} />} value={metrics.replies} tone="reply" />
@@ -104,6 +103,38 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
         </div>
       </div>
     </article>
+  );
+}
+
+function ArticlePreview({ title, url }: { title: string; url?: string }) {
+  const content = (
+    <>
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#536471]">
+        <BookOpenText size={14} />
+        X Article
+      </div>
+      <div className="mt-1 text-[14px] font-bold leading-5 text-[#0f1419]">{title}</div>
+      {url ? <div className="mt-1 truncate text-xs text-[#1d9bf0]">{url}</div> : null}
+    </>
+  );
+
+  if (!url) {
+    return (
+      <div className="mt-3 rounded-2xl border border-[#cfd9de] bg-[#f7f9f9] p-3">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 block rounded-2xl border border-[#cfd9de] bg-[#f7f9f9] p-3 transition hover:bg-[#eff3f4]"
+    >
+      {content}
+    </a>
   );
 }
 
