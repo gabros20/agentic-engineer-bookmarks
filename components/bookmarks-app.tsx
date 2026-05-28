@@ -5,10 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import {
   buildKeywordIndex,
+  expandSemanticQueries,
   keywordSearch,
   mergeHybridResults,
+  multiVectorSearch,
   type SearchIndexPayload,
-  vectorSearch,
 } from "@/lib/bookmark-search";
 import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
 
@@ -45,15 +46,21 @@ function byDate(post: BookmarkPost) {
   return new Date(post.createdAtISO ?? post.createdAt ?? 0).getTime();
 }
 
-async function embedQuery(query: string, model: string) {
+async function embedQueries(queries: string[], model: string) {
   const { pipeline } = await import("@huggingface/transformers");
   extractorPromise ??= pipeline("feature-extraction", model);
   const extractor = (await extractorPromise) as (
     text: string,
     options: { pooling: "mean"; normalize: boolean },
   ) => Promise<{ data: Iterable<number> }>;
-  const output = await extractor(query, { pooling: "mean", normalize: true });
-  return Array.from(output.data);
+  const embeddings: number[][] = [];
+
+  for (const query of queries) {
+    const output = await extractor(query, { pooling: "mean", normalize: true });
+    embeddings.push(Array.from(output.data));
+  }
+
+  return embeddings;
 }
 
 export function BookmarksApp() {
@@ -133,15 +140,16 @@ export function BookmarksApp() {
       return;
     }
 
-    setSearchStatus("Semantic search warming up");
+    const expandedQueries = expandSemanticQueries(q);
+    setSearchStatus(expandedQueries.length > 1 ? "Semantic expansion warming up" : "Semantic search warming up");
 
-    embedQuery(q, searchIndex.model)
-      .then((embedding) => {
+    embedQueries(expandedQueries, searchIndex.model)
+      .then((embeddings) => {
         if (cancelled) return;
-        const vectorResults = vectorSearch(searchIndex, embedding).slice(0, 600);
+        const vectorResults = multiVectorSearch(searchIndex, embeddings).slice(0, 900);
         const merged = mergeHybridResults(keywordResults, vectorResults);
         setHybridResults(new Map(merged.map((result) => [result.id, result.score])));
-        setSearchStatus("Hybrid semantic search");
+        setSearchStatus(expandedQueries.length > 1 ? "Hybrid semantic expansion" : "Hybrid semantic search");
       })
       .catch(() => {
         if (cancelled) return;
