@@ -2,7 +2,7 @@
 
 A small Next.js app for browsing Claude Code-related posts saved from X bookmarks.
 
-The app renders a static JSON export as searchable cards, lets you sort and filter the collection, and stores starred posts in browser `localStorage`.
+The app renders a static JSON export as searchable cards, supports local hybrid semantic search, lets you sort and filter the collection, and stores starred posts in browser `localStorage`.
 
 ## Live App
 
@@ -15,6 +15,12 @@ Bookmark data lives at:
 
 ```text
 public/data/claude-code-bookmarks.json
+```
+
+The semantic search index lives at:
+
+```text
+public/data/search-index.json
 ```
 
 Current export:
@@ -32,6 +38,7 @@ localStorage["claude-code-bookmarks:favorites"]
 
 ## Features
 
+- Hybrid search with local semantic embeddings plus keyword matching
 - Search by post text, author, handle, URL, article title, and quoted post text
 - Sort by newest, oldest, most bookmarked, or most liked
 - Filter to starred posts
@@ -44,6 +51,8 @@ localStorage["claude-code-bookmarks:favorites"]
 - Next.js `16.2.6`
 - React `19.2.6`
 - Tailwind CSS `4`
+- Transformers.js browser embeddings
+- Lunr keyword search
 - Lucide React icons
 - Vercel hosting
 
@@ -79,6 +88,12 @@ Build for production:
 npm run build
 ```
 
+Rebuild the semantic search index after changing bookmark data:
+
+```bash
+npm run build:search
+```
+
 ## Deployment
 
 The project is connected to Vercel and GitHub. Pushing to `main` updates the production project through Vercel's Git integration.
@@ -100,13 +115,14 @@ public/data/claude-code-bookmarks.json
 Then rebuild:
 
 ```bash
+npm run build:search
 npm run build
 ```
 
 Commit and push:
 
 ```bash
-git add public/data/claude-code-bookmarks.json
+git add public/data/claude-code-bookmarks.json public/data/search-index.json
 git commit -m "Update bookmark export"
 git push
 ```
@@ -114,5 +130,6 @@ git push
 ## Notes
 
 - The bookmark JSON is committed into the private repository.
+- Semantic search is static and Vercel-compatible. The app loads `search-index.json` and runs query embeddings in the browser, so no database or paid API is required.
 - Favorites are intentionally not synced across devices.
 - The app does not require any server API at runtime.

@@ -3,9 +3,19 @@
 import { Search, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
+import {
+  buildKeywordIndex,
+  keywordSearch,
+  mergeHybridResults,
+  type SearchIndexPayload,
+  vectorSearch,
+} from "@/lib/bookmark-search";
 import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
 
 const FAVORITES_KEY = "claude-code-bookmarks:favorites";
+const SEARCH_DEBOUNCE_MS = 350;
+
+let extractorPromise: Promise<unknown> | null = null;
 
 const formatter = new Intl.NumberFormat("en");
 
@@ -34,12 +44,27 @@ function byDate(post: BookmarkPost) {
   return new Date(post.createdAtISO ?? post.createdAt ?? 0).getTime();
 }
 
+async function embedQuery(query: string, model: string) {
+  const { pipeline } = await import("@huggingface/transformers");
+  extractorPromise ??= pipeline("feature-extraction", model);
+  const extractor = (await extractorPromise) as (
+    text: string,
+    options: { pooling: "mean"; normalize: boolean },
+  ) => Promise<{ data: Iterable<number> }>;
+  const output = await extractor(query, { pooling: "mean", normalize: true });
+  return Array.from(output.data);
+}
+
 export function BookmarksApp() {
   const [payload, setPayload] = useState<BookmarkPayload | null>(null);
+  const [searchIndex, setSearchIndex] = useState<SearchIndexPayload | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sort, setSort] = useState("newest");
   const [scope, setScope] = useState("all");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
+  const [searchStatus, setSearchStatus] = useState("Keyword search");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,6 +75,16 @@ export function BookmarksApp() {
       })
       .then(setPayload)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not load bookmarks"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/search-index.json")
+      .then((response) => {
+        if (!response.ok) throw new Error(`Could not load semantic index (${response.status})`);
+        return response.json() as Promise<SearchIndexPayload>;
+      })
+      .then(setSearchIndex)
+      .catch(() => setSearchStatus("Keyword search"));
   }, []);
 
   useEffect(() => {
@@ -67,20 +102,69 @@ export function BookmarksApp() {
     window.localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
   }, [favorites]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+
   const posts = payload?.data ?? [];
+  const keywordIndex = useMemo(() => (posts.length ? buildKeywordIndex(posts) : null), [posts]);
+
+  useEffect(() => {
+    const q = debouncedQuery.trim();
+    if (!q || !keywordIndex) {
+      setHybridResults(null);
+      setSearchStatus(searchIndex ? "Semantic search ready" : "Keyword search");
+      return;
+    }
+
+    let cancelled = false;
+    const keywordResults = keywordSearch(keywordIndex, q);
+
+    if (!searchIndex) {
+      setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
+      setSearchStatus("Keyword search");
+      return;
+    }
+
+    setSearchStatus("Semantic search warming up");
+
+    embedQuery(q, searchIndex.model)
+      .then((embedding) => {
+        if (cancelled) return;
+        const vectorResults = vectorSearch(searchIndex, embedding);
+        const merged = mergeHybridResults(keywordResults, vectorResults);
+        setHybridResults(new Map(merged.map((result) => [result.id, result.score])));
+        setSearchStatus("Hybrid semantic search");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
+        setSearchStatus("Keyword search");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, keywordIndex, searchIndex]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
     const scoped = scope === "favorites" ? posts.filter((post) => favorites.has(post.id)) : posts;
-    const filtered = q ? scoped.filter((post) => searchable(post).includes(q)) : scoped;
+    const filtered = q
+      ? hybridResults
+        ? scoped.filter((post) => hybridResults.has(post.id))
+        : scoped.filter((post) => searchable(post).includes(q))
+      : scoped;
 
     return [...filtered].sort((a, b) => {
+      if (q && hybridResults) return (hybridResults.get(b.id) ?? 0) - (hybridResults.get(a.id) ?? 0);
       if (sort === "oldest") return byDate(a) - byDate(b);
       if (sort === "bookmarks") return (b.metrics?.bookmarks ?? 0) - (a.metrics?.bookmarks ?? 0);
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
       return byDate(b) - byDate(a);
     });
-  }, [favorites, posts, query, scope, sort]);
+  }, [favorites, hybridResults, posts, query, scope, sort]);
 
   function toggleFavorite(id: string) {
     setFavorites((current) => {
@@ -162,7 +246,9 @@ export function BookmarksApp() {
       </section>
 
       <p className="w-full border-b border-[#eff3f4] bg-white px-4 py-3 text-sm text-[#536471]">
-        {error ? error : `${number(visiblePosts.length)} of ${number(posts.length)} bookmarks from /data/claude-code-bookmarks.json`}
+        {error
+          ? error
+          : `${number(visiblePosts.length)} of ${number(posts.length)} bookmarks from /data/claude-code-bookmarks.json · ${searchStatus}`}
       </p>
 
       {error ? null : (
