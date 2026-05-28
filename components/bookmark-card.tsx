@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Heart, MessageCircle, Repeat2, Star } from "lucide-react";
+import { BarChart3, Film, Heart, MessageCircle, PlayCircle, Repeat2, Star } from "lucide-react";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 
 type BookmarkCardProps = {
@@ -176,14 +176,21 @@ function MediaItem({
 
   if (isVideo) {
     return (
-      <video
-        className={className}
-        src={item.url}
-        controls
-        muted
-        playsInline
-        preload="metadata"
-      />
+      <div
+        className={`${className} flex items-center justify-center`}
+        aria-label={item.type === "animated_gif" ? "Animated GIF on X" : "Video on X"}
+      >
+        <div className="grid justify-items-center gap-2 px-4 text-center text-[#536471]">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-[#0f1419]/85 text-white shadow-sm">
+            <PlayCircle size={30} strokeWidth={2.2} />
+          </div>
+          <div className="flex items-center gap-1.5 text-sm font-bold text-[#0f1419]">
+            <Film size={16} />
+            {item.type === "animated_gif" ? "GIF on X" : "Video on X"}
+          </div>
+          <p className="max-w-48 text-xs leading-4">Open the original post to watch this media.</p>
+        </div>
+      </div>
     );
   }
 
