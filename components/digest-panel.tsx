@@ -8,14 +8,13 @@ import { getDigest, saveDigest, type SavedDigest } from "@/lib/digest-cache";
 import { useLanguage } from "@/lib/i18n";
 
 type Props = {
-  open: boolean;
   query: string;
   sources?: DigestSource[];
   initialCached?: SavedDigest;
   onClose: () => void;
 };
 
-export function DigestPanel({ open, query, sources, initialCached, onClose }: Props) {
+export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   const { lang, t } = useLanguage();
   const { object, submit, isLoading, error, stop } = useObject({
     api: "/api/digest",
@@ -26,8 +25,8 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
   const lastSubmittedRef = useRef<string | null>(null);
   const savedForRef = useRef<string | null>(null);
 
+  // The parent remounts this component (via `key`) per open, so this runs exactly once per session.
   useEffect(() => {
-    if (!open) return;
     if (initialCached) {
       setCached(initialCached);
       return;
@@ -38,12 +37,16 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
       return;
     }
     if (!sources?.length) return;
-    setCached(null);
     const key = `${query}::${lang}::${sources.map((s) => s.id).join(",")}`;
-    if (lastSubmittedRef.current === key) return;
     lastSubmittedRef.current = key;
     submit({ query, sources, language: lang });
-  }, [open, query, sources, initialCached, submit, lang]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cancel any in-flight stream when this instance unmounts.
+  useEffect(() => {
+    return () => stop();
+  }, [stop]);
 
   useEffect(() => {
     if (cached) return;
@@ -80,7 +83,6 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
   }, [object, isLoading, error, query, sources, cached]);
 
   useEffect(() => {
-    if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         stop();
@@ -89,14 +91,12 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, stop]);
+  }, [onClose, stop]);
 
   const display = useMemo(() => {
     if (cached) return { themes: cached.themes, overall: cached.overall, mode: "cached" as const };
     return { themes: object?.themes ?? [], overall: object?.overall ?? "", mode: "live" as const };
   }, [cached, object]);
-
-  if (!open) return null;
 
   const canRegenerate = Boolean(sources?.length);
   const sourceCount = cached ? cached.sourceCount : sources?.length ?? 0;

@@ -440,13 +440,16 @@ export function BookmarksApp() {
         </section>
       ) : null}
 
-      {digestPayload ? (
+      {digestOpen && digestPayload ? (
         <DigestPanel
-          open={digestOpen}
+          key={`${digestPayload.query}::${digestPayload.initialCached?.createdAt ?? "live"}`}
           query={digestPayload.query}
           sources={digestPayload.sources}
           initialCached={digestPayload.initialCached}
-          onClose={() => setDigestOpen(false)}
+          onClose={() => {
+            setDigestOpen(false);
+            setDigestPayload(null);
+          }}
         />
       ) : null}
 
