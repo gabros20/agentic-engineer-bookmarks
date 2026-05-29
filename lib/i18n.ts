@@ -143,7 +143,7 @@ export const messages = {
     "status.exactHybrid": "Pontos hibrid keresés",
     "status.broadExpansion": "Bő hibrid bővítés",
     "status.broadHybrid": "Bő hibrid keresés",
-    "status.summary": "{shown} / {total} találat · {status}",
+    "status.summary": "{shown} megjelenítve · {total} mentett poszt · {status}",
 
     "empty.results": "Nincs ennek a szűrőnek megfelelő könyvjelző.",
 
