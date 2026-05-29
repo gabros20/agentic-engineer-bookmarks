@@ -10,7 +10,7 @@ export const maxDuration = 60;
 // gpt-4.1-nano is fast (~5-7s for 30 sources), cheap, follows the
 // language instruction reliably for both EN and HU, and produces
 // well-clustered themes via OpenRouter tool calling.
-const MODEL = "openai/gpt-4.1-nano";
+const MODEL = "openai/gpt-5.4-nano";
 
 export async function POST(request: NextRequest) {
   const expected = process.env.DIGEST_UNLOCK_SECRET;
