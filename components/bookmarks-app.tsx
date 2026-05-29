@@ -12,6 +12,7 @@ import { UnlockForm } from "@/components/unlock-form";
 import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
+import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
 import {
   applyRelativeFloor,
@@ -130,24 +131,25 @@ export function BookmarksApp() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Fetch + parse both JSON payloads in a Web Worker so JSON.parse
+  // doesn't freeze the main thread on a 10 MB string. Each result is
+  // posted back independently so cards can render the moment bookmarks
+  // are ready, even before the search index finishes.
   useEffect(() => {
-    fetch("/data/all-bookmarks.json")
-      .then((response) => {
-        if (!response.ok) throw new Error(`Could not load bookmarks (${response.status})`);
-        return response.json() as Promise<BookmarkPayload>;
-      })
-      .then(setPayload)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not load bookmarks"));
-  }, []);
-
-  useEffect(() => {
-    fetch("/data/search-index.json")
-      .then((response) => {
-        if (!response.ok) throw new Error(`Could not load semantic index (${response.status})`);
-        return response.json() as Promise<SearchIndexPayload>;
-      })
-      .then(setSearchIndex)
-      .catch(() => setSearchStatusKey("status.keyword"));
+    const worker = new Worker(new URL("../lib/data-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    worker.onmessage = (event: MessageEvent<DataWorkerMessage>) => {
+      const msg = event.data;
+      if (msg.type === "bookmarks") setPayload(msg.payload as BookmarkPayload);
+      else if (msg.type === "searchIndex") setSearchIndex(msg.payload as SearchIndexPayload);
+      else if (msg.type === "error") {
+        if (msg.which === "bookmarks") setError(msg.message);
+        else setSearchStatusKey("status.keyword");
+      }
+    };
+    worker.postMessage("load");
+    return () => worker.terminate();
   }, []);
 
   useEffect(() => {
@@ -256,6 +258,29 @@ export function BookmarksApp() {
   }, [favorites, hybridResults, posts, query, scope, sort]);
 
   const displayedPosts = visiblePosts.slice(0, visibleLimit);
+
+  function BookmarkCardSkeleton({ index }: { index: number }) {
+    // Vary heights so the masonry column pattern feels organic.
+    const heights = ["h-44", "h-56", "h-36", "h-52", "h-40", "h-60", "h-48", "h-44"];
+    const h = heights[index % heights.length];
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: index * 0.04, duration: 0.25 }}
+        className={`mb-4 inline-block w-full break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] p-4 align-top`}
+      >
+        <div className="flex items-center gap-2">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-[color:var(--color-hairline)]" />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <div className="h-3 w-24 animate-pulse rounded bg-[color:var(--color-hairline)]" />
+            <div className="h-3 w-16 animate-pulse rounded bg-[color:var(--color-hairline-soft)]" />
+          </div>
+        </div>
+        <div className={`mt-3 ${h} animate-pulse rounded-md bg-[color:var(--color-hairline-soft)]`} />
+      </motion.div>
+    );
+  }
 
   function toggleFavorite(id: string) {
     setFavorites((current) => {
@@ -430,7 +455,13 @@ export function BookmarksApp() {
             })}
       </p>
 
-      {error ? null : (
+      {error ? null : payload === null ? (
+        <section aria-busy="true" className="w-full columns-1 gap-4 p-4 sm:columns-[20rem]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <BookmarkCardSkeleton key={i} index={i} />
+          ))}
+        </section>
+      ) : (
         <section className="w-full columns-1 gap-4 p-4 sm:columns-[20rem]">
           {displayedPosts.map((post) => (
             <BookmarkCard
