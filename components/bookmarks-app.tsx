@@ -7,6 +7,7 @@ import { BookmarkCard } from "@/components/bookmark-card";
 import { DigestPanel } from "@/components/digest-panel";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
+import { Select } from "@/components/ui/select";
 import { UnlockForm } from "@/components/unlock-form";
 import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
@@ -344,49 +345,49 @@ export function BookmarksApp() {
         </label>
 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-          <label className="relative block">
-            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={16} />
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value)}
-              className="min-h-10 w-full appearance-none rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-3 text-sm font-medium text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
-            >
-              <option value="newest">{t("sort.newest")}</option>
-              <option value="oldest">{t("sort.oldest")}</option>
-              <option value="bookmarks">{t("sort.bookmarks")}</option>
-              <option value="likes">{t("sort.likes")}</option>
-            </select>
-          </label>
+          <Select
+            value={sort}
+            onValueChange={setSort}
+            ariaLabel={t("sort.newest")}
+            leadingIcon={<SlidersHorizontal size={14} />}
+            options={[
+              { value: "newest", label: t("sort.newest") },
+              { value: "oldest", label: t("sort.oldest") },
+              { value: "bookmarks", label: t("sort.bookmarks") },
+              { value: "likes", label: t("sort.likes") },
+            ]}
+          />
 
-          <label className="relative block">
-            <Star className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={16} />
-            <select
-              value={scope}
-              onChange={(event) => setScope(event.target.value)}
-              className="min-h-10 w-full appearance-none rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-3 text-sm font-medium text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
-            >
-              <option value="all">{t("scope.all")}</option>
-              <option value="favorites">{t("scope.favorites")}</option>
-              <option value="articles">{t("scope.articles")}</option>
-              <option value="media">{t("scope.media")}</option>
-              <option value="photos">{t("scope.photos")}</option>
-              <option value="videos">{t("scope.videos")}</option>
-              <option value="text">{t("scope.text")}</option>
-            </select>
-          </label>
+          <Select
+            value={scope}
+            onValueChange={setScope}
+            ariaLabel={t("scope.all")}
+            leadingIcon={<Star size={14} />}
+            options={[
+              { value: "all", label: t("scope.all") },
+              { value: "favorites", label: t("scope.favorites") },
+              { value: "articles", label: t("scope.articles") },
+              { value: "media", label: t("scope.media") },
+              { value: "photos", label: t("scope.photos") },
+              { value: "videos", label: t("scope.videos") },
+              { value: "text", label: t("scope.text") },
+            ]}
+          />
 
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
             onClick={() => {
               setQuery("");
               setSort("newest");
               setScope("all");
               setPrecision("exact");
             }}
-            className="min-h-10 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+            className="min-h-10 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface-card)]"
           >
             {t("action.clear")}
-          </button>
+          </motion.button>
         </div>
 
         <AnimatePresence initial={false}>

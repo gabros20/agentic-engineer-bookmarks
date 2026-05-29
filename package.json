@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.195",
+    "@base-ui-components/react": "^1.0.0-rc.0",
     "@huggingface/transformers": "^4.2.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "ai": "^6.0.193",
@@ -19,6 +20,7 @@
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "react-remove-scroll": "^2.7.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

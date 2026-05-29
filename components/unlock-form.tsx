@@ -2,6 +2,7 @@
 
 import { KeyRound, Loader2, X } from "lucide-react";
 import { motion } from "motion/react";
+import { RemoveScroll } from "react-remove-scroll";
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/i18n";
 
@@ -59,7 +60,7 @@ export function UnlockForm({ onClose, onUnlocked }: Props) {
   }
 
   return (
-    <>
+    <RemoveScroll>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -120,6 +121,6 @@ export function UnlockForm({ onClose, onUnlocked }: Props) {
           </motion.button>
         </form>
       </motion.div>
-    </>
+    </RemoveScroll>
   );
 }
