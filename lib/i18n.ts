@@ -93,6 +93,17 @@ export const messages = {
     "time.minutes": "{n}m ago",
     "time.hours": "{n}h ago",
     "time.days": "{n}d ago",
+
+    "chat.title": "Ask AI",
+    "chat.placeholder": "Ask about your bookmarks…",
+    "chat.empty": "Press ⌘K anytime. Ask about a topic, an author, a recent save — the AI can search your archive.",
+    "chat.save": "Save",
+    "chat.saved": "Saved",
+    "chat.savedBadge": "SAVED",
+    "chat.aria.close": "Close chat",
+    "chat.contextSearch": "Context: {n} sources from \"{q}\"",
+    "chat.contextNone": "No active search · the AI will use tools to look things up",
+    "chat.openHint": "⌘K to chat",
   },
   hu: {
     "app.title": "X Könyvjelzők",
@@ -171,6 +182,17 @@ export const messages = {
     "time.minutes": "{n} perce",
     "time.hours": "{n} órája",
     "time.days": "{n} napja",
+
+    "chat.title": "Kérdezz az AI-tól",
+    "chat.placeholder": "Kérdezz a könyvjelzőkről…",
+    "chat.empty": "Bármikor ⌘K. Kérdezz témáról, szerzőről, frissen mentettről — az AI átkutatja az archívumot.",
+    "chat.save": "Mentés",
+    "chat.saved": "Mentve",
+    "chat.savedBadge": "MENTVE",
+    "chat.aria.close": "Csevegés bezárása",
+    "chat.contextSearch": "Kontextus: {n} forrás innen: \"{q}\"",
+    "chat.contextNone": "Nincs aktív keresés · az AI eszközökkel keres majd",
+    "chat.openHint": "⌘K csevegéshez",
   },
 } as const;
 

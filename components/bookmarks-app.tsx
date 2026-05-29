@@ -1,19 +1,29 @@
 "use client";
 
-import { ArrowUp, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import { ArrowUp, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
+import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { SavedChatsPanel } from "@/components/saved-chats-panel";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
-import { Select } from "@/components/ui/select";
+import { OptionSelect } from "@/components/ui/select";
 import { UnlockForm } from "@/components/unlock-form";
-import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
+import { listSavedChats, type SavedChat } from "@/lib/chat-history";
+import type {
+  GetBookmarkInput,
+  GetBookmarkResult,
+  SearchBookmarksInput,
+  SearchBookmarksResult,
+} from "@/lib/chat-tools";
+import { getDigest, listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
 import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
+import type { UIMessage } from "ai";
 import {
   applyRelativeFloor,
   buildKeywordIndex,
@@ -77,7 +87,7 @@ async function embedQueries(queries: string[], model: string) {
 }
 
 export function BookmarksApp() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [payload, setPayload] = useState<BookmarkPayload | null>(null);
   const [searchIndex, setSearchIndex] = useState<SearchIndexPayload | null>(null);
   const [query, setQuery] = useState("");
@@ -112,13 +122,22 @@ export function BookmarksApp() {
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [pendingDigest, setPendingDigest] = useState<{ query: string; sources: DigestSource[] } | null>(null);
 
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
+  const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
+  const [savedChatsCount, setSavedChatsCount] = useState(0);
+  const [pendingChatOpen, setPendingChatOpen] = useState(false);
+
   useEffect(() => {
     setSavedCount(listSavedDigests().length);
+    setSavedChatsCount(listSavedChats().length);
   }, []);
 
   useEffect(() => {
     if (!savedOpen && !digestOpen) setSavedCount(listSavedDigests().length);
-  }, [savedOpen, digestOpen]);
+    if (!chatOpen && !chatHistoryOpen) setSavedChatsCount(listSavedChats().length);
+  }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen]);
 
   useEffect(() => {
     setDigestUnlocked(document.cookie.split("; ").some((c) => c.startsWith("digest_ok=1")));
@@ -130,6 +149,28 @@ export function BookmarksApp() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // ⌘K / Ctrl+K to toggle the chat. Same passkey gate as the AI Digest CTA.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (chatOpen) {
+          setChatOpen(false);
+          return;
+        }
+        if (digestUnlocked) {
+          setChatHistoryMessages(null);
+          setChatOpen(true);
+        } else {
+          setPendingChatOpen(true);
+          setUnlockOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatOpen, digestUnlocked]);
 
   // Fetch + parse both JSON payloads in a Web Worker so JSON.parse
   // doesn't freeze the main thread on a 10 MB string. Each result is
@@ -259,6 +300,76 @@ export function BookmarksApp() {
 
   const displayedPosts = visiblePosts.slice(0, visibleLimit);
 
+  // Chat context snapshot taken whenever the chat opens.
+  const chatContext = useMemo<ChatContextSnapshot>(() => {
+    const q = query.trim();
+    return {
+      language: lang,
+      query: q || null,
+      precision: q ? precision : null,
+      sources: visiblePosts.slice(0, 20).map(toDigestSource),
+      digest: q ? getDigest(q) : null,
+    };
+  }, [lang, query, precision, visiblePosts]);
+
+  // search_bookmarks tool executor — runs the same hybrid search the live UI uses.
+  async function runChatSearch(input: SearchBookmarksInput): Promise<SearchBookmarksResult> {
+    const q = input.query.trim();
+    if (!q || !keywordIndex || posts.length === 0) return { count: 0, results: [] };
+    const kw = keywordSearch(keywordIndex, q);
+    let ranked: { id: string; score: number }[];
+    if (searchIndex) {
+      const queries = expandSemanticQueries(q, input.precision);
+      const embeddings = await embedQueries(queries, searchIndex.model);
+      const vec = multiVectorSearch(searchIndex, embeddings).slice(0, 900);
+      const merged = mergeHybridResults(kw, vec, input.precision);
+      ranked = input.precision === "exact" ? applyRelativeFloor(merged, 0.5) : merged;
+    } else {
+      ranked = kw;
+    }
+    const ids = new Set(ranked.map((r) => r.id));
+    const score = new Map(ranked.map((r) => [r.id, r.score]));
+    let pool = posts.filter((p) => ids.has(p.id));
+    if (input.filter === "article") pool = pool.filter((p) => p.articleTitle || p.articleText);
+    else if (input.filter === "media") pool = pool.filter((p) => (p.media?.length ?? 0) > 0);
+    else if (input.filter === "text") pool = pool.filter((p) => !(p.media?.length));
+    pool.sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
+    const top = pool.slice(0, input.limit);
+    return {
+      count: top.length,
+      results: top.map((p) => ({
+        id: p.id,
+        author: p.author?.name ?? p.author?.screenName ?? "",
+        screenName: p.author?.screenName ?? "",
+        text: (p.text ?? "").slice(0, 280),
+        articleTitle: p.articleTitle,
+        url: `https://x.com/${p.author?.screenName ?? "i"}/status/${p.id}`,
+        createdAt: p.createdAtISO ?? p.createdAt,
+        likes: p.metrics?.likes,
+        bookmarks: p.metrics?.bookmarks,
+      })),
+    };
+  }
+
+  function getChatBookmark(input: GetBookmarkInput): GetBookmarkResult {
+    const post = posts.find((p) => p.id === input.id);
+    if (!post) return { found: false };
+    return {
+      found: true,
+      bookmark: {
+        id: post.id,
+        author: post.author?.name ?? post.author?.screenName ?? "",
+        screenName: post.author?.screenName ?? "",
+        text: post.text ?? "",
+        articleTitle: post.articleTitle,
+        articleText: post.articleText,
+        url: `https://x.com/${post.author?.screenName ?? "i"}/status/${post.id}`,
+        createdAt: post.createdAtISO ?? post.createdAt,
+        metrics: post.metrics,
+      },
+    };
+  }
+
   function BookmarkCardSkeleton({ index }: { index: number }) {
     // Vary heights so the masonry column pattern feels organic.
     const heights = ["h-44", "h-56", "h-36", "h-52", "h-40", "h-60", "h-48", "h-44"];
@@ -306,16 +417,29 @@ export function BookmarksApp() {
 
           <div className="flex items-center gap-2">
             {digestUnlocked ? (
-              <button
-                type="button"
-                onClick={() => setSavedOpen(true)}
-                className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                aria-label={t("app.aria.savedDigests")}
-              >
-                <Sparkles size={14} className="text-[color:var(--color-primary)]" />
-                {number(savedCount)}
-                <span className="hidden sm:inline">{t("app.saved")}</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setChatHistoryOpen(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                  aria-label={t("chat.title")}
+                  title={t("chat.openHint")}
+                >
+                  <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
+                  {number(savedChatsCount)}
+                  <span className="hidden sm:inline">{t("chat.title")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSavedOpen(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                  aria-label={t("app.aria.savedDigests")}
+                >
+                  <Sparkles size={14} className="text-[color:var(--color-primary)]" />
+                  {number(savedCount)}
+                  <span className="hidden sm:inline">{t("app.saved")}</span>
+                </button>
+              </>
             ) : null}
             <div className="rounded-md bg-[color:var(--color-primary)] px-3 py-2 text-sm font-medium text-[color:var(--color-on-primary)]">
               {number(favorites.size)} <span className="hidden sm:inline">{t("app.starred")}</span>
@@ -370,7 +494,7 @@ export function BookmarksApp() {
         </label>
 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-          <Select
+          <OptionSelect
             value={sort}
             onValueChange={setSort}
             ariaLabel={t("sort.newest")}
@@ -383,7 +507,7 @@ export function BookmarksApp() {
             ]}
           />
 
-          <Select
+          <OptionSelect
             value={scope}
             onValueChange={setScope}
             ariaLabel={t("scope.all")}
@@ -526,6 +650,7 @@ export function BookmarksApp() {
             onClose={() => {
               setUnlockOpen(false);
               setPendingDigest(null);
+              setPendingChatOpen(false);
             }}
             onUnlocked={() => {
               setDigestUnlocked(true);
@@ -535,6 +660,40 @@ export function BookmarksApp() {
                 setPendingDigest(null);
                 setDigestOpen(true);
               }
+              if (pendingChatOpen) {
+                setPendingChatOpen(false);
+                setChatHistoryMessages(null);
+                setChatOpen(true);
+              }
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {chatOpen ? (
+          <CommandKChat
+            key={chatHistoryMessages ? "chat-history" : "chat-live"}
+            context={chatContext}
+            runSearch={runChatSearch}
+            getBookmark={getChatBookmark}
+            initialMessages={chatHistoryMessages ?? undefined}
+            onClose={() => {
+              setChatOpen(false);
+              setChatHistoryMessages(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {chatHistoryOpen ? (
+          <SavedChatsPanel
+            onClose={() => setChatHistoryOpen(false)}
+            onOpenChat={(saved) => {
+              setChatHistoryMessages(saved.messages as UIMessage[]);
+              setChatHistoryOpen(false);
+              setChatOpen(true);
             }}
           />
         ) : null}
