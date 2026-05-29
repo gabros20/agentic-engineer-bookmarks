@@ -269,7 +269,7 @@ export function BookmarksApp() {
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-4 py-4 backdrop-blur-xl">
         <div className="flex w-full items-start justify-between gap-4">
           <div>
-            <h1 className="font-display text-[28px] font-medium leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
+            <h1 className="font-display text-[28px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
               {t("app.title")}
             </h1>
             <p className="mt-1 text-[13px] leading-5 text-[color:var(--color-muted)]">

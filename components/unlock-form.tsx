@@ -78,7 +78,7 @@ export function UnlockForm({ open, onClose, onUnlocked }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 text-[color:var(--color-ink)]">
             <KeyRound size={18} className="text-[color:var(--color-primary)]" />
-            <h2 className="font-display text-[22px] font-medium leading-tight">{t("unlock.title")}</h2>
+            <h2 className="font-display text-[22px] leading-tight">{t("unlock.title")}</h2>
           </div>
           <button
             type="button"

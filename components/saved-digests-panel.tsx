@@ -47,7 +47,7 @@ export function SavedDigestsPanel({ open, onClose, onOpenDigest }: Props) {
         <header className="flex items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div className="flex items-center gap-2 text-[color:var(--color-ink)]">
             <Bookmark size={18} className="text-[color:var(--color-primary)]" />
-            <h2 className="font-display text-[22px] font-medium leading-tight">{t("saved.title")}</h2>
+            <h2 className="font-display text-[22px] leading-tight">{t("saved.title")}</h2>
             <span className="rounded-full bg-[color:var(--color-surface-card)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">{items.length}</span>
           </div>
           <button
@@ -75,7 +75,7 @@ export function SavedDigestsPanel({ open, onClose, onOpenDigest }: Props) {
                       onClick={() => onOpenDigest(item)}
                       className="block w-full rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-3 text-left transition hover:border-[color:var(--color-primary)]/30 hover:bg-[color:var(--color-surface-cream-strong)]"
                     >
-                      <div className="font-display text-[18px] font-medium leading-snug text-[color:var(--color-ink)] pr-9">{item.query}</div>
+                      <div className="font-display text-[18px] leading-snug text-[color:var(--color-ink)] pr-9">{item.query}</div>
                       <div className="mt-1 text-[12px] text-[color:var(--color-muted)]">
                         {themeLabel} · {sourceLabel} · {formatAge(item.createdAt, t)}
                       </div>

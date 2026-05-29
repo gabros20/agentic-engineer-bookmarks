@@ -127,7 +127,7 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
         <header className="flex items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div className="flex items-center gap-2 text-[color:var(--color-ink)]">
             <Sparkles size={18} className="text-[color:var(--color-primary)]" />
-            <h2 className="font-display text-[22px] font-medium leading-tight">{t("digest.title")}</h2>
+            <h2 className="font-display text-[22px] leading-tight">{t("digest.title")}</h2>
             {isLoading ? <Loader2 size={14} className="animate-spin text-[color:var(--color-muted)]" /> : null}
             {display.mode === "cached" ? (
               <span className="rounded-full bg-[color:var(--color-surface-card)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">{t("digest.savedBadge")}</span>
@@ -189,7 +189,7 @@ export function DigestPanel({ open, query, sources, initialCached, onClose }: Pr
           <ul className="space-y-4">
             {display.themes.map((theme, i) => (
               <li key={i} className="rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-4">
-                <h3 className="font-display text-[18px] font-medium leading-snug text-[color:var(--color-ink)]">{theme?.title || "…"}</h3>
+                <h3 className="font-display text-[18px] leading-snug text-[color:var(--color-ink)]">{theme?.title || "…"}</h3>
                 {theme?.summary ? (
                   <p className="mt-1 text-[14px] leading-[1.55] text-[color:var(--color-body)]">{theme.summary}</p>
                 ) : null}

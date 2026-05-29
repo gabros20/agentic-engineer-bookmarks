@@ -115,7 +115,7 @@ function ArticlePreview({ title, url }: { title: string; url?: string }) {
         <BookOpenText size={14} />
         X Article
       </div>
-      <div className="mt-1 font-display text-[18px] font-medium leading-snug text-[color:var(--color-ink)]">{title}</div>
+      <div className="mt-1 font-display text-[18px] leading-snug text-[color:var(--color-ink)]">{title}</div>
       {url ? <div className="mt-1 truncate text-xs text-[color:var(--color-primary)]">{url}</div> : null}
     </>
   );
