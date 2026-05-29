@@ -273,6 +273,7 @@ export function BookmarksApp() {
               >
                 <Sparkles size={14} className="text-[#1d9bf0]" />
                 {number(savedCount)}
+                <span className="hidden sm:inline">saved</span>
               </button>
             ) : null}
             <div className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold text-white">
