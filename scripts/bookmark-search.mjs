@@ -36,6 +36,8 @@ const { values } = parseArgs({
     sort: { type: "string", short: "s", default: "relevance" },
     format: { type: "string", default: "compact" },
     mode: { type: "string", default: "hybrid" },
+    strict: { type: "boolean", default: false },
+    broad: { type: "boolean", default: false },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -53,7 +55,11 @@ Options:
   -s, --sort     <how>            relevance | newest | oldest | likes | bookmarks  (default relevance)
       --mode     <how>            hybrid | semantic | keyword  (default hybrid)
       --format   <kind>           compact | json  (default compact)
+      --strict                    force strict precision (no query expansion, keyword-weighted, score floor)
+      --broad                     force broad precision (disables the auto-strict heuristic for short queries)
   -h, --help
+
+Precision defaults to auto: queries with 1–2 tokens use strict, longer queries use broad. Use --strict / --broad to override.
 
 Output: JSON to stdout. Compact returns {id, score, author, text (truncated 240ch), url, createdAt, metrics}. json returns full BookmarkPost.
 `);
@@ -62,7 +68,15 @@ Output: JSON to stdout. Compact returns {id, score, author, text (truncated 240c
 
 const limit = Math.max(1, Math.min(500, Number(values.limit) || 20));
 
+const tokenCount = values.query.trim().split(/\s+/).filter(Boolean).length;
+const precision = values.broad
+  ? "broad"
+  : values.strict || tokenCount <= 2
+    ? "exact"
+    : "broad";
+
 const log = (...a) => console.error(...a);
+log(`precision: ${precision}${values.strict || values.broad ? "" : ` (auto from ${tokenCount} token${tokenCount === 1 ? "" : "s"})`}`);
 
 log("loading data…");
 const [bookmarks, index] = await Promise.all([
@@ -76,7 +90,7 @@ let semanticResults = [];
 if (values.mode !== "keyword") {
   log("loading model…");
   const extractor = await pipeline("feature-extraction", MODEL);
-  const queries = expandSemanticQueries(values.query);
+  const queries = expandSemanticQueries(values.query, precision);
   log(`embedding ${queries.length} query variant(s)…`);
   const embeddings = [];
   for (const q of queries) {
@@ -96,7 +110,9 @@ if (values.mode !== "semantic") {
 let ranked;
 if (values.mode === "semantic") ranked = semanticResults;
 else if (values.mode === "keyword") ranked = keywordResults;
-else ranked = mergeHybridResults(keywordResults, semanticResults);
+else ranked = mergeHybridResults(keywordResults, semanticResults, precision);
+
+if (precision === "exact") ranked = applyRelativeFloor(ranked, 0.5);
 
 let filtered = ranked
   .map((r) => ({ ...r, post: postById.get(r.id) }))
@@ -127,8 +143,9 @@ process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 
 // ---- helpers (parallel to lib/bookmark-search.ts) ----
 
-function expandSemanticQueries(query) {
+function expandSemanticQueries(query, precision = "broad") {
   const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (precision === "exact") return normalized ? [normalized] : [];
   const terms = lunr.tokenizer(normalized).map((t) => String(t)).filter(Boolean);
   const expansions = new Set([normalized]);
   const expandedTerms = terms.flatMap((t) => QUERY_EXPANSIONS[t] ?? []);
@@ -190,12 +207,21 @@ function multiVectorSearch(index, queryEmbeddings) {
     .sort((a, b) => b.score - a.score);
 }
 
-function mergeHybridResults(kw, vec) {
+function mergeHybridResults(kw, vec, precision = "broad") {
+  const [kwWeight, vecWeight] = precision === "exact" ? [0.6, 0.4] : [0.35, 0.65];
   const scores = new Map();
   const k = 60;
-  for (const [i, r] of kw.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + 0.35 / (k + i + 1));
-  for (const [i, r] of vec.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + 0.65 / (k + i + 1));
+  for (const [i, r] of kw.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + kwWeight / (k + i + 1));
+  for (const [i, r] of vec.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + vecWeight / (k + i + 1));
   return [...scores.entries()].map(([id, score]) => ({ id, score })).sort((a, b) => b.score - a.score);
+}
+
+function applyRelativeFloor(results, fraction) {
+  if (!results.length || fraction <= 0) return results;
+  const top = results[0].score;
+  if (top <= 0) return results;
+  const floor = top * fraction;
+  return results.filter((r) => r.score >= floor);
 }
 
 function dot(a, b) {

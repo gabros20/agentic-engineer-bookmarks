@@ -4,12 +4,14 @@ import { Search, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import {
+  applyRelativeFloor,
   buildKeywordIndex,
   expandSemanticQueries,
   keywordSearch,
   mergeHybridResults,
   multiVectorSearch,
   type SearchIndexPayload,
+  type SearchPrecision,
 } from "@/lib/bookmark-search";
 import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
 
@@ -70,6 +72,7 @@ export function BookmarksApp() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sort, setSort] = useState("newest");
   const [scope, setScope] = useState("all");
+  const [precision, setPrecision] = useState<SearchPrecision>("exact");
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
@@ -140,16 +143,29 @@ export function BookmarksApp() {
       return;
     }
 
-    const expandedQueries = expandSemanticQueries(q);
-    setSearchStatus(expandedQueries.length > 1 ? "Semantic expansion warming up" : "Semantic search warming up");
+    const expandedQueries = expandSemanticQueries(q, precision);
+    setSearchStatus(
+      precision === "exact"
+        ? "Exact semantic search warming up"
+        : expandedQueries.length > 1
+          ? "Broad semantic expansion warming up"
+          : "Broad semantic search warming up",
+    );
 
     embedQueries(expandedQueries, searchIndex.model)
       .then((embeddings) => {
         if (cancelled) return;
         const vectorResults = multiVectorSearch(searchIndex, embeddings).slice(0, 900);
-        const merged = mergeHybridResults(keywordResults, vectorResults);
-        setHybridResults(new Map(merged.map((result) => [result.id, result.score])));
-        setSearchStatus(expandedQueries.length > 1 ? "Hybrid semantic expansion" : "Hybrid semantic search");
+        const merged = mergeHybridResults(keywordResults, vectorResults, precision);
+        const finalResults = precision === "exact" ? applyRelativeFloor(merged, 0.5) : merged;
+        setHybridResults(new Map(finalResults.map((result) => [result.id, result.score])));
+        setSearchStatus(
+          precision === "exact"
+            ? "Exact hybrid search"
+            : expandedQueries.length > 1
+              ? "Broad hybrid expansion"
+              : "Broad hybrid search",
+        );
       })
       .catch(() => {
         if (cancelled) return;
@@ -160,7 +176,7 @@ export function BookmarksApp() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, keywordIndex, searchIndex]);
+  }, [debouncedQuery, keywordIndex, precision, searchIndex]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -222,10 +238,31 @@ export function BookmarksApp() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-4 text-[15px] text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
+            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-32 text-[15px] text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
             placeholder="Filter bookmarks"
             type="search"
           />
+          <div
+            role="group"
+            aria-label="Search precision"
+            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full bg-white p-0.5 text-[11px] font-bold shadow-sm ring-1 ring-[#cfd9de]"
+          >
+            {(["exact", "broad"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPrecision(value)}
+                aria-pressed={precision === value}
+                className={`min-h-8 rounded-full px-3 transition ${
+                  precision === value
+                    ? "bg-[#1d9bf0] text-white"
+                    : "text-[#536471] hover:bg-[#eff3f4]"
+                }`}
+              >
+                {value === "exact" ? "Exact" : "Broad"}
+              </button>
+            ))}
+          </div>
         </label>
 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -266,6 +303,7 @@ export function BookmarksApp() {
               setQuery("");
               setSort("newest");
               setScope("all");
+              setPrecision("exact");
             }}
             className="min-h-10 rounded-full border border-[#cfd9de] bg-white px-4 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
           >

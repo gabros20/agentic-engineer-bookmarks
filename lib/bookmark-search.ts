@@ -21,6 +21,13 @@ export type SearchResult = {
   score: number;
 };
 
+export type SearchPrecision = "exact" | "broad";
+
+const HYBRID_WEIGHTS: Record<SearchPrecision, { keyword: number; vector: number }> = {
+  exact: { keyword: 0.6, vector: 0.4 },
+  broad: { keyword: 0.35, vector: 0.65 },
+};
+
 const QUERY_EXPANSIONS: Record<string, string[]> = {
   ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],
   agent: ["agents", "agentic", "automation", "autonomous", "assistant", "workflow", "tool use"],
@@ -135,18 +142,25 @@ export function multiVectorSearch(index: SearchIndexPayload, queryEmbeddings: nu
     .sort((a, b) => b.score - a.score);
 }
 
-export function mergeHybridResults(keywordResults: SearchResult[], vectorResults: SearchResult[]) {
+export function mergeHybridResults(
+  keywordResults: SearchResult[],
+  vectorResults: SearchResult[],
+  precision: SearchPrecision = "broad",
+) {
+  const { keyword, vector } = HYBRID_WEIGHTS[precision];
   const scores = new Map<string, number>();
-  addReciprocalRanks(scores, keywordResults, 0.35);
-  addReciprocalRanks(scores, vectorResults, 0.65);
+  addReciprocalRanks(scores, keywordResults, keyword);
+  addReciprocalRanks(scores, vectorResults, vector);
 
   return [...scores.entries()]
     .map(([id, score]) => ({ id, score }))
     .sort((a, b) => b.score - a.score);
 }
 
-export function expandSemanticQueries(query: string) {
+export function expandSemanticQueries(query: string, precision: SearchPrecision = "broad") {
   const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (precision === "exact") return normalized ? [normalized] : [];
+
   const terms = queryTerms(normalized);
   const expansions = new Set<string>([normalized]);
   const expandedTerms = terms.flatMap((term) => QUERY_EXPANSIONS[term] ?? []);
@@ -163,6 +177,14 @@ export function expandSemanticQueries(query: string) {
   }
 
   return [...expansions].filter(Boolean).slice(0, 8);
+}
+
+export function applyRelativeFloor(results: SearchResult[], fraction: number) {
+  if (!results.length || fraction <= 0) return results;
+  const top = results[0].score;
+  if (top <= 0) return results;
+  const floor = top * fraction;
+  return results.filter((r) => r.score >= floor);
 }
 
 function addReciprocalRanks(scores: Map<string, number>, results: SearchResult[], weight: number) {
