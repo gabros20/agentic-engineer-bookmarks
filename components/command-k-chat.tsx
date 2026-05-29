@@ -18,6 +18,11 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
+import {
   PromptInput,
   PromptInputBody,
   PromptInputSubmit,
@@ -262,13 +267,16 @@ export function CommandKChat({
                           return <span key={i} className="whitespace-pre-wrap">{p.text}</span>;
                         }
                         if (p.type === "reasoning") {
+                          const part = p as { text: string; state?: "streaming" | "done" };
                           return (
-                            <MessageResponse
+                            <Reasoning
                               key={i}
-                              className="text-[12px] italic text-[color:var(--color-muted)]"
+                              isStreaming={part.state === "streaming"}
+                              className="text-[12px] text-[color:var(--color-muted)]"
                             >
-                              {p.text}
-                            </MessageResponse>
+                              <ReasoningTrigger />
+                              <ReasoningContent>{part.text}</ReasoningContent>
+                            </Reasoning>
                           );
                         }
                         if (p.type === "tool-search_bookmarks" || p.type === "tool-get_bookmark") {

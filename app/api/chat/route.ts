@@ -79,6 +79,11 @@ export async function POST(request: NextRequest) {
     },
     stopWhen: stepCountIs(10),
     temperature: 0.2,
+    providerOptions: {
+      openrouter: {
+        reasoning: { effort: "medium" },
+      },
+    },
   });
 
   return result.toUIMessageStreamResponse();
