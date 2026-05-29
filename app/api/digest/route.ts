@@ -7,7 +7,7 @@ import { DIGEST_SYSTEM_PROMPT, buildDigestUserPrompt } from "@/lib/digest-prompt
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = "anthropic/claude-haiku-4.5";
+const MODEL = "deepseek/deepseek-v4-pro";
 
 export async function POST(request: NextRequest) {
   const expected = process.env.DIGEST_UNLOCK_SECRET;
