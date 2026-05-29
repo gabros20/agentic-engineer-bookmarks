@@ -90,7 +90,7 @@ export function UnlockForm({ open, onClose, onUnlocked }: Props) {
         </div>
 
         <p className="mt-2 text-[13px] text-[#536471]">
-          Enter the passkey to enable AI digests on this device. Saved for one year.
+          Enter the passkey to enable AI digests on this device. Saved for 30 days.
         </p>
 
         <form onSubmit={submit} className="mt-4 grid gap-3">

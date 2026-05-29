@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export const runtime = "nodejs";
 
 const COOKIE_NAME = "digest_unlock";
-const ONE_YEAR_S = 60 * 60 * 24 * 365;
+const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 30;
 
 export async function POST(request: NextRequest) {
   const expected = process.env.DIGEST_UNLOCK_SECRET;
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: ONE_YEAR_S,
+    maxAge: COOKIE_MAX_AGE_S,
   };
 
   response.cookies.set(COOKIE_NAME, expected, { ...cookieOpts, httpOnly: true });
