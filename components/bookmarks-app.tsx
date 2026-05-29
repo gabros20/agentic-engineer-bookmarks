@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { DigestPanel } from "@/components/digest-panel";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
+import { UnlockForm } from "@/components/unlock-form";
 import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
@@ -93,6 +94,8 @@ export function BookmarksApp() {
   } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [pendingDigest, setPendingDigest] = useState<{ query: string; sources: DigestSource[] } | null>(null);
 
   useEffect(() => {
     setSavedCount(listSavedDigests().length);
@@ -358,13 +361,19 @@ export function BookmarksApp() {
           </button>
         </div>
 
-        {digestUnlocked && query.trim() && visiblePosts.length > 0 ? (
+        {query.trim() && visiblePosts.length > 0 ? (
           <button
             type="button"
             onClick={() => {
               const sources = visiblePosts.slice(0, 30).map(toDigestSource);
-              setDigestPayload({ query: query.trim(), sources });
-              setDigestOpen(true);
+              const payload = { query: query.trim(), sources };
+              if (digestUnlocked) {
+                setDigestPayload(payload);
+                setDigestOpen(true);
+              } else {
+                setPendingDigest(payload);
+                setUnlockOpen(true);
+              }
             }}
             className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#1d9bf0] to-[#7856ff] px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0] focus-visible:ring-offset-2"
           >
@@ -428,6 +437,23 @@ export function BookmarksApp() {
           setDigestPayload({ query: saved.query, initialCached: saved });
           setSavedOpen(false);
           setDigestOpen(true);
+        }}
+      />
+
+      <UnlockForm
+        open={unlockOpen}
+        onClose={() => {
+          setUnlockOpen(false);
+          setPendingDigest(null);
+        }}
+        onUnlocked={() => {
+          setDigestUnlocked(true);
+          setUnlockOpen(false);
+          if (pendingDigest) {
+            setDigestPayload(pendingDigest);
+            setPendingDigest(null);
+            setDigestOpen(true);
+          }
         }}
       />
 
