@@ -1,8 +1,11 @@
 "use client";
 
-import { ArrowUp, Search, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowUp, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
+import { DigestPanel } from "@/components/digest-panel";
+import { toDigestSource } from "@/lib/digest-source";
+import type { DigestSource } from "@/lib/digest-schema";
 import {
   applyRelativeFloor,
   buildKeywordIndex,
@@ -79,6 +82,13 @@ export function BookmarksApp() {
   const [searchStatus, setSearchStatus] = useState("Keyword search");
   const [error, setError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [digestUnlocked, setDigestUnlocked] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
+  const [digestPayload, setDigestPayload] = useState<{ query: string; sources: DigestSource[] } | null>(null);
+
+  useEffect(() => {
+    setDigestUnlocked(document.cookie.split("; ").some((c) => c.startsWith("digest_ok=1")));
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
@@ -318,6 +328,21 @@ export function BookmarksApp() {
             Clear
           </button>
         </div>
+
+        {digestUnlocked && query.trim() && visiblePosts.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              const sources = visiblePosts.slice(0, 30).map(toDigestSource);
+              setDigestPayload({ query: query.trim(), sources });
+              setDigestOpen(true);
+            }}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#1d9bf0] to-[#7856ff] px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0] focus-visible:ring-offset-2"
+          >
+            <Sparkles size={16} />
+            <span>Digest top {Math.min(30, visiblePosts.length)} with AI</span>
+          </button>
+        ) : null}
       </section>
 
       <p className="w-full border-b border-[#eff3f4] bg-white px-4 py-3 text-sm text-[#536471]">
@@ -355,6 +380,15 @@ export function BookmarksApp() {
         <section className="w-full p-12 text-center text-[#536471]">
           No bookmarks match this filter.
         </section>
+      ) : null}
+
+      {digestPayload ? (
+        <DigestPanel
+          open={digestOpen}
+          query={digestPayload.query}
+          sources={digestPayload.sources}
+          onClose={() => setDigestOpen(false)}
+        />
       ) : null}
 
       <button
