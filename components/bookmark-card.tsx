@@ -42,7 +42,7 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
       onKeyDown={(event) => {
         if (event.key === "Enter") openPost(post);
       }}
-      className="group mb-4 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] px-4 py-3 align-top transition hover:bg-[color:var(--color-surface-cream-strong)]"
+      className="group mb-4 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] px-4 py-3 align-top transition hover:bg-[color:var(--color-surface-card)]"
     >
       <div className="min-w-0">
         <div className="grid min-w-0 grid-cols-[40px_1fr] gap-2">
