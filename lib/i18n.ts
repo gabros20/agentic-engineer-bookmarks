@@ -95,6 +95,7 @@ export const messages = {
     "time.days": "{n}d ago",
 
     "chat.title": "Ask AI",
+    "chat.history": "Chat history",
     "chat.placeholder": "Ask about your bookmarks…",
     "chat.empty": "Press ⌘K anytime. Ask about a topic, an author, a recent save — the AI can search your archive.",
     "chat.save": "Save",
@@ -184,6 +185,7 @@ export const messages = {
     "time.days": "{n} napja",
 
     "chat.title": "Kérdezz az AI-tól",
+    "chat.history": "Csevegés-előzmények",
     "chat.placeholder": "Kérdezz a könyvjelzőkről…",
     "chat.empty": "Bármikor ⌘K. Kérdezz témáról, szerzőről, frissen mentettről — az AI átkutatja az archívumot.",
     "chat.save": "Mentés",

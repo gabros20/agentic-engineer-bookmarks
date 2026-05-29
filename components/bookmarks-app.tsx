@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import { ArrowUp, Bookmark as BookmarkIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
@@ -416,28 +416,48 @@ export function BookmarksApp() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (digestUnlocked) {
+                  setChatHistoryMessages(null);
+                  setChatOpen(true);
+                } else {
+                  setPendingChatOpen(true);
+                  setUnlockOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+              aria-label={t("chat.title")}
+              title={t("chat.openHint")}
+            >
+              <Sparkles size={14} className="text-[color:var(--color-primary)]" />
+              <span className="hidden sm:inline">{t("chat.title")}</span>
+              <kbd className="hidden rounded border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[color:var(--color-muted)] sm:inline">
+                ⌘K
+              </kbd>
+            </button>
             {digestUnlocked ? (
               <>
                 <button
                   type="button"
                   onClick={() => setChatHistoryOpen(true)}
                   className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                  aria-label={t("chat.title")}
-                  title={t("chat.openHint")}
+                  aria-label={t("chat.history")}
+                  title={t("chat.history")}
                 >
                   <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
                   {number(savedChatsCount)}
-                  <span className="hidden sm:inline">{t("chat.title")}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSavedOpen(true)}
                   className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
                   aria-label={t("app.aria.savedDigests")}
+                  title={t("app.saved")}
                 >
-                  <Sparkles size={14} className="text-[color:var(--color-primary)]" />
+                  <BookmarkIcon size={14} className="text-[color:var(--color-primary)]" />
                   {number(savedCount)}
-                  <span className="hidden sm:inline">{t("app.saved")}</span>
                 </button>
               </>
             ) : null}

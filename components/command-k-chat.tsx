@@ -9,7 +9,7 @@ import {
 import { BookmarkPlus, Check, Loader2, Sparkles, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { RemoveScroll } from "react-remove-scroll";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -128,6 +128,17 @@ export function CommandKChat({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Auto-focus the prompt textarea once mounted (works across the open animation).
+  // PromptInputTextarea doesn't forward refs, so query for the textarea inside our footer.
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isHistory) return;
+    const timer = window.setTimeout(() => {
+      footerRef.current?.querySelector("textarea")?.focus();
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [isHistory]);
 
   const [saved, setSaved] = useState(false);
   const handleSave = useCallback(() => {
@@ -286,7 +297,11 @@ export function CommandKChat({
         </Conversation>
 
         {!isHistory ? (
-          <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
+          <div
+            ref={footerRef}
+            className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+          >
             <PromptInput onSubmit={onSubmit}>
               <PromptInputBody>
                 <PromptInputTextarea
