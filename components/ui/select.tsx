@@ -191,18 +191,16 @@ export function OptionSelect<T extends string>({
       <SelectTrigger
         aria-label={ariaLabel}
         className={cn(
-          "h-10 w-full rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-3 pr-2 text-sm font-medium text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-card)] focus-visible:border-[color:var(--color-primary)] focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/15 data-[state=open]:border-[color:var(--color-primary)]",
+          "h-10 w-full justify-start gap-2 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-3 pr-2 text-sm font-medium text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-card)] focus-visible:border-[color:var(--color-primary)] focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/15 data-[state=open]:border-[color:var(--color-primary)] [&>span]:line-clamp-1 [&>svg.lucide-chevron-down]:ml-auto",
           className
         )}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {leadingIcon ? (
-            <span className="grid h-4 w-4 shrink-0 place-items-center text-[color:var(--color-muted)]">
-              {leadingIcon}
-            </span>
-          ) : null}
-          <SelectValue />
-        </span>
+        {leadingIcon ? (
+          <span className="grid h-4 w-4 shrink-0 place-items-center text-[color:var(--color-muted)]">
+            {leadingIcon}
+          </span>
+        ) : null}
+        <SelectValue className="min-w-0 flex-1 text-left" />
       </SelectTrigger>
       <SelectContent className="rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] py-1 text-sm shadow-[0_8px_24px_rgba(20,20,19,0.10)]">
         {options.map((opt) => (
