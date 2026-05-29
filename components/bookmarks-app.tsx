@@ -279,7 +279,6 @@ export function BookmarksApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            <LanguageSwitcher />
             {digestUnlocked ? (
               <button
                 type="button"
@@ -295,6 +294,7 @@ export function BookmarksApp() {
             <div className="rounded-md bg-[color:var(--color-primary)] px-3 py-2 text-sm font-medium text-[color:var(--color-on-primary)]">
               {number(favorites.size)} <span className="hidden sm:inline">{t("app.starred")}</span>
             </div>
+            <LanguageSwitcher />
           </div>
         </div>
       </header>
