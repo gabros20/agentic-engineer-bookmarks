@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUp, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { DigestPanel } from "@/components/digest-panel";
@@ -311,22 +312,33 @@ export function BookmarksApp() {
           <div
             role="group"
             aria-label={t("search.precision.aria")}
-            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[11px] font-semibold"
+            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[11px] font-semibold"
           >
             {(["exact", "broad"] as const).map((value) => (
-              <button
+              <motion.button
                 key={value}
                 type="button"
                 onClick={() => setPrecision(value)}
                 aria-pressed={precision === value}
-                className={`min-h-8 rounded-full px-3 transition ${
+                whileTap={{ scale: 0.94 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                className={`relative min-h-8 rounded-sm px-3 ${
                   precision === value
-                    ? "bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]"
-                    : "text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)]"
+                    ? "text-[color:var(--color-on-primary)]"
+                    : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
                 }`}
               >
-                {value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}
-              </button>
+                {precision === value ? (
+                  <motion.span
+                    layoutId="precision-active"
+                    className="absolute inset-0 rounded-sm bg-[color:var(--color-primary)]"
+                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                  />
+                ) : null}
+                <span className="relative">
+                  {value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}
+                </span>
+              </motion.button>
             ))}
           </div>
         </label>
@@ -377,26 +389,34 @@ export function BookmarksApp() {
           </button>
         </div>
 
-        {query.trim() && visiblePosts.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => {
-              const sources = visiblePosts.slice(0, 30).map(toDigestSource);
-              const payload = { query: query.trim(), sources };
-              if (digestUnlocked) {
-                setDigestPayload(payload);
-                setDigestOpen(true);
-              } else {
-                setPendingDigest(payload);
-                setUnlockOpen(true);
-              }
-            }}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
-          >
-            <Sparkles size={16} />
-            <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
-          </button>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {query.trim() && visiblePosts.length > 0 ? (
+            <motion.button
+              key="ai-digest-cta"
+              type="button"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => {
+                const sources = visiblePosts.slice(0, 30).map(toDigestSource);
+                const payload = { query: query.trim(), sources };
+                if (digestUnlocked) {
+                  setDigestPayload(payload);
+                  setDigestOpen(true);
+                } else {
+                  setPendingDigest(payload);
+                  setUnlockOpen(true);
+                }
+              }}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+            >
+              <Sparkles size={16} />
+              <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
+            </motion.button>
+          ) : null}
+        </AnimatePresence>
       </section>
 
       <p className="w-full border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 py-3 text-sm text-[color:var(--color-muted)]">
@@ -440,56 +460,72 @@ export function BookmarksApp() {
         </section>
       ) : null}
 
-      {digestOpen && digestPayload ? (
-        <DigestPanel
-          key={`${digestPayload.query}::${digestPayload.initialCached?.createdAt ?? "live"}`}
-          query={digestPayload.query}
-          sources={digestPayload.sources}
-          initialCached={digestPayload.initialCached}
-          onClose={() => {
-            setDigestOpen(false);
-            setDigestPayload(null);
-          }}
-        />
-      ) : null}
+      <AnimatePresence>
+        {digestOpen && digestPayload ? (
+          <DigestPanel
+            key={`${digestPayload.query}::${digestPayload.initialCached?.createdAt ?? "live"}`}
+            query={digestPayload.query}
+            sources={digestPayload.sources}
+            initialCached={digestPayload.initialCached}
+            onClose={() => {
+              setDigestOpen(false);
+              setDigestPayload(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
-      <SavedDigestsPanel
-        open={savedOpen}
-        onClose={() => setSavedOpen(false)}
-        onOpenDigest={(saved) => {
-          setDigestPayload({ query: saved.query, initialCached: saved });
-          setSavedOpen(false);
-          setDigestOpen(true);
-        }}
-      />
+      <AnimatePresence>
+        {savedOpen ? (
+          <SavedDigestsPanel
+            onClose={() => setSavedOpen(false)}
+            onOpenDigest={(saved) => {
+              setDigestPayload({ query: saved.query, initialCached: saved });
+              setSavedOpen(false);
+              setDigestOpen(true);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
-      <UnlockForm
-        open={unlockOpen}
-        onClose={() => {
-          setUnlockOpen(false);
-          setPendingDigest(null);
-        }}
-        onUnlocked={() => {
-          setDigestUnlocked(true);
-          setUnlockOpen(false);
-          if (pendingDigest) {
-            setDigestPayload(pendingDigest);
-            setPendingDigest(null);
-            setDigestOpen(true);
-          }
-        }}
-      />
+      <AnimatePresence>
+        {unlockOpen ? (
+          <UnlockForm
+            onClose={() => {
+              setUnlockOpen(false);
+              setPendingDigest(null);
+            }}
+            onUnlocked={() => {
+              setDigestUnlocked(true);
+              setUnlockOpen(false);
+              if (pendingDigest) {
+                setDigestPayload(pendingDigest);
+                setPendingDigest(null);
+                setDigestOpen(true);
+              }
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
-      <button
-        type="button"
-        aria-label={t("action.scrollTop")}
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className={`fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[0_4px_20px_rgba(20,20,19,0.15)] transition-all hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 ${
-          showScrollTop ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-      >
-        <ArrowUp size={20} />
-      </button>
+      <AnimatePresence>
+        {showScrollTop ? (
+          <motion.button
+            key="scroll-top"
+            type="button"
+            aria-label={t("action.scrollTop")}
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.9 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[0_4px_20px_rgba(20,20,19,0.15)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+          >
+            <ArrowUp size={20} />
+          </motion.button>
+        ) : null}
+      </AnimatePresence>
     </main>
   );
 }

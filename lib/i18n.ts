@@ -103,7 +103,7 @@ export const messages = {
 
     "search.placeholder": "Könyvjelzők szűrése",
     "search.precision.exact": "Pontos",
-    "search.precision.broad": "Bő",
+    "search.precision.broad": "Kiterjesztett",
     "search.precision.aria": "Keresési pontosság",
 
     "sort.newest": "Legújabb",

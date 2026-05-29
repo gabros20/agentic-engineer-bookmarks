@@ -2,6 +2,7 @@
 
 import { experimental_useObject as useObject } from "@ai-sdk/react";
 import { Loader2, RefreshCcw, Sparkles, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { digestSchema, type Digest, type DigestSource } from "@/lib/digest-schema";
 import { getDigest, saveDigest, type SavedDigest } from "@/lib/digest-cache";
@@ -112,14 +113,22 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
 
   return (
     <>
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
         className="fixed inset-0 z-40 bg-[color:var(--color-ink)]/30 backdrop-blur-sm"
         onClick={() => {
           stop();
           onClose();
         }}
       />
-      <aside
+      <motion.aside
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 360, damping: 40, mass: 0.8 }}
         className="fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] shadow-[0_0_30px_rgba(20,20,19,0.08)] sm:w-[28rem]"
         role="dialog"
         aria-label={t("digest.title")}
@@ -171,24 +180,46 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
             </div>
           ) : null}
 
-          {display.overall ? (
-            <div className="mb-4 rounded-lg bg-[color:var(--color-primary)]/10 p-3 text-sm text-[color:var(--color-ink)]">
-              <span className="font-semibold">{t("digest.startHere")}</span>
-              {display.overall}
-            </div>
-          ) : null}
+          <AnimatePresence>
+            {display.overall ? (
+              <motion.div
+                key="overall"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                className="mb-4 rounded-lg bg-[color:var(--color-primary)]/10 p-3 text-sm text-[color:var(--color-ink)]"
+              >
+                <span className="font-semibold">{t("digest.startHere")}</span>
+                {display.overall}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
           {display.themes.length === 0 && isLoading ? (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-lg bg-[color:var(--color-surface-card)]" />
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.06, duration: 0.25 }}
+                  className="h-24 animate-pulse rounded-lg bg-[color:var(--color-surface-card)]"
+                />
               ))}
             </div>
           ) : null}
 
           <ul className="space-y-4">
             {display.themes.map((theme, i) => (
-              <li key={i} className="rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-4">
+              <motion.li
+                key={i}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 380, damping: 32, delay: i * 0.04 }}
+                className="rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-4"
+              >
                 <h3 className="font-display text-[18px] leading-snug text-[color:var(--color-ink)]">{theme?.title || "…"}</h3>
                 {theme?.summary ? (
                   <p className="mt-1 text-[14px] leading-[1.55] text-[color:var(--color-body)]">{theme.summary}</p>
@@ -210,7 +241,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
                     ) : null,
                   )}
                 </ul>
-              </li>
+              </motion.li>
             ))}
           </ul>
 
@@ -218,7 +249,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("digest.empty")}</p>
           ) : null}
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }

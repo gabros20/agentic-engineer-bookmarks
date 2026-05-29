@@ -1,16 +1,16 @@
 "use client";
 
 import { KeyRound, Loader2, X } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/i18n";
 
 type Props = {
-  open: boolean;
   onClose: () => void;
   onUnlocked: () => void;
 };
 
-export function UnlockForm({ open, onClose, onUnlocked }: Props) {
+export function UnlockForm({ onClose, onUnlocked }: Props) {
   const { t } = useLanguage();
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,25 +18,17 @@ export function UnlockForm({ open, onClose, onUnlocked }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setKey("");
-      setError(null);
-      setBusy(false);
-      const t = window.setTimeout(() => inputRef.current?.focus(), 30);
-      return () => window.clearTimeout(t);
-    }
-  }, [open]);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 60);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
+  }, [onClose]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -68,11 +60,22 @@ export function UnlockForm({ open, onClose, onUnlocked }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-[color:var(--color-ink)]/40 backdrop-blur-sm" onClick={onClose} />
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-50 bg-[color:var(--color-ink)]/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
         role="dialog"
         aria-modal="true"
         aria-label={t("unlock.title")}
+        initial={{ opacity: 0, scale: 0.94, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.15 } }}
+        transition={{ type: "spring", stiffness: 460, damping: 32 }}
         className="fixed left-1/2 top-1/2 z-50 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-5 shadow-[0_4px_20px_rgba(20,20,19,0.08)]"
       >
         <div className="flex items-start justify-between gap-2">
@@ -105,16 +108,18 @@ export function UnlockForm({ open, onClose, onUnlocked }: Props) {
             disabled={busy}
           />
           {error ? <p className="text-xs font-semibold text-[color:var(--color-error)]">{error}</p> : null}
-          <button
+          <motion.button
             type="submit"
             disabled={!key.trim() || busy}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition hover:bg-[color:var(--color-primary-active)] disabled:cursor-not-allowed disabled:opacity-50"
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            className="flex min-h-10 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? <Loader2 size={14} className="animate-spin" /> : null}
             {t("unlock.submit")}
-          </button>
+          </motion.button>
         </form>
-      </div>
+      </motion.div>
     </>
   );
 }
