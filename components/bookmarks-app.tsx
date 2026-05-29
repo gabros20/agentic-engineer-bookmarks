@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowUp, Search, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import {
@@ -78,6 +78,14 @@ export function BookmarksApp() {
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
   const [searchStatus, setSearchStatus] = useState("Keyword search");
   const [error, setError] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     fetch("/data/all-bookmarks.json")
@@ -238,7 +246,7 @@ export function BookmarksApp() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-32 text-[15px] text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
+            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-32 text-base text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
             placeholder="Filter bookmarks"
             type="search"
           />
@@ -348,6 +356,17 @@ export function BookmarksApp() {
           No bookmarks match this filter.
         </section>
       ) : null}
+
+      <button
+        type="button"
+        aria-label="Scroll to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className={`fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[#1d9bf0] text-white shadow-lg ring-1 ring-black/5 transition-all hover:bg-[#1a8cd8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0] focus-visible:ring-offset-2 ${
+          showScrollTop ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <ArrowUp size={20} />
+      </button>
     </main>
   );
 }

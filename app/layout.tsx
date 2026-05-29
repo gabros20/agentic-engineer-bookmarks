@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible } from "next/font/google";
 import "./globals.css";
 
@@ -11,6 +11,13 @@ const atkinson = Atkinson_Hyperlegible({
 export const metadata: Metadata = {
   title: "Claude Code Bookmarks",
   description: "A searchable local collection of Claude Code-related X bookmarks.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
