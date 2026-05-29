@@ -189,7 +189,7 @@ export function CommandKChat({
         exit={{ opacity: 0, scale: 0.97, y: 12, transition: { duration: 0.15 } }}
         transition={{ type: "spring", stiffness: 420, damping: 32 }}
         style={{ paddingTop: "env(safe-area-inset-top)" }}
-        className="fixed inset-x-2 top-4 z-50 flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] shadow-[0_20px_60px_rgba(20,20,19,0.18)] sm:inset-x-auto sm:left-1/2 sm:top-[8vh] sm:max-h-[80vh] sm:w-[34rem] sm:-translate-x-1/2"
+        className="fixed inset-x-2 top-4 z-50 grid h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] shadow-[0_20px_60px_rgba(20,20,19,0.18)] sm:inset-x-auto sm:left-1/2 sm:top-[8vh] sm:h-[min(80vh,42rem)] sm:w-[34rem] sm:-translate-x-1/2"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div className="flex min-w-0 items-center gap-2 text-[color:var(--color-ink)]">
@@ -233,7 +233,7 @@ export function CommandKChat({
           </div>
         ) : null}
 
-        <Conversation className="min-h-0 flex-1">
+        <Conversation className="min-h-0">
           <ConversationContent className="px-4 py-4 sm:px-5">
             {messages.length === 0 ? (
               <ConversationEmptyState
