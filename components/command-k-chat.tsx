@@ -16,7 +16,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import {
   PromptInput,
   PromptInputBody,
@@ -255,13 +255,20 @@ export function CommandKChat({
                     <MessageContent>
                       {m.parts?.map((p, i) => {
                         if (p.type === "text") {
-                          return <span key={i}>{p.text}</span>;
+                          // Assistant: render markdown. User: keep as plain text inside the cream bubble.
+                          if (m.role === "assistant") {
+                            return <MessageResponse key={i}>{p.text}</MessageResponse>;
+                          }
+                          return <span key={i} className="whitespace-pre-wrap">{p.text}</span>;
                         }
                         if (p.type === "reasoning") {
                           return (
-                            <div key={i} className="text-[12px] italic text-[color:var(--color-muted)]">
+                            <MessageResponse
+                              key={i}
+                              className="text-[12px] italic text-[color:var(--color-muted)]"
+                            >
                               {p.text}
-                            </div>
+                            </MessageResponse>
                           );
                         }
                         if (p.type === "tool-search_bookmarks" || p.type === "tool-get_bookmark") {
