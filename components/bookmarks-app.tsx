@@ -4,6 +4,8 @@ import { ArrowUp, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { DigestPanel } from "@/components/digest-panel";
+import { SavedDigestsPanel } from "@/components/saved-digests-panel";
+import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
 import {
@@ -84,7 +86,21 @@ export function BookmarksApp() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [digestUnlocked, setDigestUnlocked] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
-  const [digestPayload, setDigestPayload] = useState<{ query: string; sources: DigestSource[] } | null>(null);
+  const [digestPayload, setDigestPayload] = useState<{
+    query: string;
+    sources?: DigestSource[];
+    initialCached?: SavedDigest;
+  } | null>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
+
+  useEffect(() => {
+    setSavedCount(listSavedDigests().length);
+  }, []);
+
+  useEffect(() => {
+    if (!savedOpen && !digestOpen) setSavedCount(listSavedDigests().length);
+  }, [savedOpen, digestOpen]);
 
   useEffect(() => {
     setDigestUnlocked(document.cookie.split("; ").some((c) => c.startsWith("digest_ok=1")));
@@ -244,8 +260,21 @@ export function BookmarksApp() {
             </p>
           </div>
 
-          <div className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold text-white">
-            {number(favorites.size)} starred
+          <div className="flex items-center gap-2">
+            {digestUnlocked ? (
+              <button
+                type="button"
+                onClick={() => setSavedOpen(true)}
+                className="flex items-center gap-1.5 rounded-full border border-[#cfd9de] bg-white px-3 py-2 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
+                aria-label="Saved digests"
+              >
+                <Sparkles size={14} className="text-[#1d9bf0]" />
+                {number(savedCount)}
+              </button>
+            ) : null}
+            <div className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold text-white">
+              {number(favorites.size)} starred
+            </div>
           </div>
         </div>
       </header>
@@ -387,9 +416,20 @@ export function BookmarksApp() {
           open={digestOpen}
           query={digestPayload.query}
           sources={digestPayload.sources}
+          initialCached={digestPayload.initialCached}
           onClose={() => setDigestOpen(false)}
         />
       ) : null}
+
+      <SavedDigestsPanel
+        open={savedOpen}
+        onClose={() => setSavedOpen(false)}
+        onOpenDigest={(saved) => {
+          setDigestPayload({ query: saved.query, initialCached: saved });
+          setSavedOpen(false);
+          setDigestOpen(true);
+        }}
+      />
 
       <button
         type="button"
