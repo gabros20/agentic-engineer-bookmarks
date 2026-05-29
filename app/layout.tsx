@@ -1,16 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Atkinson_Hyperlegible } from "next/font/google";
+import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 
-const atkinson = Atkinson_Hyperlegible({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-readable",
+const body = Inter({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+});
+
+const display = Cormorant_Garamond({
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600"],
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
-  title: "Claude Code Bookmarks",
-  description: "A searchable local collection of Claude Code-related X bookmarks.",
+  title: "X Bookmarks",
+  description: "A searchable local collection of X bookmarks with AI digest.",
 };
 
 export const viewport: Viewport = {
@@ -27,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={atkinson.variable}>{children}</body>
+      <body className={`${body.variable} ${display.variable}`}>{children}</body>
     </html>
   );
 }

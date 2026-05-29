@@ -12,6 +12,7 @@ export const digestSourceSchema = z.object({
 export const digestRequestSchema = z.object({
   query: z.string().min(1).max(500),
   sources: z.array(digestSourceSchema).min(1).max(60),
+  language: z.enum(["en", "hu"]).default("en"),
 });
 
 export const digestSchema = z.object({

@@ -12,6 +12,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "ai": "^6.0.193",
+    "flag-icons": "^7.5.0",
     "lucide-react": "^0.552.0",
     "lunr": "^2.3.9",
     "next": "16.2.6",

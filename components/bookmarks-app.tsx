@@ -4,11 +4,13 @@ import { ArrowUp, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { DigestPanel } from "@/components/digest-panel";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
 import { UnlockForm } from "@/components/unlock-form";
 import { listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
+import { useLanguage } from "@/lib/i18n";
 import {
   applyRelativeFloor,
   buildKeywordIndex,
@@ -72,6 +74,7 @@ async function embedQueries(queries: string[], model: string) {
 }
 
 export function BookmarksApp() {
+  const { t } = useLanguage();
   const [payload, setPayload] = useState<BookmarkPayload | null>(null);
   const [searchIndex, setSearchIndex] = useState<SearchIndexPayload | null>(null);
   const [query, setQuery] = useState("");
@@ -82,7 +85,16 @@ export function BookmarksApp() {
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
-  const [searchStatus, setSearchStatus] = useState("Keyword search");
+  const [searchStatusKey, setSearchStatusKey] = useState<
+    | "status.keyword"
+    | "status.semanticReady"
+    | "status.exactWarming"
+    | "status.broadExpansionWarming"
+    | "status.broadWarming"
+    | "status.exactHybrid"
+    | "status.broadExpansion"
+    | "status.broadHybrid"
+  >("status.keyword");
   const [error, setError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [digestUnlocked, setDigestUnlocked] = useState(false);
@@ -133,7 +145,7 @@ export function BookmarksApp() {
         return response.json() as Promise<SearchIndexPayload>;
       })
       .then(setSearchIndex)
-      .catch(() => setSearchStatus("Keyword search"));
+      .catch(() => setSearchStatusKey("status.keyword"));
   }, []);
 
   useEffect(() => {
@@ -167,7 +179,7 @@ export function BookmarksApp() {
     const q = debouncedQuery.trim();
     if (!q || !keywordIndex) {
       setHybridResults(null);
-      setSearchStatus(searchIndex ? "Semantic search ready" : "Keyword search");
+      setSearchStatusKey(searchIndex ? "status.semanticReady" : "status.keyword");
       return;
     }
 
@@ -176,17 +188,17 @@ export function BookmarksApp() {
 
     if (!searchIndex) {
       setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
-      setSearchStatus("Keyword search");
+      setSearchStatusKey("status.keyword");
       return;
     }
 
     const expandedQueries = expandSemanticQueries(q, precision);
-    setSearchStatus(
+    setSearchStatusKey(
       precision === "exact"
-        ? "Exact semantic search warming up"
+        ? "status.exactWarming"
         : expandedQueries.length > 1
-          ? "Broad semantic expansion warming up"
-          : "Broad semantic search warming up",
+          ? "status.broadExpansionWarming"
+          : "status.broadWarming",
     );
 
     embedQueries(expandedQueries, searchIndex.model)
@@ -196,18 +208,18 @@ export function BookmarksApp() {
         const merged = mergeHybridResults(keywordResults, vectorResults, precision);
         const finalResults = precision === "exact" ? applyRelativeFloor(merged, 0.5) : merged;
         setHybridResults(new Map(finalResults.map((result) => [result.id, result.score])));
-        setSearchStatus(
+        setSearchStatusKey(
           precision === "exact"
-            ? "Exact hybrid search"
+            ? "status.exactHybrid"
             : expandedQueries.length > 1
-              ? "Broad hybrid expansion"
-              : "Broad hybrid search",
+              ? "status.broadExpansion"
+              : "status.broadHybrid",
         );
       })
       .catch(() => {
         if (cancelled) return;
         setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
-        setSearchStatus("Keyword search");
+        setSearchStatusKey("status.keyword");
       });
 
     return () => {
@@ -253,50 +265,53 @@ export function BookmarksApp() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full bg-[#f7f9f9]">
-      <header className="sticky top-0 z-20 border-b border-[#eff3f4] bg-white/90 px-4 py-3 backdrop-blur-xl">
+    <main className="mx-auto min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
+      <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-4 py-4 backdrop-blur-xl">
         <div className="flex w-full items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-extrabold leading-6 text-[#0f1419]">X Bookmarks</h1>
-            <p className="text-[13px] leading-5 text-[#536471]">
-              {number(posts.length)} saved posts searchable locally
+            <h1 className="font-display text-[28px] font-medium leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
+              {t("app.title")}
+            </h1>
+            <p className="mt-1 text-[13px] leading-5 text-[color:var(--color-muted)]">
+              {t("app.subtitle", { n: number(posts.length) })}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             {digestUnlocked ? (
               <button
                 type="button"
                 onClick={() => setSavedOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-[#cfd9de] bg-white px-3 py-2 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
-                aria-label="Saved digests"
+                className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                aria-label={t("app.aria.savedDigests")}
               >
-                <Sparkles size={14} className="text-[#1d9bf0]" />
+                <Sparkles size={14} className="text-[color:var(--color-primary)]" />
                 {number(savedCount)}
-                <span className="hidden sm:inline">saved</span>
+                <span className="hidden sm:inline">{t("app.saved")}</span>
               </button>
             ) : null}
-            <div className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold text-white">
-              {number(favorites.size)} starred
+            <div className="rounded-md bg-[color:var(--color-primary)] px-3 py-2 text-sm font-medium text-[color:var(--color-on-primary)]">
+              {number(favorites.size)} <span className="hidden sm:inline">{t("app.starred")}</span>
             </div>
           </div>
         </div>
       </header>
 
-      <section className="grid w-full gap-3 border-b border-[#eff3f4] bg-white p-4">
+      <section className="grid w-full gap-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-4">
         <label className="relative block">
-          <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#536471]" size={18} />
+          <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={18} />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-h-11 w-full rounded-full border-0 bg-[#eff3f4] pl-11 pr-32 text-base text-[#0f1419] outline-none transition placeholder:text-[#536471] focus:bg-white focus:ring-2 focus:ring-[#1d9bf0]"
-            placeholder="Filter bookmarks"
+            className="min-h-11 w-full rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-11 pr-32 text-base text-[color:var(--color-ink)] outline-none transition placeholder:text-[color:var(--color-muted)] focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
+            placeholder={t("search.placeholder")}
             type="search"
           />
           <div
             role="group"
-            aria-label="Search precision"
-            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full bg-white p-0.5 text-[11px] font-bold shadow-sm ring-1 ring-[#cfd9de]"
+            aria-label={t("search.precision.aria")}
+            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[11px] font-semibold"
           >
             {(["exact", "broad"] as const).map((value) => (
               <button
@@ -306,11 +321,11 @@ export function BookmarksApp() {
                 aria-pressed={precision === value}
                 className={`min-h-8 rounded-full px-3 transition ${
                   precision === value
-                    ? "bg-[#1d9bf0] text-white"
-                    : "text-[#536471] hover:bg-[#eff3f4]"
+                    ? "bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]"
+                    : "text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)]"
                 }`}
               >
-                {value === "exact" ? "Exact" : "Broad"}
+                {value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}
               </button>
             ))}
           </div>
@@ -318,33 +333,33 @@ export function BookmarksApp() {
 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
           <label className="relative block">
-            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#536471]" size={16} />
+            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={16} />
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value)}
-              className="min-h-10 w-full appearance-none rounded-full border border-[#cfd9de] bg-white pl-9 pr-3 text-sm font-semibold text-[#0f1419] outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+              className="min-h-10 w-full appearance-none rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-3 text-sm font-medium text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
             >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="bookmarks">Saves</option>
-              <option value="likes">Likes</option>
+              <option value="newest">{t("sort.newest")}</option>
+              <option value="oldest">{t("sort.oldest")}</option>
+              <option value="bookmarks">{t("sort.bookmarks")}</option>
+              <option value="likes">{t("sort.likes")}</option>
             </select>
           </label>
 
           <label className="relative block">
-            <Star className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#536471]" size={16} />
+            <Star className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={16} />
             <select
               value={scope}
               onChange={(event) => setScope(event.target.value)}
-              className="min-h-10 w-full appearance-none rounded-full border border-[#cfd9de] bg-white pl-9 pr-3 text-sm font-semibold text-[#0f1419] outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+              className="min-h-10 w-full appearance-none rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-3 text-sm font-medium text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
             >
-              <option value="all">All saved</option>
-              <option value="favorites">Starred</option>
-              <option value="articles">Articles</option>
-              <option value="media">Media</option>
-              <option value="photos">Photos</option>
-              <option value="videos">Videos</option>
-              <option value="text">Text only</option>
+              <option value="all">{t("scope.all")}</option>
+              <option value="favorites">{t("scope.favorites")}</option>
+              <option value="articles">{t("scope.articles")}</option>
+              <option value="media">{t("scope.media")}</option>
+              <option value="photos">{t("scope.photos")}</option>
+              <option value="videos">{t("scope.videos")}</option>
+              <option value="text">{t("scope.text")}</option>
             </select>
           </label>
 
@@ -356,9 +371,9 @@ export function BookmarksApp() {
               setScope("all");
               setPrecision("exact");
             }}
-            className="min-h-10 rounded-full border border-[#cfd9de] bg-white px-4 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
+            className="min-h-10 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
           >
-            Clear
+            {t("action.clear")}
           </button>
         </div>
 
@@ -376,18 +391,22 @@ export function BookmarksApp() {
                 setUnlockOpen(true);
               }
             }}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#1d9bf0] to-[#7856ff] px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0] focus-visible:ring-offset-2"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
           >
             <Sparkles size={16} />
-            <span>Digest top {Math.min(30, visiblePosts.length)} with AI</span>
+            <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
           </button>
         ) : null}
       </section>
 
-      <p className="w-full border-b border-[#eff3f4] bg-white px-4 py-3 text-sm text-[#536471]">
+      <p className="w-full border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 py-3 text-sm text-[color:var(--color-muted)]">
         {error
           ? error
-          : `Showing ${number(displayedPosts.length)} of ${number(visiblePosts.length)} matching saved posts from /data/all-bookmarks.json · ${searchStatus}`}
+          : t("status.summary", {
+              shown: number(displayedPosts.length),
+              total: number(visiblePosts.length),
+              status: t(searchStatusKey),
+            })}
       </p>
 
       {error ? null : (
@@ -408,16 +427,16 @@ export function BookmarksApp() {
           <button
             type="button"
             onClick={() => setVisibleLimit((current) => current + PAGE_SIZE)}
-            className="min-h-11 rounded-full border border-[#cfd9de] bg-white px-5 text-sm font-bold text-[#0f1419] transition hover:bg-[#eff3f4]"
+            className="min-h-11 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
           >
-            Load {number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length))} more
+            {t("action.loadMore", { n: number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length)) })}
           </button>
         </div>
       ) : null}
 
       {!error && visiblePosts.length === 0 ? (
-        <section className="w-full p-12 text-center text-[#536471]">
-          No bookmarks match this filter.
+        <section className="w-full p-12 text-center text-[color:var(--color-muted)]">
+          {t("empty.results")}
         </section>
       ) : null}
 
@@ -460,9 +479,9 @@ export function BookmarksApp() {
 
       <button
         type="button"
-        aria-label="Scroll to top"
+        aria-label={t("action.scrollTop")}
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className={`fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[#1d9bf0] text-white shadow-lg ring-1 ring-black/5 transition-all hover:bg-[#1a8cd8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0] focus-visible:ring-offset-2 ${
+        className={`fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[0_4px_20px_rgba(20,20,19,0.15)] transition-all hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 ${
           showScrollTop ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >

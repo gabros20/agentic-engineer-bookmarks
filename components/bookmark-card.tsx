@@ -42,25 +42,25 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
       onKeyDown={(event) => {
         if (event.key === "Enter") openPost(post);
       }}
-      className="group mb-4 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-2xl border border-[#cfd9de] bg-white px-4 py-3 align-top shadow-sm transition hover:bg-[#f7f9f9]"
+      className="group mb-4 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] px-4 py-3 align-top transition hover:bg-[color:var(--color-surface-cream-strong)]"
     >
       <div className="min-w-0">
         <div className="grid min-w-0 grid-cols-[40px_1fr] gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            className="h-10 w-10 rounded-full bg-[#eff3f4] object-cover"
+            className="h-10 w-10 rounded-full bg-[color:var(--color-hairline)] object-cover"
             src={post.author.profileImageUrl ?? ""}
             alt=""
           />
           <div className="flex min-w-0 flex-wrap items-start gap-x-1 text-[14px] leading-5">
-            <span className="truncate font-bold text-[#0f1419]">{post.author.name || "Unknown"}</span>
-            <span className="truncate text-[#536471]">@{post.author.screenName || "unknown"}</span>
-            <span className="text-[#536471]">·</span>
-            <time className="text-[#536471]">{date}</time>
+            <span className="truncate font-semibold text-[color:var(--color-ink)]">{post.author.name || "Unknown"}</span>
+            <span className="truncate text-[color:var(--color-muted)]">@{post.author.screenName || "unknown"}</span>
+            <span className="text-[color:var(--color-muted-soft)]">·</span>
+            <time className="text-[color:var(--color-muted)]">{date}</time>
           </div>
         </div>
 
-        <p className="mt-2 whitespace-pre-wrap break-words text-[14px] leading-5 text-[#0f1419]">{post.text}</p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-[14px] leading-[1.55] text-[color:var(--color-body)]">{post.text}</p>
 
         {media.length > 0 ? <MediaGrid media={media} /> : null}
 
@@ -74,7 +74,7 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="max-w-full truncate rounded-full border border-[#cfd9de] bg-white px-2.5 py-1 text-xs text-[#1d9bf0] hover:bg-[#eff3f4]"
+                className="max-w-full truncate rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-2.5 py-1 text-xs text-[color:var(--color-primary)] hover:bg-[color:var(--color-surface-cream-strong)]"
               >
                 {url}
               </a>
@@ -82,18 +82,20 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
           </div>
         ) : null}
 
-        <div className="mt-2 flex items-center justify-between text-[#536471]">
-          <Metric icon={<MessageCircle size={16} />} value={metrics.replies} tone="reply" />
-          <Metric icon={<Repeat2 size={16} />} value={metrics.retweets} tone="repost" />
-          <Metric icon={<Heart size={16} />} value={metrics.likes} tone="like" />
-          <Metric icon={<BarChart3 size={16} />} value={metrics.views} tone="view" />
+        <div className="mt-2 flex items-center justify-between text-[color:var(--color-muted)]">
+          <Metric icon={<MessageCircle size={16} />} value={metrics.replies} />
+          <Metric icon={<Repeat2 size={16} />} value={metrics.retweets} />
+          <Metric icon={<Heart size={16} />} value={metrics.likes} />
+          <Metric icon={<BarChart3 size={16} />} value={metrics.views} />
           <button
             type="button"
             aria-pressed={isFavorite}
             onClick={() => onToggleFavorite(post.id)}
             className={[
               "inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-full px-1.5 text-xs transition",
-              isFavorite ? "text-[#f91880] hover:bg-[#f91880]/10" : "text-[#536471] hover:bg-[#f91880]/10 hover:text-[#f91880]",
+              isFavorite
+                ? "text-[color:var(--color-primary)] hover:bg-[color:var(--color-primary)]/10"
+                : "text-[color:var(--color-muted)] hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)]",
             ].join(" ")}
             title={isFavorite ? "Remove star" : "Star"}
           >
@@ -109,18 +111,18 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
 function ArticlePreview({ title, url }: { title: string; url?: string }) {
   const content = (
     <>
-      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#536471]">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">
         <BookOpenText size={14} />
         X Article
       </div>
-      <div className="mt-1 text-[14px] font-bold leading-5 text-[#0f1419]">{title}</div>
-      {url ? <div className="mt-1 truncate text-xs text-[#1d9bf0]">{url}</div> : null}
+      <div className="mt-1 font-display text-[18px] font-medium leading-snug text-[color:var(--color-ink)]">{title}</div>
+      {url ? <div className="mt-1 truncate text-xs text-[color:var(--color-primary)]">{url}</div> : null}
     </>
   );
 
   if (!url) {
     return (
-      <div className="mt-3 rounded-2xl border border-[#cfd9de] bg-[#f7f9f9] p-3">
+      <div className="mt-3 rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3">
         {content}
       </div>
     );
@@ -131,31 +133,16 @@ function ArticlePreview({ title, url }: { title: string; url?: string }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="mt-3 block rounded-2xl border border-[#cfd9de] bg-[#f7f9f9] p-3 transition hover:bg-[#eff3f4]"
+      className="mt-3 block rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3 transition hover:bg-[color:var(--color-surface-cream-strong)]"
     >
       {content}
     </a>
   );
 }
 
-function Metric({
-  icon,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  value?: number;
-  tone: "reply" | "repost" | "like" | "view";
-}) {
-  const toneClass = {
-    reply: "hover:bg-[#1d9bf0]/10 hover:text-[#1d9bf0]",
-    repost: "hover:bg-[#00ba7c]/10 hover:text-[#00ba7c]",
-    like: "hover:bg-[#f91880]/10 hover:text-[#f91880]",
-    view: "hover:bg-[#1d9bf0]/10 hover:text-[#1d9bf0]",
-  }[tone];
-
+function Metric({ icon, value }: { icon: React.ReactNode; value?: number }) {
   return (
-    <span className={`inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-xs transition ${toneClass}`}>
+    <span className="inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-xs transition hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)]">
       {icon}
       <span>{formatNumber(value)}</span>
     </span>
@@ -165,15 +152,10 @@ function Metric({
 function MediaGrid({ media }: { media: NonNullable<BookmarkPost["media"]> }) {
   const items = media.slice(0, 4);
   const count = items.length;
-  const gridClass =
-    count === 1
-      ? "grid-cols-1"
-      : count === 2
-        ? "grid-cols-2"
-        : "grid-cols-2";
+  const gridClass = count === 1 ? "grid-cols-1" : "grid-cols-2";
 
   return (
-    <div className={`mt-3 grid overflow-hidden rounded-2xl border border-[#cfd9de] bg-[#eff3f4] ${gridClass}`}>
+    <div className={`mt-3 grid overflow-hidden rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-cream-strong)] ${gridClass}`}>
       {items.map((item, index) => (
         <MediaItem key={`${item.url}-${index}`} item={item} count={count} index={index} />
       ))}
@@ -195,8 +177,8 @@ function MediaItem({
   const tallThird = count === 3 && index === 0;
 
   const className = [
-    "min-h-0 w-full bg-[#eff3f4] object-cover",
-    single ? "max-h-[360px] aspect-video" : "aspect-square border-[#cfd9de]",
+    "min-h-0 w-full bg-[color:var(--color-surface-cream-strong)] object-cover",
+    single ? "max-h-[360px] aspect-video" : "aspect-square border-[color:var(--color-hairline)]",
     count > 1 && index % 2 === 1 ? "border-l" : "",
     count > 2 && index > 1 ? "border-t" : "",
     tallThird ? "row-span-2 h-full" : "",
@@ -210,11 +192,11 @@ function MediaItem({
         className={`${className} flex items-center justify-center`}
         aria-label={item.type === "animated_gif" ? "Animated GIF on X" : "Video on X"}
       >
-        <div className="grid justify-items-center gap-1.5 px-3 text-center text-[#536471]">
-          <div className="grid h-11 w-11 place-items-center rounded-full bg-[#0f1419]/85 text-white shadow-sm">
+        <div className="grid justify-items-center gap-1.5 px-3 text-center text-[color:var(--color-muted)]">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-[color:var(--color-surface-dark)]/90 text-[color:var(--color-on-dark)] shadow-sm">
             <PlayCircle size={24} strokeWidth={2.2} />
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#0f1419]">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[color:var(--color-ink)]">
             <Film size={14} />
             {item.type === "animated_gif" ? "GIF on X" : "Video on X"}
           </div>

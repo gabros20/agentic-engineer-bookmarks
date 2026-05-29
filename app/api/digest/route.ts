@@ -2,7 +2,7 @@ import { streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { NextResponse, type NextRequest } from "next/server";
 import { digestRequestSchema, digestSchema } from "@/lib/digest-schema";
-import { DIGEST_SYSTEM_PROMPT, buildDigestUserPrompt } from "@/lib/digest-prompt";
+import { buildDigestUserPrompt, getDigestSystemPrompt } from "@/lib/digest-prompt";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
-  const { query, sources } = parsed.data;
+  const { query, sources, language } = parsed.data;
 
   const openrouter = createOpenRouter();
   const model = openrouter.chat(MODEL);
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
   const result = streamObject({
     model,
     schema: digestSchema,
-    system: DIGEST_SYSTEM_PROMPT,
-    prompt: buildDigestUserPrompt(query, sources),
+    system: getDigestSystemPrompt(language),
+    prompt: buildDigestUserPrompt(query, sources, language),
     temperature: 0.3,
   });
 
