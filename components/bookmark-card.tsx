@@ -42,17 +42,17 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
       onKeyDown={(event) => {
         if (event.key === "Enter") openPost(post);
       }}
-      className="group mb-4 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] px-4 py-3 align-top transition hover:bg-[color:var(--color-surface-card)]"
+      className="group mb-3 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] px-3 py-3 align-top transition hover:bg-[color:var(--color-surface-card)] sm:mb-4 sm:px-4"
     >
       <div className="min-w-0">
-        <div className="grid min-w-0 grid-cols-[40px_1fr] gap-2">
+        <div className="grid min-w-0 grid-cols-[36px_1fr] gap-2 sm:grid-cols-[40px_1fr]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            className="h-10 w-10 rounded-full bg-[color:var(--color-hairline)] object-cover"
+            className="size-9 rounded-full bg-[color:var(--color-hairline)] object-cover sm:size-10"
             src={post.author.profileImageUrl ?? ""}
             alt=""
           />
-          <div className="flex min-w-0 flex-wrap items-start gap-x-1 text-[14px] leading-5">
+          <div className="flex min-w-0 flex-wrap items-start gap-x-1 text-[13px] leading-5 sm:text-[14px]">
             <span className="truncate font-semibold text-[color:var(--color-ink)]">{post.author.name || "Unknown"}</span>
             <span className="truncate text-[color:var(--color-muted)]">@{post.author.screenName || "unknown"}</span>
             <span className="text-[color:var(--color-muted-soft)]">·</span>
@@ -60,7 +60,7 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
           </div>
         </div>
 
-        <p className="mt-2 whitespace-pre-wrap break-words text-[14px] leading-[1.55] text-[color:var(--color-body)]">{post.text}</p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-[1.55] text-[color:var(--color-body)] sm:text-[14px]">{post.text}</p>
 
         {media.length > 0 ? <MediaGrid media={media} /> : null}
 
@@ -83,10 +83,10 @@ export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCar
         ) : null}
 
         <div className="mt-2 flex items-center justify-between text-[color:var(--color-muted)]">
-          <Metric icon={<MessageCircle size={16} />} value={metrics.replies} />
-          <Metric icon={<Repeat2 size={16} />} value={metrics.retweets} />
-          <Metric icon={<Heart size={16} />} value={metrics.likes} />
-          <Metric icon={<BarChart3 size={16} />} value={metrics.views} />
+          <Metric icon={<MessageCircle size={14} />} value={metrics.replies} />
+          <Metric icon={<Repeat2 size={14} />} value={metrics.retweets} />
+          <Metric icon={<Heart size={14} />} value={metrics.likes} />
+          <Metric icon={<BarChart3 size={14} />} value={metrics.views} />
           <button
             type="button"
             aria-pressed={isFavorite}
@@ -142,7 +142,7 @@ function ArticlePreview({ title, url }: { title: string; url?: string }) {
 
 function Metric({ icon, value }: { icon: React.ReactNode; value?: number }) {
   return (
-    <span className="inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-xs transition hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)]">
+    <span className="inline-flex h-7 items-center gap-1 rounded-full px-1.5 text-[11px] transition hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)] sm:h-8 sm:text-xs">
       {icon}
       <span>{formatNumber(value)}</span>
     </span>

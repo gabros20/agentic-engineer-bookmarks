@@ -405,13 +405,13 @@ export function BookmarksApp() {
 
   return (
     <main className="mx-auto min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
-      <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-4 py-4 backdrop-blur-xl">
-        <div className="flex w-full items-start justify-between gap-3 sm:gap-4">
+      <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
+        <div className="flex w-full items-start justify-between gap-2 sm:gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[28px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
+            <h1 className="font-display text-[22px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
               {t("app.title")}
             </h1>
-            <p className="mt-1 text-[13px] leading-5 text-[color:var(--color-muted)]">
+            <p className="mt-0.5 text-[12px] leading-4 text-[color:var(--color-muted)] sm:mt-1 sm:text-[13px] sm:leading-5">
               {t("app.subtitle", { n: number(posts.length) })}
             </p>
           </div>
@@ -421,9 +421,9 @@ export function BookmarksApp() {
             onClick={() => setMobileMenuOpen((v) => !v)}
             aria-label="Menu"
             aria-expanded={mobileMenuOpen}
-            className="grid size-10 shrink-0 place-items-center rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] sm:hidden"
+            className="grid size-9 shrink-0 place-items-center rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] sm:hidden"
           >
-            {mobileMenuOpen ? <XIcon size={18} /> : <MenuIcon size={18} />}
+            {mobileMenuOpen ? <XIcon size={16} /> : <MenuIcon size={16} />}
           </button>
 
           <div className="hidden flex-wrap items-center justify-end gap-2 sm:flex">
@@ -563,20 +563,20 @@ export function BookmarksApp() {
         </AnimatePresence>
       </header>
 
-      <section className="grid w-full gap-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-4">
+      <section className="grid w-full gap-2 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3 sm:gap-3 sm:p-4">
         <label className="relative block">
-          <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]" size={18} />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)] sm:left-4" size={16} />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-h-11 w-full rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-11 pr-32 text-base text-[color:var(--color-ink)] outline-none transition placeholder:text-[color:var(--color-muted)] focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15"
+            className="min-h-10 w-full rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-[112px] text-base text-[color:var(--color-ink)] outline-none transition placeholder:text-[color:var(--color-muted)] focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15 sm:min-h-11 sm:pl-11 sm:pr-32"
             placeholder={t("search.placeholder")}
             type="search"
           />
           <div
             role="group"
             aria-label={t("search.precision.aria")}
-            className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[11px] font-semibold"
+            className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[10px] font-semibold sm:right-1.5 sm:text-[11px]"
           >
             {(["exact", "broad"] as const).map((value) => (
               <motion.button
@@ -586,7 +586,7 @@ export function BookmarksApp() {
                 aria-pressed={precision === value}
                 whileTap={{ scale: 0.94 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className={`relative min-h-8 rounded-sm px-3 ${
+                className={`relative min-h-7 rounded-sm px-2 sm:min-h-8 sm:px-3 ${
                   precision === value
                     ? "text-[color:var(--color-on-primary)]"
                     : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
@@ -607,12 +607,13 @@ export function BookmarksApp() {
           </div>
         </label>
 
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 sm:gap-2">
           <OptionSelect
             value={sort}
             onValueChange={setSort}
             ariaLabel={t("sort.newest")}
             leadingIcon={<SlidersHorizontal size={14} />}
+            className="h-9 px-2.5 text-[13px] sm:h-10 sm:px-3 sm:text-sm"
             options={[
               { value: "newest", label: t("sort.newest") },
               { value: "oldest", label: t("sort.oldest") },
@@ -626,6 +627,7 @@ export function BookmarksApp() {
             onValueChange={setScope}
             ariaLabel={t("scope.all")}
             leadingIcon={<Star size={14} />}
+            className="h-9 px-2.5 text-[13px] sm:h-10 sm:px-3 sm:text-sm"
             options={[
               { value: "all", label: t("scope.all") },
               { value: "favorites", label: t("scope.favorites") },
@@ -647,7 +649,7 @@ export function BookmarksApp() {
               setScope("all");
               setPrecision("exact");
             }}
-            className="min-h-10 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface-card)]"
+            className="min-h-9 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 text-[13px] font-medium text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface-card)] sm:min-h-10 sm:px-4 sm:text-sm"
           >
             {t("action.clear")}
           </motion.button>
@@ -683,7 +685,7 @@ export function BookmarksApp() {
         </AnimatePresence>
       </section>
 
-      <p className="w-full border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-4 py-3 text-sm text-[color:var(--color-muted)]">
+      <p className="w-full border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-[12px] leading-4 text-[color:var(--color-muted)] sm:px-4 sm:py-3 sm:text-sm sm:leading-5">
         {error
           ? error
           : t("status.summary", {
@@ -694,13 +696,13 @@ export function BookmarksApp() {
       </p>
 
       {error ? null : payload === null ? (
-        <section aria-busy="true" className="w-full columns-1 gap-4 p-4 sm:columns-[20rem]">
+        <section aria-busy="true" className="w-full columns-1 gap-3 p-3 sm:gap-4 sm:p-4 sm:columns-[20rem]">
           {Array.from({ length: 8 }).map((_, i) => (
             <BookmarkCardSkeleton key={i} index={i} />
           ))}
         </section>
       ) : (
-        <section className="w-full columns-1 gap-4 p-4 sm:columns-[20rem]">
+        <section className="w-full columns-1 gap-3 p-3 sm:gap-4 sm:p-4 sm:columns-[20rem]">
           {displayedPosts.map((post) => (
             <BookmarkCard
               key={post.id}
