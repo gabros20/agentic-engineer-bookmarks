@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Bookmark as BookmarkIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import { ArrowUp, Bookmark as BookmarkIcon, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
@@ -128,6 +128,7 @@ export function BookmarksApp() {
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
   const [savedChatsCount, setSavedChatsCount] = useState(0);
   const [pendingChatOpen, setPendingChatOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setSavedCount(listSavedDigests().length);
@@ -405,8 +406,8 @@ export function BookmarksApp() {
   return (
     <main className="mx-auto min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-4 py-4 backdrop-blur-xl">
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div>
+        <div className="flex w-full items-start justify-between gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
             <h1 className="font-display text-[28px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
               {t("app.title")}
             </h1>
@@ -415,7 +416,17 @@ export function BookmarksApp() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Menu"
+            aria-expanded={mobileMenuOpen}
+            className="grid size-10 shrink-0 place-items-center rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] sm:hidden"
+          >
+            {mobileMenuOpen ? <XIcon size={18} /> : <MenuIcon size={18} />}
+          </button>
+
+          <div className="hidden flex-wrap items-center justify-end gap-2 sm:flex">
             <button
               type="button"
               onClick={() => {
@@ -474,6 +485,82 @@ export function BookmarksApp() {
             <LanguageSwitcher />
           </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {mobileMenuOpen ? (
+            <motion.div
+              key="mobile-menu"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="overflow-hidden sm:hidden"
+            >
+              <div className="mt-3 flex flex-col gap-1 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (digestUnlocked) {
+                      setChatHistoryMessages(null);
+                      setChatOpen(true);
+                    } else {
+                      setPendingChatOpen(true);
+                      setUnlockOpen(true);
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                >
+                  <Sparkles size={16} className="text-[color:var(--color-primary)]" />
+                  {t("chat.title")}
+                </button>
+                {digestUnlocked ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setChatHistoryOpen(true);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                    >
+                      <MessagesSquare size={16} className="text-[color:var(--color-primary)]" />
+                      <span className="flex-1">{t("chat.history")}</span>
+                      {savedChatsCount > 0 ? (
+                        <span className="text-xs text-[color:var(--color-muted)]">{number(savedChatsCount)}</span>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setSavedOpen(true);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                    >
+                      <BookmarkIcon size={16} className="text-[color:var(--color-primary)]" />
+                      <span className="flex-1">{t("app.saved")}</span>
+                      {savedCount > 0 ? (
+                        <span className="text-xs text-[color:var(--color-muted)]">{number(savedCount)}</span>
+                      ) : null}
+                    </button>
+                  </>
+                ) : null}
+                {favorites.size > 0 ? (
+                  <div className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium text-[color:var(--color-ink)]">
+                    <Star size={16} className="fill-[color:var(--color-primary)] text-[color:var(--color-primary)]" />
+                    <span className="flex-1">{t("app.starred")}</span>
+                    <span className="text-xs text-[color:var(--color-muted)]">{number(favorites.size)}</span>
+                  </div>
+                ) : null}
+                <div className="mt-1 flex items-center justify-between gap-3 border-t border-[color:var(--color-hairline)] px-3 pt-2.5">
+                  <span className="text-xs uppercase tracking-wide text-[color:var(--color-muted)]">{t("lang.label")}</span>
+                  <LanguageSwitcher />
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </header>
 
       <section className="grid w-full gap-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-4">
