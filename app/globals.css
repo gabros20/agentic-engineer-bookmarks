@@ -132,3 +132,17 @@ h4,
   color: var(--color-on-primary);
   background: var(--color-primary);
 }
+
+/* Streamdown's external-link confirmation modal: add breathing room so the
+   inner card doesn't visually butt against the parent chat modal's edges. */
+[data-streamdown="link-safety-modal"] > div {
+  margin-left: 1.5rem;
+  margin-right: 1.5rem;
+  max-width: calc(100vw - 3rem);
+}
+@media (min-width: 640px) {
+  [data-streamdown="link-safety-modal"] > div {
+    margin-left: 2rem;
+    margin-right: 2rem;
+  }
+}
