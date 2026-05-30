@@ -408,12 +408,14 @@ export function BookmarksApp() {
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
         <div className="flex w-full items-start justify-between gap-2 sm:gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[22px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
-              {t("app.title")}
-            </h1>
-            <p className="mt-0.5 text-[12px] leading-4 text-[color:var(--color-muted)] sm:mt-1 sm:text-[13px] sm:leading-5">
-              {t("app.subtitle", { n: number(posts.length) })}
-            </p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-col sm:gap-y-1">
+              <h1 className="font-display text-[22px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
+                {t("app.title")}
+              </h1>
+              <p className="text-[12px] leading-4 text-[color:var(--color-muted)] sm:text-[13px] sm:leading-5">
+                {t("app.subtitle", { n: number(posts.length) })}
+              </p>
+            </div>
           </div>
 
           <button
