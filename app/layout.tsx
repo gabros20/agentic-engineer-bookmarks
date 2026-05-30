@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
+import { ScrollTopOnLoad } from "@/components/scroll-top-on-load";
 import "./globals.css";
 
 // Inter is a variable font — omit `weight` so Next pulls the single
@@ -41,7 +42,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ScrollTopOnLoad />
+        {children}
+      </body>
     </html>
   );
 }
