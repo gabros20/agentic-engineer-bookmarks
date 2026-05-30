@@ -405,7 +405,7 @@ export function BookmarksApp() {
   return (
     <main className="mx-auto min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-4 py-4 backdrop-blur-xl">
-        <div className="flex w-full items-start justify-between gap-4">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
             <h1 className="font-display text-[28px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
               {t("app.title")}
@@ -415,7 +415,7 @@ export function BookmarksApp() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => {
