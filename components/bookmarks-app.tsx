@@ -447,7 +447,7 @@ export function BookmarksApp() {
                   title={t("chat.history")}
                 >
                   <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
-                  {number(savedChatsCount)}
+                  {savedChatsCount > 0 ? number(savedChatsCount) : null}
                 </button>
                 <button
                   type="button"
@@ -457,13 +457,20 @@ export function BookmarksApp() {
                   title={t("app.saved")}
                 >
                   <BookmarkIcon size={14} className="text-[color:var(--color-primary)]" />
-                  {number(savedCount)}
+                  {savedCount > 0 ? number(savedCount) : null}
                 </button>
               </>
             ) : null}
-            <div className="rounded-md bg-[color:var(--color-primary)] px-3 py-2 text-sm font-medium text-[color:var(--color-on-primary)]">
-              {number(favorites.size)} <span className="hidden sm:inline">{t("app.starred")}</span>
-            </div>
+            {favorites.size > 0 ? (
+              <div
+                className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)]"
+                title={t("app.starred")}
+              >
+                <Star size={14} className="fill-[color:var(--color-primary)] text-[color:var(--color-primary)]" />
+                {number(favorites.size)}
+                <span className="hidden sm:inline">{t("app.starred")}</span>
+              </div>
+            ) : null}
             <LanguageSwitcher />
           </div>
         </div>
