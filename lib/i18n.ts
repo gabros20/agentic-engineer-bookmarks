@@ -43,6 +43,7 @@ export const messages = {
 
     "action.clear": "Clear",
     "action.aiDigest": "Digest top {n} with AI",
+    "action.aiShortlist": "Shortlist with AI",
     "action.scrollTop": "Scroll to top",
     "action.loadMore": "Load {n} more",
 
@@ -105,6 +106,7 @@ export const messages = {
     "chat.contextSearch": "Context: {n} sources from \"{q}\"",
     "chat.contextNone": "No active search · the AI will use tools to look things up",
     "chat.openHint": "⌘K to chat",
+    "chat.shortlistPrompt": "Shortlist the best {q} from my saved bookmarks. Return a numbered list ordered by relevance, each item with the title, a short description, and the link.",
   },
   hu: {
     "app.title": "X Könyvjelzők",
@@ -133,6 +135,7 @@ export const messages = {
 
     "action.clear": "Törlés",
     "action.aiDigest": "Top {n} összegzése AI-val",
+    "action.aiShortlist": "Rövid lista AI-val",
     "action.scrollTop": "Vissza a tetejére",
     "action.loadMore": "{n} további betöltése",
 
@@ -195,6 +198,7 @@ export const messages = {
     "chat.contextSearch": "Kontextus: {n} forrás innen: \"{q}\"",
     "chat.contextNone": "Nincs aktív keresés · az AI eszközökkel keres majd",
     "chat.openHint": "⌘K csevegéshez",
+    "chat.shortlistPrompt": "Készíts rövid listát a legjobb {q} eredményekről a mentett könyvjelzőim közül. Számozott, relevancia szerint rendezett lista legyen, minden tételnél a cím, rövid leírás és link.",
   },
 } as const;
 

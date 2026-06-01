@@ -63,6 +63,8 @@ type Props = {
   getBookmark?: (input: GetBookmarkInput) => GetBookmarkResult;
   /** When set, the panel renders in read-only history mode. */
   initialMessages?: UIMessage[];
+  /** When set, this prompt is auto-sent once on mount as the first user message. */
+  initialPrompt?: string;
   onClose: () => void;
 };
 
@@ -71,6 +73,7 @@ export function CommandKChat({
   runSearch,
   getBookmark,
   initialMessages,
+  initialPrompt,
   onClose,
 }: Props) {
   const { t, lang } = useLanguage();
@@ -144,6 +147,15 @@ export function CommandKChat({
     }, 80);
     return () => window.clearTimeout(timer);
   }, [isHistory]);
+
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (isHistory) return;
+    if (!initialPrompt) return;
+    if (autoSentRef.current) return;
+    autoSentRef.current = true;
+    sendMessage({ text: initialPrompt });
+  }, [isHistory, initialPrompt, sendMessage]);
 
   const [saved, setSaved] = useState(false);
   const handleSave = useCallback(() => {

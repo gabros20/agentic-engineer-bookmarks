@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Bookmark as BookmarkIcon, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
+import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
@@ -126,8 +126,10 @@ export function BookmarksApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
+  const [chatInitialPrompt, setChatInitialPrompt] = useState<string | null>(null);
   const [savedChatsCount, setSavedChatsCount] = useState(0);
   const [pendingChatOpen, setPendingChatOpen] = useState(false);
+  const [pendingShortlistPrompt, setPendingShortlistPrompt] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -659,30 +661,56 @@ export function BookmarksApp() {
 
         <AnimatePresence initial={false}>
           {query.trim() && visiblePosts.length > 0 ? (
-            <motion.button
-              key="ai-digest-cta"
-              type="button"
+            <motion.div
+              key="ai-ctas"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                const sources = visiblePosts.slice(0, 30).map(toDigestSource);
-                const payload = { query: query.trim(), sources };
-                if (digestUnlocked) {
-                  setDigestPayload(payload);
-                  setDigestOpen(true);
-                } else {
-                  setPendingDigest(payload);
-                  setUnlockOpen(true);
-                }
-              }}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+              className="flex flex-col gap-2 sm:flex-row"
             >
-              <Sparkles size={16} />
-              <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
-            </motion.button>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  const sources = visiblePosts.slice(0, 30).map(toDigestSource);
+                  const payload = { query: query.trim(), sources };
+                  if (digestUnlocked) {
+                    setDigestPayload(payload);
+                    setDigestOpen(true);
+                  } else {
+                    setPendingDigest(payload);
+                    setUnlockOpen(true);
+                  }
+                }}
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+              >
+                <Sparkles size={16} />
+                <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
+              </motion.button>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  const q = query.trim();
+                  if (!q) return;
+                  const prompt = t("chat.shortlistPrompt", { q });
+                  if (digestUnlocked) {
+                    setChatHistoryMessages(null);
+                    setChatInitialPrompt(prompt);
+                    setChatOpen(true);
+                  } else {
+                    setPendingShortlistPrompt(prompt);
+                    setPendingChatOpen(true);
+                    setUnlockOpen(true);
+                  }
+                }}
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[color:var(--color-primary)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-primary)] transition-colors hover:bg-[color:var(--color-primary)]/10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+              >
+                <ListOrdered size={16} />
+                <span>{t("action.aiShortlist")}</span>
+              </motion.button>
+            </motion.div>
           ) : null}
         </AnimatePresence>
       </section>
@@ -769,6 +797,7 @@ export function BookmarksApp() {
               setUnlockOpen(false);
               setPendingDigest(null);
               setPendingChatOpen(false);
+              setPendingShortlistPrompt(null);
             }}
             onUnlocked={() => {
               setDigestUnlocked(true);
@@ -781,6 +810,8 @@ export function BookmarksApp() {
               if (pendingChatOpen) {
                 setPendingChatOpen(false);
                 setChatHistoryMessages(null);
+                setChatInitialPrompt(pendingShortlistPrompt);
+                setPendingShortlistPrompt(null);
                 setChatOpen(true);
               }
             }}
@@ -791,14 +822,16 @@ export function BookmarksApp() {
       <AnimatePresence>
         {chatOpen ? (
           <CommandKChat
-            key={chatHistoryMessages ? "chat-history" : "chat-live"}
+            key={chatHistoryMessages ? "chat-history" : chatInitialPrompt ? `chat-shortlist-${chatInitialPrompt}` : "chat-live"}
             context={chatContext}
             runSearch={runChatSearch}
             getBookmark={getChatBookmark}
             initialMessages={chatHistoryMessages ?? undefined}
+            initialPrompt={chatInitialPrompt ?? undefined}
             onClose={() => {
               setChatOpen(false);
               setChatHistoryMessages(null);
+              setChatInitialPrompt(null);
             }}
           />
         ) : null}
