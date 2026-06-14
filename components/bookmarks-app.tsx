@@ -34,7 +34,8 @@ import {
   type SearchIndexPayload,
   type SearchPrecision,
 } from "@/lib/bookmark-search";
-import type { BookmarkPayload, BookmarkPost } from "@/lib/bookmark-types";
+import type { BookmarkPost } from "@/lib/bookmark-types";
+import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
@@ -88,7 +89,7 @@ async function embedQueries(queries: string[], model: string) {
 
 export function BookmarksApp() {
   const { t, lang } = useLanguage();
-  const [payload, setPayload] = useState<BookmarkPayload | null>(null);
+  const [payload, setPayload] = useState<unknown>(null);
   const [searchIndex, setSearchIndex] = useState<SearchIndexPayload | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -185,7 +186,7 @@ export function BookmarksApp() {
     });
     worker.onmessage = (event: MessageEvent<DataWorkerMessage>) => {
       const msg = event.data;
-      if (msg.type === "bookmarks") setPayload(msg.payload as BookmarkPayload);
+      if (msg.type === "bookmarks") setPayload(msg.payload);
       else if (msg.type === "searchIndex") setSearchIndex(msg.payload as SearchIndexPayload);
       else if (msg.type === "error") {
         if (msg.which === "bookmarks") setError(msg.message);
@@ -220,7 +221,7 @@ export function BookmarksApp() {
     setVisibleLimit(PAGE_SIZE);
   }, [query, scope, sort]);
 
-  const posts = payload?.data ?? [];
+  const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
   const keywordIndex = useMemo(() => (posts.length ? buildKeywordIndex(posts) : null), [posts]);
 
   useEffect(() => {

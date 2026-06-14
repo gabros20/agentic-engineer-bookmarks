@@ -2,36 +2,15 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
+import { normalizeBookmarkPayload } from "./lib/archive.mjs";
+import { EMBED_MODEL as model, quantizeEmbedding, searchText } from "./lib/embed.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourcePath = join(root, "public/data/all-bookmarks.json");
 const outputPath = join(root, "public/data/search-index.json");
-const model = "Xenova/all-MiniLM-L6-v2";
-
-function searchText(post) {
-  return [
-    post.text,
-    post.articleTitle,
-    post.articleText,
-    post.author?.name,
-    post.author?.screenName,
-    ...(post.urls ?? []),
-    post.quotedTweet?.text,
-    post.quotedTweet?.author?.name,
-    post.quotedTweet?.author?.screenName,
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function quantizeEmbedding(data) {
-  return Array.from(data, (value) => Math.max(-127, Math.min(127, Math.round(value * 127))));
-}
 
 const payload = JSON.parse(await readFile(sourcePath, "utf8"));
-const posts = payload.data ?? [];
+const posts = normalizeBookmarkPayload(payload);
 const extractor = await pipeline("feature-extraction", model);
 const items = [];
 

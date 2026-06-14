@@ -8,3 +8,6 @@ dist/
 .DS_Store
 .vercel
 *.tsbuildinfo
+
+# one-time migration backup
+public/data/*.legacy.bak
