@@ -6,7 +6,7 @@
     "build:search": "node scripts/build-search-index.mjs",
     "embed:new": "node scripts/embed-new.mjs",
     "migrate:archive": "node scripts/migrate-to-archive.mjs",
-    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json && node scripts/embed-new.mjs",
+    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000 && node scripts/embed-new.mjs",
     "build": "next build",
     "start": "next start"
   },
