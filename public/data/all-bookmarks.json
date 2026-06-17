@@ -1,10 +1,3330 @@
 {
   "schema": "x-relay/archive@1",
   "source": "bookmarks",
-  "generatedAt": "2026-06-14T08:34:34.409Z",
-  "count": 4818,
-  "newestId": "2064998499780084154",
+  "generatedAt": "2026-06-17T12:52:14.784Z",
+  "count": 4904,
+  "newestId": "2067180054979936413",
   "tweets": [
+    {
+      "id": "2067180054979936413",
+      "url": "https://x.com/vercel/status/2067180054979936413",
+      "text": "Introducing eve, an agent framework.\n\n𝚊𝚐𝚎𝚗𝚝/\n  𝚊𝚐𝚎𝚗𝚝.𝚝𝚜\n  𝚒𝚗𝚜𝚝𝚛𝚞𝚌𝚝𝚒𝚘𝚗𝚜.𝚖𝚍\n  𝚝𝚘𝚘𝚕𝚜/\n  𝚜𝚔𝚒𝚕𝚕𝚜/\n  𝚜𝚊𝚗𝚍𝚋𝚘𝚡/\n  𝚜𝚌𝚑𝚎𝚍𝚞𝚕𝚎𝚜/\n\nLike Next.js, for agents.\nhttps://t.co/ezUIGLkSqG",
+      "author": {
+        "id": "4686835494",
+        "handle": "vercel",
+        "name": "Vercel",
+        "verified": false,
+        "followers": 432582,
+        "avatar": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_normal.png"
+      },
+      "metrics": {
+        "likes": 1814,
+        "retweets": 189,
+        "replies": 96,
+        "quotes": 101,
+        "bookmarks": 1578,
+        "views": 252144
+      },
+      "lang": "en",
+      "createdAt": "Wed Jun 17 09:38:26 +0000 2026",
+      "createdAtISO": "2026-06-17T09:38:26+00:00",
+      "createdAtLocal": "2026-06-17 11:38",
+      "urls": [
+        "https://vercel.com/blog/introducing-eve"
+      ],
+      "conversationId": "2067180054979936413"
+    },
+    {
+      "id": "2066907613976002757",
+      "url": "https://x.com/CFchangelog/status/2066907613976002757",
+      "text": "Cloudflare Images now includes AI upscaling and aspect-crop modes for better resizing. Control overlays with percentage widths and new composite options.\nhttps://t.co/bKjuzWoQ1d",
+      "author": {
+        "id": "1938036278798532608",
+        "handle": "CFchangelog",
+        "name": "Cloudflare Changelog",
+        "verified": true,
+        "followers": 4274,
+        "avatar": "https://pbs.twimg.com/profile_images/1938036853485273088/qC8x5irx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 88,
+        "retweets": 9,
+        "replies": 2,
+        "quotes": 4,
+        "bookmarks": 53,
+        "views": 28690
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 15:35:51 +0000 2026",
+      "createdAtISO": "2026-06-16T15:35:51+00:00",
+      "createdAtLocal": "2026-06-16 17:35",
+      "urls": [
+        "https://developers.cloudflare.com/changelog/post/2026-06-16-new-optimization-features/"
+      ],
+      "conversationId": "2066907613976002757"
+    },
+    {
+      "id": "2066918976689754148",
+      "url": "https://x.com/firecrawl/status/2066918976689754148",
+      "text": "Starting today, you can try Firecrawl for free without an API key 🔥\n\nSearch, scrape, and interact with any web page, plus parse any PDF into clean markdown, with no setup at all!\n\nStart using our endpoints and only sign up when you scale.\n\nLive on our MCP, CLI, and API now! https://t.co/Z0ZzNxqhZa",
+      "author": {
+        "id": "1796642877172551682",
+        "handle": "firecrawl",
+        "name": "Firecrawl",
+        "verified": false,
+        "followers": 68697,
+        "avatar": "https://pbs.twimg.com/profile_images/2034360486867951616/pa7H6cYB_normal.png"
+      },
+      "metrics": {
+        "likes": 736,
+        "retweets": 86,
+        "replies": 39,
+        "quotes": 35,
+        "bookmarks": 726,
+        "views": 196536
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 16:21:00 +0000 2026",
+      "createdAtISO": "2026-06-16T16:21:00+00:00",
+      "createdAtLocal": "2026-06-16 18:21",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/ext_tw_video/2066918400362741760/pu/vid/avc1/1280x720/ZMgFN1jg9KyoI0Ud.mp4?tag=12",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/ext_tw_video_thumb/2066918400362741760/pu/img/Ic9Ah351tci7r33T.jpg",
+          "durationMs": 8000
+        }
+      ],
+      "conversationId": "2066918976689754148"
+    },
+    {
+      "id": "2066774992264830999",
+      "url": "https://x.com/VedaAI00/status/2066774992264830999",
+      "text": "当大家还在为闭源模型的封锁而焦虑时，边缘侧的视觉大模型已经进化到了恐怖的阶段。\n\n👇 Martin Maly 展示了仅凭一次 Prompt（One-shotted），Opus 4.8 就能把一台普通手机变成「羽毛球专业裁判系统」： https://t.co/tTH7nWCruV",
+      "author": {
+        "id": "1839507984189403136",
+        "handle": "VedaAI00",
+        "name": "谁是藏镜人",
+        "verified": false,
+        "followers": 2648,
+        "avatar": "https://pbs.twimg.com/profile_images/2040729689585795072/zfjMcEVx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 574,
+        "retweets": 81,
+        "replies": 15,
+        "quotes": 6,
+        "bookmarks": 641,
+        "views": 125143
+      },
+      "lang": "zh",
+      "createdAt": "Tue Jun 16 06:48:51 +0000 2026",
+      "createdAtISO": "2026-06-16T06:48:51+00:00",
+      "createdAtLocal": "2026-06-16 08:48",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066774723091120128/vid/avc1/1280x720/zlz11qWnZQ_8rT9C.mp4?tag=14",
+          "width": 1280,
+          "height": 720,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066774723091120128/img/WPgeJB5UXUSplJ3x.jpg",
+          "durationMs": 32366
+        }
+      ],
+      "conversationId": "2066774992264830999"
+    },
+    {
+      "id": "2066847826081136844",
+      "url": "https://x.com/techNmak/status/2066847826081136844",
+      "text": "CocoIndex Code is a semantic code search engine for your codebase that plugs into Claude Code, Codex, and Cursor.\n\nYour coding agent currently searches your code the way grep does - by text.\n\nCocoIndex Code gives it AST-based semantic search instead. It indexes code structure and meaning. Your agent finds the right functions by describing what they do, not by guessing what they're named.\n\nThe result: 70% fewer tokens on codebase searches.\n\nHere is what that looks like in practice:\nccc search \"find how user sessions are managed\" => returns session management logic even if the word \"session\" never appears in function names.\n\nccc search \"authentication error handling\" => returns the three relevant functions instead of every file mentioning \"auth.\"\n\nccc search \"database connection pooling\" => finds ConnectionManager, not 400 grep results.\n\nInstall as a Claude Code skill:\nnpx skills add cocoindex-io/cocoindex-code\n\nThe skill handles everything - initialization, indexing, keeping the index current as files change. You don't need any config file or database to manage. No API key required for local embeddings.\n\nBuilt on CocoIndex, a Rust-based indexing engine. Supports 28+ languages. Works via Skill or MCP.\n\n80k downloads per month. Apache 2.0. Open-source.\n\nHere's the GitHub Repo: https://t.co/bQ2MjyJmNW",
+      "author": {
+        "id": "1818381581897412608",
+        "handle": "techNmak",
+        "name": "Tech with Mak",
+        "verified": true,
+        "followers": 39573,
+        "avatar": "https://pbs.twimg.com/profile_images/1905858162839961600/K6Gfh6cZ_normal.jpg"
+      },
+      "metrics": {
+        "likes": 44,
+        "retweets": 10,
+        "replies": 3,
+        "quotes": 0,
+        "bookmarks": 38,
+        "views": 2299
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 11:38:16 +0000 2026",
+      "createdAtISO": "2026-06-16T11:38:16+00:00",
+      "createdAtLocal": "2026-06-16 13:38",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066847691829862401/vid/avc1/1358x1022/Wz5MSvDXMg5yagf1.mp4?tag=28",
+          "width": 1358,
+          "height": 1022,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066847691829862401/img/VsG7mWT5HL0mijOG.jpg",
+          "durationMs": 19150
+        }
+      ],
+      "conversationId": "2066847826081136844"
+    },
+    {
+      "id": "2067012903337664886",
+      "url": "https://x.com/GoogleCloudTech/status/2067012903337664886",
+      "text": "Introducing the Open Knowledge Format (OKF), an open specification that formalizes the LLM-wiki pattern into a portable, interoperable format.\n\nAI is only as smart as the context we give it. As we build more advanced, agentic AI systems, they need accurate metadata and context to be useful. But in most organizations, that context is locked inside fragmented data catalogs, isolated wikis, scattered code comments, or the minds of senior engineers. Every time a new AI agent is built, teams are forced to solve the exact same context-assembly problem from scratch.\n\nTo solve this, we've announced OKF, a vendor-neutral, open specification that formalizes the \"LLM-wiki pattern\" into a portable, interoperable format. It provides a standardized way to represent the enterprise knowledge that modern AI systems rely on.\n\n— Just markdown: readable in any editor, renderable on GitHub, indexable by any search tool\n— Just files: shippable as a tarball, hostable in any git repo, mountable on any filesystem\n— Just YAML frontmatter: for the small set of structured fields that need to be queryable: type, title, description, resource, tags, and timestamp\n\nWe’ve also shipped reference implementations to help you hit the ground running, including an enrichment agent for BigQuery, a static HTML visualizer, and live sample bundles on @github → https://t.co/ilhAMCrcTc\n\n➕ Knowledge Catalog can now natively ingest OKF!\n\nStop reinventing data models and building bespoke integrations for every new AI tool. Here's more about how OKF works → https://t.co/FR4kJRsgEH",
+      "author": {
+        "id": "15813140",
+        "handle": "GoogleCloudTech",
+        "name": "Google Cloud Tech",
+        "verified": true,
+        "followers": 1308652,
+        "avatar": "https://pbs.twimg.com/profile_images/2047008659629391872/BfLTYOuh_normal.jpg"
+      },
+      "metrics": {
+        "likes": 3188,
+        "retweets": 366,
+        "replies": 86,
+        "quotes": 65,
+        "bookmarks": 3281,
+        "views": 229453
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 22:34:14 +0000 2026",
+      "createdAtISO": "2026-06-16T22:34:14+00:00",
+      "createdAtLocal": "2026-06-17 00:34",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK-BSBgXoAAjs0H.jpg",
+          "width": 1712,
+          "height": 1196
+        }
+      ],
+      "conversationId": "2067012903337664886"
+    },
+    {
+      "id": "2066904241688461551",
+      "url": "https://x.com/itskanyirijames/status/2066904241688461551",
+      "text": "WorkPods agents can now generate and edit slide decks on the canvas.\n\nYou can ask the agent to generate the deck, select part of a slide, add it to chat, and tell the agent what to change.\n\nThe same deck updates in place, without a page reload or a duplicate.\n\nPowered by @LangChain  under the hood.\n\n@CopilotKit @eli_discovers @LangChain @BraceSproul @jakebroekhuizen @Baconbrix",
+      "author": {
+        "id": "1146471777020907520",
+        "handle": "itskanyirijames",
+        "name": "it’kanyirijames",
+        "verified": true,
+        "followers": 167,
+        "avatar": "https://pbs.twimg.com/profile_images/1995200438572810240/2Rw_Wgwc_normal.jpg"
+      },
+      "metrics": {
+        "likes": 11,
+        "retweets": 4,
+        "replies": 2,
+        "quotes": 0,
+        "bookmarks": 6,
+        "views": 1108
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 15:22:27 +0000 2026",
+      "createdAtISO": "2026-06-16T15:22:27+00:00",
+      "createdAtLocal": "2026-06-16 17:22",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066897218200633344/vid/avc1/3448x2160/ku_8yATZAXtRNcq6.mp4?tag=28",
+          "width": 3448,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066897218200633344/img/pS5ymD2yZUEidYTi.jpg",
+          "durationMs": 124608
+        }
+      ],
+      "conversationId": "2066904241688461551"
+    },
+    {
+      "id": "2066958532096782798",
+      "url": "https://x.com/penzington/status/2066958532096782798",
+      "text": "A few weeks ago I noticed that Linear got slower than it used to. Especially on the new Diffs feature, that we were getting ready to release, it was pretty bad. For days I was running profiles, staring at profiles, bisecting with agents from every direction.\nThe pattern was clear - we accessed the DOM a ton, which blocked the main threads on style recalcs and layout for 10s or 100s of milliseconds over and over. \nI shipped dozens of PRs to get rid of those layout-causing calls, using pretext and whatever tricks the agents and I could come up with. It helped, but only a bit. I was getting desperate.",
+      "author": {
+        "id": "1864818224",
+        "handle": "penzington",
+        "name": "Maciek Pekala",
+        "verified": true,
+        "followers": 1150,
+        "avatar": "https://pbs.twimg.com/profile_images/1172245922459332608/U40sCtOw_normal.jpg"
+      },
+      "metrics": {
+        "likes": 700,
+        "retweets": 32,
+        "replies": 18,
+        "quotes": 11,
+        "bookmarks": 373,
+        "views": 82690
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 18:58:10 +0000 2026",
+      "createdAtISO": "2026-06-16T18:58:10+00:00",
+      "createdAtLocal": "2026-06-16 20:58",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK9JUyiWQAAAZEb.jpg",
+          "width": 2888,
+          "height": 900
+        }
+      ],
+      "conversationId": "2066958532096782798"
+    },
+    {
+      "id": "2066889073193804057",
+      "url": "https://x.com/sanity_io/status/2066889073193804057",
+      "text": "Stand up a working content backend the same way you build the rest of your app: by describing it to an agent.\n\nThe Sanity MCP server gives the agent tools that run in sequence:\n\n1. create a project\n2. deploy a schema\n3. deploy a Studio\n4. ???\n5. Profit!¹\n\nYou describe the shape of your content, the agent writes the schema and hands back a hosted Studio at a real *.sanity[.]studio URL. No CLI, no scaffolding, no install. OAuth and you're in.\n\nWhich means you find out if \"Page\" should really be four document types in the first two minutes, in a Studio you can click around in, instead of after you've wired up a whole frontend.\n\nWorks in @cursor_ai, @claudeai, @ClaudeDevs, @Copilot, @v0, @Lovable, @boltdotnew, @Replit, and anywhere you can install an MCP server.\n\nAdd it to your agent: https://t.co/aAxtrsgXbG\n\n———\n¹ the mcp server does not actually have a dedicated tool for profit; that one is on you.",
+      "author": {
+        "id": "734521897728233472",
+        "handle": "sanity_io",
+        "name": "Sanity",
+        "verified": true,
+        "followers": 15036,
+        "avatar": "https://pbs.twimg.com/profile_images/1920495712011259904/EY9Jj3rk_normal.png"
+      },
+      "metrics": {
+        "likes": 13,
+        "retweets": 1,
+        "replies": 2,
+        "quotes": 0,
+        "bookmarks": 12,
+        "views": 1293
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 14:22:10 +0000 2026",
+      "createdAtISO": "2026-06-16T14:22:10+00:00",
+      "createdAtLocal": "2026-06-16 16:22",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066889020060418048/vid/avc1/3124x2160/g34_xOm2xR1eBRGJ.mp4?tag=28",
+          "width": 3124,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066889020060418048/img/HGWPXwsls9SNGYZN.jpg",
+          "durationMs": 23722
+        }
+      ],
+      "conversationId": "2066889073193804057"
+    },
+    {
+      "id": "2066537631350133112",
+      "url": "https://x.com/tripoai/status/2066537631350133112",
+      "text": "Tripo 8K Texture applies 8192×8192 detail directly onto 3D models, preserving surface fidelity without upscaling.\n\nSharper micro-detail, more grounded materials, and consistent shading even at close range.  \n\nFrom base mesh to export-ready 8K textures in under 2 minutes. https://t.co/zu1EXyGK72",
+      "author": {
+        "id": "1722179481144848384",
+        "handle": "tripoai",
+        "name": "Tripo",
+        "verified": true,
+        "followers": 16078,
+        "avatar": "https://pbs.twimg.com/profile_images/1767828642678374400/0moo4B0D_normal.jpg"
+      },
+      "metrics": {
+        "likes": 124,
+        "retweets": 21,
+        "replies": 4,
+        "quotes": 0,
+        "bookmarks": 72,
+        "views": 15634
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 15:05:40 +0000 2026",
+      "createdAtISO": "2026-06-15T15:05:40+00:00",
+      "createdAtLocal": "2026-06-15 17:05",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066537434003972096/vid/avc1/3840x2160/WgQKTH--4lBCAaJw.mp4?tag=28",
+          "width": 3840,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066537434003972096/img/zhNizR3Lbk9OkGVn.jpg",
+          "durationMs": 35062
+        }
+      ],
+      "conversationId": "2066537631350133112"
+    },
+    {
+      "id": "2066898426277597206",
+      "url": "https://x.com/Tibbzzee/status/2066898426277597206",
+      "text": "Here's a look at how Auto Site Plan is coming along. I don't know why this wasn't so easy in the past, creating a residential site plan for basic construction. You can automate about 95% of the process; the rest is just moving things around like paint, no CAD skills required. The square footage tabulations and FAR calculate as you design.",
+      "author": {
+        "id": "1493366699546099712",
+        "handle": "Tibbzzee",
+        "name": "Steven Tibbs",
+        "verified": true,
+        "followers": 1613,
+        "avatar": "https://pbs.twimg.com/profile_images/1903715392012632064/5ZdBSNwi_normal.jpg"
+      },
+      "metrics": {
+        "likes": 26,
+        "retweets": 1,
+        "replies": 3,
+        "quotes": 0,
+        "bookmarks": 32,
+        "views": 1776
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 14:59:20 +0000 2026",
+      "createdAtISO": "2026-06-16T14:59:20+00:00",
+      "createdAtLocal": "2026-06-16 16:59",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066897970222505984/vid/avc1/2524x1250/0j74dDLcexqhWE-z.mp4?tag=28",
+          "width": 2524,
+          "height": 1250,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066897970222505984/img/KYUEGaaGhYjMWR7E.jpg",
+          "durationMs": 125550
+        }
+      ],
+      "conversationId": "2066898426277597206"
+    },
+    {
+      "id": "2066922013000671731",
+      "url": "https://x.com/mattpocockuk/status/2066922013000671731",
+      "text": "The outrageous effectiveness of Leitwörter\n\nI've realised that all of the great skills I've written share one thing in common.\n\nThey make heavy use of Leitwörter - leading words.\n\nA leitwort comes from literary theory. It's a repeated word or phrase used throughout a text to establish a theme or anchor meaning.\n\nIn skills, a leitwort is a word or phrase the agent uses to guide its own behavior. In other words, it's a word that leads the agent in a certain direction.\n\nLet's take the leitwort \"zone of proximal development\" from my /teach skill. It's a phrase from the study of education. It means the \"zone where the user feels challenged but not overwhelmed\".\n\nI use this only a couple of times throughout the skill's SKILL.md, but I've seen it almost every time the agent invokes the skill.\n\n- \"Let me adjust the lesson so it's in the user's zone of proximal development.\"\n- \"I'll read the learning records to establish the user's zone of proximal development.\"\n\nIn other words, that single phrase encodes how the agent should behave, in a concise token the agent can itself repeat to reinforce its own behavior.\n\nNot only that, but it also likely tickles the agents' parameters related to educational research and \"being a good teacher\".\n\nFor engineering, leading words like \"tracer bullets\", \"deep modules\", \"test seams\", \"clean code\" are outrageously effective for leading the agent to produce better code.\n\nSo a leitwort in AI is any word or phrase you use that appears in the agents' thinking traces and guides its behavior.\n\nEnjoy finding your own.",
+      "author": {
+        "id": "346640777",
+        "handle": "mattpocockuk",
+        "name": "Matt Pocock",
+        "verified": true,
+        "followers": 289873,
+        "avatar": "https://pbs.twimg.com/profile_images/1666460461884211204/SmBm505D_normal.jpg"
+      },
+      "metrics": {
+        "likes": 845,
+        "retweets": 55,
+        "replies": 48,
+        "quotes": 13,
+        "bookmarks": 734,
+        "views": 39321
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 16:33:04 +0000 2026",
+      "createdAtISO": "2026-06-16T16:33:04+00:00",
+      "createdAtLocal": "2026-06-16 18:33",
+      "conversationId": "2066922013000671731"
+    },
+    {
+      "id": "2066886861235315008",
+      "url": "https://x.com/akshay_pachaar/status/2066886861235315008",
+      "text": "HarnessX: a harness that compiles itself.\n\nevery harness improvement so far has come from a human editing code by hand.\n\nAnthropic strips planning steps out of Claude Code when a stronger model ships. Manus rebuilt its agent five times in six months, removing complexity each round.\n\nthe craft runs on human judgment about what to change and when. HarnessX is what happens when a system makes those edits itself.\n\nthe trick is to treat the harness as a first-class object, the way we already treat model weights.\n\nonce it's a typed, editable artifact, it can be optimized from its own execution traces.\n\nthe framing they use is an operational mirror. evolving a harness maps cleanly onto reinforcement learning.\n\nthe harness is the state. an edit is the action. the trace plus a score is the feedback. a new version is the update.\n\nonce you see it that way, the failure modes come for free. reward hacking, catastrophic forgetting, under-exploration.\n\nthe same problems that break model training show up when a system edits its own scaffolding.\n\nso edits never ship blind. each round, a loop reads the traces, plans a change, writes the edit, then critiques it.\n\na gate keeps the new version only if it beats the current one on tasks it hasn't seen.\n\nwhat makes this safe is the structure underneath. the harness is built from typed components the system can swap without breaking the rest.\n\nthat is what compiles really means here. every candidate harness is type-checked before it runs.\n\nhere is the result that matters. the weakest model improved the most. the strongest barely moved.\n\nan evolved harness closes the gaps a weak model cannot fix on its own. the weights never changed. the environment around them got smarter.\n\nthis is the natural next phase of harness engineering. we moved from weights, to context, to hand-built harnesses.\n\nthe harness was the last piece we still tuned by hand.\n\ni wrote a deep dive on agent harness engineering a while back, covering the orchestration loop, tools, memory, context management, and everything that turns a stateless LLM into a capable agent. the article is below.\n\npaper: HarnessX: A Composable, Adaptive, and Evolvable Agent Harness Foundry: https://t.co/L0GeUKCgef",
+      "author": {
+        "id": "703601972",
+        "handle": "akshay_pachaar",
+        "name": "Akshay 🚀",
+        "verified": true,
+        "followers": 277420,
+        "avatar": "https://pbs.twimg.com/profile_images/1578327351544360960/YFpWSWIX_normal.jpg"
+      },
+      "metrics": {
+        "likes": 622,
+        "retweets": 95,
+        "replies": 25,
+        "quotes": 4,
+        "bookmarks": 914,
+        "views": 83943
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 14:13:23 +0000 2026",
+      "createdAtISO": "2026-06-16T14:13:23+00:00",
+      "createdAtLocal": "2026-06-16 16:13",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK8OpXVbcAA3D9E.jpg",
+          "width": 1600,
+          "height": 1732
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2066886861235315008",
+      "quoted": {
+        "id": "2041146899319971922",
+        "url": "https://x.com/akshay_pachaar/status/2041146899319971922",
+        "text": "https://t.co/VoQByJUrBU",
+        "author": {
+          "id": "703601972",
+          "handle": "akshay_pachaar",
+          "name": "Akshay 🚀",
+          "verified": true,
+          "followers": 277420,
+          "avatar": "https://pbs.twimg.com/profile_images/1578327351544360960/YFpWSWIX_normal.jpg"
+        },
+        "metrics": {
+          "likes": 3124,
+          "retweets": 522,
+          "replies": 73,
+          "quotes": 89,
+          "bookmarks": 7725,
+          "views": 2026498
+        },
+        "lang": "zxx",
+        "createdAt": "Mon Apr 06 13:31:58 +0000 2026",
+        "createdAtISO": "2026-04-06T13:31:58+00:00",
+        "createdAtLocal": "2026-04-06 15:31",
+        "urls": [
+          "http://x.com/i/article/2040732084843782144"
+        ],
+        "conversationId": "2041146899319971922",
+        "article": {
+          "title": "The Anatomy of an Agent Harness ",
+          "markdown": ""
+        }
+      },
+      "article": {
+        "title": "The Anatomy of an Agent Harness ",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2066741078179610927",
+      "url": "https://x.com/thesupermanmx/status/2066741078179610927",
+      "text": "MIT just open-sourced a model that could end the $150/hour CAD industry.\n\nIt’s called GenCAD. It converts photos into fully editable CAD programs. Just upload a sketch or photo and it generates the full parametric 3D model. \n\n100% Open Source. https://t.co/mA5PsBfDGO",
+      "author": {
+        "id": "2052949858252939264",
+        "handle": "thesupermanmx",
+        "name": "Superman",
+        "verified": true,
+        "followers": 108,
+        "avatar": "https://pbs.twimg.com/profile_images/2061753751560650752/4jxd2vjA_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1182,
+        "retweets": 165,
+        "replies": 18,
+        "quotes": 12,
+        "bookmarks": 1464,
+        "views": 54677
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 04:34:05 +0000 2026",
+      "createdAtISO": "2026-06-16T04:34:05+00:00",
+      "createdAtLocal": "2026-06-16 06:34",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK6KDoSaIAA7YPv.jpg",
+          "width": 1752,
+          "height": 1242
+        }
+      ],
+      "conversationId": "2066741078179610927"
+    },
+    {
+      "id": "2066853463250670022",
+      "url": "https://x.com/SimonHoiberg/status/2066853463250670022",
+      "text": "I moved all my products off the cloud and now self-hosting my entire SaaS portfolio at a fixed, low cost.\n\n\"But now you have to deal with maintenance\"\n\nNo, not really.\nMy AI DevOps agents do that.\n\nAnd they're much faster than Vercel's support team (and muuuuch cheaper than AWS enterprise support plan)\n\nThe arguments against self-hosting died with AI 👇",
+      "author": {
+        "id": "875776212341329920",
+        "handle": "SimonHoiberg",
+        "name": "Simon Høiberg",
+        "verified": true,
+        "followers": 159475,
+        "avatar": "https://pbs.twimg.com/profile_images/2048770896114876416/Ale2aou-_normal.jpg"
+      },
+      "metrics": {
+        "likes": 100,
+        "retweets": 6,
+        "replies": 20,
+        "quotes": 1,
+        "bookmarks": 99,
+        "views": 9195
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 12:00:40 +0000 2026",
+      "createdAtISO": "2026-06-16T12:00:40+00:00",
+      "createdAtLocal": "2026-06-16 14:00",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/ext_tw_video/2066853367075295233/pu/vid/avc1/1280x720/Y91FCB2Tn9_CkdRL.mp4?tag=12",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/ext_tw_video_thumb/2066853367075295233/pu/img/RC0QYVebXuP7jOUW.jpg",
+          "durationMs": 85986
+        }
+      ],
+      "conversationId": "2066853463250670022"
+    },
+    {
+      "id": "2066757319690756273",
+      "url": "https://x.com/apeatling/status/2066757319690756273",
+      "text": "Why don't people talk about pr-review-toolkit?\n\nhttps://t.co/Jh9sPodFOX\n\nIt's absolutely priceless but seems to fly under the radar.",
+      "author": {
+        "id": "13387592",
+        "handle": "apeatling",
+        "name": "Andy Peatling",
+        "verified": true,
+        "followers": 5770,
+        "avatar": "https://pbs.twimg.com/profile_images/2001139282468077570/XEjIZg3Y_normal.jpg"
+      },
+      "metrics": {
+        "likes": 174,
+        "retweets": 6,
+        "replies": 8,
+        "quotes": 2,
+        "bookmarks": 452,
+        "views": 26122
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 05:38:38 +0000 2026",
+      "createdAtISO": "2026-06-16T05:38:38+00:00",
+      "createdAtLocal": "2026-06-16 07:38",
+      "urls": [
+        "https://github.com/anthropics/claude-code/tree/main/plugins/pr-review-toolkit"
+      ],
+      "conversationId": "2066757319690756273"
+    },
+    {
+      "id": "2066869177965822024",
+      "url": "https://x.com/Ai_Vaidehi/status/2066869177965822024",
+      "text": "A Russian guy has discovered a method to learn anything ten times faster using AI!\n\nIt involves NotebookLM, Gemini and Obsidian. https://t.co/CVwjpSLU2L",
+      "author": {
+        "id": "1977766868405411840",
+        "handle": "Ai_Vaidehi",
+        "name": "Vaidehi",
+        "verified": true,
+        "followers": 14829,
+        "avatar": "https://pbs.twimg.com/profile_images/1982473055545819136/RQp_qpzR_normal.jpg"
+      },
+      "metrics": {
+        "likes": 3072,
+        "retweets": 535,
+        "replies": 26,
+        "quotes": 2,
+        "bookmarks": 4353,
+        "views": 155494
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 13:03:07 +0000 2026",
+      "createdAtISO": "2026-06-16T13:03:07+00:00",
+      "createdAtLocal": "2026-06-16 15:03",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066868743737856000/vid/avc1/1920x1080/OVSCeNZuwPeyF2YH.mp4?tag=28",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066868743737856000/img/z4ZZ3jGnng3K--s5.jpg",
+          "durationMs": 800972
+        }
+      ],
+      "conversationId": "2066869177965822024"
+    },
+    {
+      "id": "2066925823526130081",
+      "url": "https://x.com/ElectricSQL/status/2066925823526130081",
+      "text": "Electric Agents 0.6 is out!\n\n0.6 rounds out what we launched in May:\n\n• Long-lived entities with StreamDB state\n• Spawn, fork, send, wake, signal, schedule\n• Local and remote agent runners\n• Desktop + mobile apps built on core APIs\n• PG sync triggers, MCP servers, webhook sources\n\nThe ecosystem is converging on our thesis: the agent is the log. Electric Agents paints the picture for what is built on top.",
+      "author": {
+        "id": "1425454808350199820",
+        "handle": "ElectricSQL",
+        "name": "Electric",
+        "verified": true,
+        "followers": 6819,
+        "avatar": "https://pbs.twimg.com/profile_images/2049277094174367744/4N0ZgpLW_normal.png"
+      },
+      "metrics": {
+        "likes": 50,
+        "retweets": 13,
+        "replies": 3,
+        "quotes": 5,
+        "bookmarks": 31,
+        "views": 9881
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 16:48:12 +0000 2026",
+      "createdAtISO": "2026-06-16T16:48:12+00:00",
+      "createdAtLocal": "2026-06-16 18:48",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066925680563277829/vid/avc1/1552x1080/tJpnkbejpJ7AXo-X.mp4?tag=28",
+          "width": 1552,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066925680563277829/img/epJi3mKXN0rK5CY_.jpg",
+          "durationMs": 18533
+        }
+      ],
+      "conversationId": "2066925823526130081"
+    },
+    {
+      "id": "2066897905823449334",
+      "url": "https://x.com/viktoroddy/status/2066897905823449334",
+      "text": "❤️‍🔥Codex is so cracked at animated websites.\n\nJust Recorded a 11 min Tutorial on how to build websites with GPT 5.5 + Codex https://t.co/a6qTdp7Cgd",
+      "author": {
+        "id": "893369654768529408",
+        "handle": "viktoroddy",
+        "name": "Viktor Oddy",
+        "verified": true,
+        "followers": 57348,
+        "avatar": "https://pbs.twimg.com/profile_images/1941325782829113344/buT3DYqx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 863,
+        "retweets": 75,
+        "replies": 19,
+        "quotes": 5,
+        "bookmarks": 1239,
+        "views": 52609
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 14:57:16 +0000 2026",
+      "createdAtISO": "2026-06-16T14:57:16+00:00",
+      "createdAtLocal": "2026-06-16 16:57",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066895884277915648/vid/avc1/3324x2160/zB1uiyhFe5awIgYe.mp4?tag=28",
+          "width": 3324,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066895884277915648/img/XdoCR6LuxTEeCPrJ.jpg",
+          "durationMs": 660800
+        }
+      ],
+      "conversationId": "2066897905823449334"
+    },
+    {
+      "id": "2066867606103949594",
+      "url": "https://x.com/gregbarbosa/status/2066867606103949594",
+      "text": "Apple didn't, so I did: I made it dead simple to run macOS 27's local and Private Cloud Compute Foundation models in any app that accepts an OpenAI API URL.\n\nHere's fm-proxy. A drop-in replacement, with no extra servers, and no extra keys. It's great in a minimal Pi setup! https://t.co/6pTS4VcBQ1",
+      "author": {
+        "id": "15545124",
+        "handle": "gregbarbosa",
+        "name": "Greg Barbosa",
+        "verified": false,
+        "followers": 3017,
+        "avatar": "https://pbs.twimg.com/profile_images/1760778851175501824/rwZIqHkw_normal.jpg"
+      },
+      "metrics": {
+        "likes": 385,
+        "retweets": 24,
+        "replies": 12,
+        "quotes": 2,
+        "bookmarks": 343,
+        "views": 26332
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 12:56:52 +0000 2026",
+      "createdAtISO": "2026-06-16T12:56:52+00:00",
+      "createdAtLocal": "2026-06-16 14:56",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK759ZwWIAA4IWG.jpg",
+          "width": 2496,
+          "height": 1664
+        }
+      ],
+      "conversationId": "2066867606103949594"
+    },
+    {
+      "id": "2066861152915849428",
+      "url": "https://x.com/PrajwalTomar_/status/2066861152915849428",
+      "text": "You don't understand how BIG this is.\n\nThe same OWASP security audit that used to take a consultant 3 days now happens in 30 seconds with ONE prompt:\n\n\"Review my app against OWASP standards and highlight vulnerabilities.\"\n\n→ SQL injection\n→ XSS\n→ Broken auth\n→ Insecure dependencies\n\nWatch what happens when you paste it into Cursor.\n\nMost vibe coders do not even know this exists.\n\n(full breakdown in the article)",
+      "author": {
+        "id": "1676906284715503617",
+        "handle": "PrajwalTomar_",
+        "name": "Prajwal Tomar",
+        "verified": true,
+        "followers": 55450,
+        "avatar": "https://pbs.twimg.com/profile_images/1994957908099125248/9AaluzL-_normal.jpg"
+      },
+      "metrics": {
+        "likes": 137,
+        "retweets": 16,
+        "replies": 9,
+        "quotes": 1,
+        "bookmarks": 292,
+        "views": 21717
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 12:31:13 +0000 2026",
+      "createdAtISO": "2026-06-16T12:31:13+00:00",
+      "createdAtLocal": "2026-06-16 14:31",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066861097458831360/vid/avc1/1280x720/6suO985BnC8PIf7v.mp4?tag=14",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066861097458831360/img/BXGOiXkGxgoSUMde.jpg",
+          "durationMs": 10300
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2066861152915849428",
+      "quoted": {
+        "id": "2059612250047209957",
+        "url": "https://x.com/PrajwalTomar_/status/2059612250047209957",
+        "text": "https://t.co/Zyk3YVWYje",
+        "author": {
+          "id": "1676906284715503617",
+          "handle": "PrajwalTomar_",
+          "name": "Prajwal Tomar",
+          "verified": true,
+          "followers": 55450,
+          "avatar": "https://pbs.twimg.com/profile_images/1994957908099125248/9AaluzL-_normal.jpg"
+        },
+        "metrics": {
+          "likes": 97,
+          "retweets": 11,
+          "replies": 0,
+          "quotes": 3,
+          "bookmarks": 353,
+          "views": 116455
+        },
+        "lang": "zxx",
+        "createdAt": "Wed May 27 12:26:40 +0000 2026",
+        "createdAtISO": "2026-05-27T12:26:40+00:00",
+        "createdAtLocal": "2026-05-27 14:26",
+        "urls": [
+          "http://x.com/i/article/2059592497756844032"
+        ],
+        "conversationId": "2059612250047209957",
+        "article": {
+          "title": "Vibe Coders Are Getting Sued. Here's the EXACT 30-Minute Playbook.",
+          "markdown": ""
+        }
+      },
+      "article": {
+        "title": "Vibe Coders Are Getting Sued. Here's the EXACT 30-Minute Playbook.",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2066473955070984213",
+      "url": "https://x.com/ShreyashT25/status/2066473955070984213",
+      "text": "Morning light over a lakeside park, rebuilt as a 3D splat from drone footage.  The little colors in the trees are from fallen kites after a kite festival. Nice to see those details come through.  Built with Spatial Studio.\n\n#GaussianSplats #3DGS #3DScanning #ImmersiveTech https://t.co/TYPz630iU4",
+      "author": {
+        "id": "2957860640",
+        "handle": "ShreyashT25",
+        "name": "Shreyash T",
+        "verified": false,
+        "followers": 96,
+        "avatar": "https://pbs.twimg.com/profile_images/1982233842111873024/YH53Juoy_normal.jpg"
+      },
+      "metrics": {
+        "likes": 129,
+        "retweets": 20,
+        "replies": 1,
+        "quotes": 2,
+        "bookmarks": 68,
+        "views": 6563
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 10:52:38 +0000 2026",
+      "createdAtISO": "2026-06-15T10:52:38+00:00",
+      "createdAtLocal": "2026-06-15 12:52",
+      "hashtags": [
+        "GaussianSplats",
+        "3DGS",
+        "3DScanning",
+        "ImmersiveTech"
+      ],
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066473278844403712/vid/avc1/1146x720/qNEqEBlvQmWnlOWT.mp4?tag=14",
+          "width": 3598,
+          "height": 2258,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066473278844403712/img/uI6c-Ubck13XiRl8.jpg",
+          "durationMs": 36468
+        }
+      ],
+      "conversationId": "2066473955070984213"
+    },
+    {
+      "id": "2066763955570446809",
+      "url": "https://x.com/geekbb/status/2066763955570446809",
+      "text": "一款 Go 编写的 Kubernetes TUI 工具，用 bubbletea 框架实现，灵感来自 k9s、Lens 和 lazygit。\n\nhttps://t.co/eVlkF5dXuM https://t.co/n2qAfDackG",
+      "author": {
+        "id": "168139512",
+        "handle": "geekbb",
+        "name": "Geek",
+        "verified": true,
+        "followers": 113164,
+        "avatar": "https://pbs.twimg.com/profile_images/1644898947272671233/7959WGOK_normal.jpg"
+      },
+      "metrics": {
+        "likes": 61,
+        "retweets": 6,
+        "replies": 2,
+        "quotes": 0,
+        "bookmarks": 64,
+        "views": 8493
+      },
+      "lang": "zh",
+      "createdAt": "Tue Jun 16 06:05:00 +0000 2026",
+      "createdAtISO": "2026-06-16T06:05:00+00:00",
+      "createdAtLocal": "2026-06-16 08:05",
+      "urls": [
+        "https://github.com/bjarneo/kli"
+      ],
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066507370650566656/vid/avc1/1280x800/fVPYP7Xj5DAMm_1H.mp4?tag=28",
+          "width": 1280,
+          "height": 800,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066507370650566656/img/xfX4MCwfDn2UwI2F.jpg",
+          "durationMs": 81933
+        }
+      ],
+      "conversationId": "2066763955570446809"
+    },
+    {
+      "id": "2066861704672092411",
+      "url": "https://x.com/tom_doerr/status/2066861704672092411",
+      "text": "Gives Claude Code persistent memory across sessions\n\nhttps://t.co/tjTuulCGPL https://t.co/eLTPiYbKUT",
+      "author": {
+        "id": "1326180756310331399",
+        "handle": "tom_doerr",
+        "name": "Tom Dörr",
+        "verified": true,
+        "followers": 209703,
+        "avatar": "https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg"
+      },
+      "metrics": {
+        "likes": 165,
+        "retweets": 20,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 149,
+        "views": 6899
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 12:33:25 +0000 2026",
+      "createdAtISO": "2026-06-16T12:33:25+00:00",
+      "createdAtLocal": "2026-06-16 14:33",
+      "urls": [
+        "https://github.com/supermemoryai/claude-supermemory"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK73xIKWUAAt_qS.jpg",
+          "width": 980,
+          "height": 1075
+        }
+      ],
+      "conversationId": "2066861704672092411"
+    },
+    {
+      "id": "2066886439103496516",
+      "url": "https://x.com/lumendriada/status/2066886439103496516",
+      "text": "moshi + herdr shortcuts makes navigating multiple panes on mobile so easy i love it https://t.co/BWGnZoVH2F",
+      "author": {
+        "id": "71647009",
+        "handle": "lumendriada",
+        "name": "Can.",
+        "verified": true,
+        "followers": 1556,
+        "avatar": "https://pbs.twimg.com/profile_images/2004350955907698688/hn6hExRi_normal.jpg"
+      },
+      "metrics": {
+        "likes": 166,
+        "retweets": 7,
+        "replies": 9,
+        "quotes": 2,
+        "bookmarks": 123,
+        "views": 11108
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 14:11:42 +0000 2026",
+      "createdAtISO": "2026-06-16T14:11:42+00:00",
+      "createdAtLocal": "2026-06-16 16:11",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066886340587732992/vid/avc1/1320x2868/qbvFo8SqC0j5_ZW1.mp4?tag=28",
+          "width": 1320,
+          "height": 2868,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066886340587732992/img/SXpA54thebdtzwSl.jpg",
+          "durationMs": 11893
+        }
+      ],
+      "conversationId": "2066886439103496516"
+    },
+    {
+      "id": "2066435145096110226",
+      "url": "https://x.com/IndieDevHailey/status/2066435145096110226",
+      "text": "Web 3D 新纪元开启！Spark 2.0 100M+ 大场景实测炸裂💥\n\n浏览器终于能跑真大场景3D了！Spark 2.0 直接把 100M+ splats 塞进手机浏览器，丝滑到离谱！\n\n- 100M+ 大场景：4000万点Coit Tower、公里级世界，手机/Quest 3/Vision Pro全能流畅跑\n- Continuous LoD：智能连续细节过渡，无卡顿、无跳变\n- RAD 流式加载：64K秒开，边看边精细化\n- GPU虚拟内存：智能分页管理，像玩无限大地图一样稳\n- 可编程管线：轻松加动画、光照、4DGS等效果\n- Three.js 原生集成：完全开源，上手极快\n\n以前Web 3D只能玩玩具，现在能玩真实世界级大场景了！实测震撼：手机里随便逛4000万点真实场景，帧率稳得一批。\n\n数字孪生、虚拟场景、元宇宙创作者，这波必须冲！",
+      "author": {
+        "id": "1879443737086185472",
+        "handle": "IndieDevHailey",
+        "name": "开发者Hailey",
+        "verified": true,
+        "followers": 20277,
+        "avatar": "https://pbs.twimg.com/profile_images/1958446027377442816/4FeaYQJr_normal.jpg"
+      },
+      "metrics": {
+        "likes": 445,
+        "retweets": 64,
+        "replies": 45,
+        "quotes": 2,
+        "bookmarks": 413,
+        "views": 30621
+      },
+      "lang": "zh",
+      "createdAt": "Mon Jun 15 08:18:25 +0000 2026",
+      "createdAtISO": "2026-06-15T08:18:25+00:00",
+      "createdAtLocal": "2026-06-15 10:18",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066434961604001792/vid/avc1/2902x1514/U5VX8OB7rceV5xpc.mp4?tag=27",
+          "width": 2902,
+          "height": 1514,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066434961604001792/img/R-Svr1wJsu4DxXKI.jpg",
+          "durationMs": 47717
+        }
+      ],
+      "conversationId": "2066435145096110226"
+    },
+    {
+      "id": "2066861747806650811",
+      "url": "https://x.com/Nexaabyraj/status/2066861747806650811",
+      "text": "The best structure for product demo and explainer videos:\n\n[Hook] → [Demo: Use Case] → [End Result] → [CTA]\n\nThat's it.\n\nSimple on the surface but that's exactly why it works. \nWe've used this across client product campaigns and it consistently converts. \n\nEverytime. https://t.co/cn14Zj3wfH",
+      "author": {
+        "id": "1490572955285213185",
+        "handle": "Nexaabyraj",
+        "name": "Rajmoni | Motion Designer",
+        "verified": true,
+        "followers": 552,
+        "avatar": "https://pbs.twimg.com/profile_images/2052675449600524288/_wM4bl6G_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1536,
+        "retweets": 79,
+        "replies": 17,
+        "quotes": 3,
+        "bookmarks": 3015,
+        "views": 117969
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 12:33:35 +0000 2026",
+      "createdAtISO": "2026-06-16T12:33:35+00:00",
+      "createdAtLocal": "2026-06-16 14:33",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066861232276320257/vid/avc1/1920x1080/S5c5_VS8Z2Wwh-Pg.mp4?tag=28",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066861232276320257/img/U7koSmixS50Q1dqJ.jpg",
+          "durationMs": 23833
+        }
+      ],
+      "conversationId": "2066861747806650811"
+    },
+    {
+      "id": "2066769543943651539",
+      "url": "https://x.com/iluciddreaming/status/2066769543943651539",
+      "text": "NVIDIA 丟了一個只有 0.6B 的語音辨識模型。\n\n叫 Nemotron-3.5-ASR。\n\n支援 40 種以上語言，即時串流輸出。\n\n純 CPU 就能跑，不需要 GPU。\n\n速度是官方 Nemo runtime 的 2.5 倍，辨識結果卻完全一致。\n\n離線環境直接用，還能無縫整進你的 agent pipeline。\n\n語音這塊，本地 agent 又多了一個又小又快的選擇。",
+      "author": {
+        "id": "136358562",
+        "handle": "iluciddreaming",
+        "name": "mousepotato",
+        "verified": true,
+        "followers": 7399,
+        "avatar": "https://pbs.twimg.com/profile_images/2048670905577185280/G9kEYV_h_normal.jpg"
+      },
+      "metrics": {
+        "likes": 4054,
+        "retweets": 552,
+        "replies": 51,
+        "quotes": 20,
+        "bookmarks": 5167,
+        "views": 287337
+      },
+      "lang": "zh",
+      "createdAt": "Tue Jun 16 06:27:12 +0000 2026",
+      "createdAtISO": "2026-06-16T06:27:12+00:00",
+      "createdAtLocal": "2026-06-16 08:27",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066769494585032704/vid/avc1/720x720/tjGa3pi72FEOTsJ-.mp4?tag=14",
+          "width": 720,
+          "height": 720,
+          "bitrate": 1280000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066769494585032704/img/kbAAa3L9OrHOrpDz.jpg",
+          "durationMs": 17733
+        }
+      ],
+      "conversationId": "2066769543943651539"
+    },
+    {
+      "id": "2066903635808702559",
+      "url": "https://x.com/swmansion/status/2066903635808702559",
+      "text": "react-native-enriched-html (formerly known as react-native-enriched) is officially stable – say hi to v1.0 🎉 https://t.co/nS7ZZhdAdL",
+      "author": {
+        "id": "3377256880",
+        "handle": "swmansion",
+        "name": "Software Mansion",
+        "verified": true,
+        "followers": 22981,
+        "avatar": "https://pbs.twimg.com/profile_images/1243176655172009986/Jgdl2m15_normal.jpg"
+      },
+      "metrics": {
+        "likes": 308,
+        "retweets": 31,
+        "replies": 5,
+        "quotes": 5,
+        "bookmarks": 145,
+        "views": 13122
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 15:20:02 +0000 2026",
+      "createdAtISO": "2026-06-16T15:20:02+00:00",
+      "createdAtLocal": "2026-06-16 17:20",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066902128191303680/vid/avc1/1920x1080/007Zz24NTlysdN9z.mp4?tag=28",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066902128191303680/img/wbAhl6iGBRXNP2BS.jpg",
+          "durationMs": 22442
+        }
+      ],
+      "conversationId": "2066903635808702559"
+    },
+    {
+      "id": "2066863634949779464",
+      "url": "https://x.com/kvnkld/status/2066863634949779464",
+      "text": "https://t.co/fAoLZH9CAB",
+      "author": {
+        "id": "419857142",
+        "handle": "kvnkld",
+        "name": "Kevin",
+        "verified": true,
+        "followers": 7290,
+        "avatar": "https://pbs.twimg.com/profile_images/1873737996584751104/nRLdKPog_normal.jpg"
+      },
+      "metrics": {
+        "likes": 869,
+        "retweets": 49,
+        "replies": 14,
+        "quotes": 6,
+        "bookmarks": 2735,
+        "views": 69405
+      },
+      "lang": "zxx",
+      "createdAt": "Tue Jun 16 12:41:05 +0000 2026",
+      "createdAtISO": "2026-06-16T12:41:05+00:00",
+      "createdAtLocal": "2026-06-16 14:41",
+      "urls": [
+        "http://x.com/i/article/2064972712729292800"
+      ],
+      "conversationId": "2066863634949779464",
+      "article": {
+        "title": "The 10 rules to ship truly polished UI with Claude",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2066962296119959581",
+      "url": "https://x.com/FredKSchott/status/2066962296119959581",
+      "text": "Just Shipped: Flue 1.0 Beta\n\nFlue is the TypeScript framework for building the next generation of agents, designed around an open agent harness with zero LLM lock-in. It’s like Astro, for agents.\n\nFlue 1.0 has been redesigned around three core primitives:\n\n🔁 Workflows — structured automations designed for background work, where your code drives the agent from start to finish.\n\n🧭 Agents (New!) — autonomous, stateful loops where the model drives itself to complete a given task.\n\n📡 Channels (New!) — connect agents to Slack, GitHub, Linear, Discord, Teams, and more. Flue handles the boilerplate for you.\n\nEverything shares the same durable foundation, powered internally by Pi, Vite, and Durable Streams. Deploy anywhere, use any LLM, and recover running agents across restarts and downtime.\n\nWe’ve talked to a lot of teams building agents, and keep hearing the same thing: getting to production is hard work. We built Flue to help change that.\n\nFlue 1.0 Beta is available today. Give it a try and let me know what you think!",
+      "author": {
+        "id": "1308732128",
+        "handle": "FredKSchott",
+        "name": "fks",
+        "verified": true,
+        "followers": 26426,
+        "avatar": "https://pbs.twimg.com/profile_images/1272979356529221632/sxvncugt_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1038,
+        "retweets": 121,
+        "replies": 85,
+        "quotes": 44,
+        "bookmarks": 1072,
+        "views": 239211
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 19:13:08 +0000 2026",
+      "createdAtISO": "2026-06-16T19:13:08+00:00",
+      "createdAtLocal": "2026-06-16 21:13",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK9QZpZa4AAE2Fe.jpg",
+          "width": 1276,
+          "height": 1412
+        },
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK9QaiQb0AA8NRy.jpg",
+          "width": 2042,
+          "height": 890
+        },
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066959182239252480/vid/avc1/1900x864/Q6L9vfHArT5GGsX8.mp4?tag=28",
+          "width": 1900,
+          "height": 864,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066959182239252480/img/52BnAiaGfPD3PAq2.jpg",
+          "durationMs": 5838
+        }
+      ],
+      "conversationId": "2066962296119959581"
+    },
+    {
+      "id": "2066914348464058546",
+      "url": "https://x.com/OsaurusAI/status/2066914348464058546",
+      "text": "You've been renting your AI.\n\nThis is what owning it looks like.\n\nLocal model. No account. No key.\n\nFree. Open source. No Electron. https://t.co/U4t106kujV",
+      "author": {
+        "id": "1920310210587209731",
+        "handle": "OsaurusAI",
+        "name": "Osaurus",
+        "verified": true,
+        "followers": 7144,
+        "avatar": "https://pbs.twimg.com/profile_images/2050221598146527232/R4R-aGXp_normal.jpg"
+      },
+      "metrics": {
+        "likes": 897,
+        "retweets": 65,
+        "replies": 54,
+        "quotes": 14,
+        "bookmarks": 919,
+        "views": 72465
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 16:02:36 +0000 2026",
+      "createdAtISO": "2026-06-16T16:02:36+00:00",
+      "createdAtLocal": "2026-06-16 18:02",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066913379474911232/vid/avc1/1660x1080/rGWwO51WiSNg1VRX.mp4?tag=28",
+          "width": 1660,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066913379474911232/img/YCkcwPe2V7LbXycU.jpg",
+          "durationMs": 45666
+        }
+      ],
+      "conversationId": "2066914348464058546"
+    },
+    {
+      "id": "2066783536435302590",
+      "url": "https://x.com/mamagnus00/status/2066783536435302590",
+      "text": "Most underrated model:\nMiMo-V2.5-Pro-UltraSpeed\n\n- This 1T Param with 1000 tokens/s \n- Cached tokens are not 10x cheaper, but 100x\n- GPT-5.4 level on SWE-Bench Pro\n- All weights open source\n\nThis speed up will reduce the price even further, because you can run more agents per hour on one GPU.",
+      "author": {
+        "id": "2741527221",
+        "handle": "mamagnus00",
+        "name": "Magnus Müller",
+        "verified": true,
+        "followers": 9222,
+        "avatar": "https://pbs.twimg.com/profile_images/1996363430337605632/D13x-XWx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 140,
+        "retweets": 7,
+        "replies": 16,
+        "quotes": 0,
+        "bookmarks": 116,
+        "views": 15240
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 07:22:48 +0000 2026",
+      "createdAtISO": "2026-06-16T07:22:48+00:00",
+      "createdAtLocal": "2026-06-16 09:22",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066780465034645504/vid/avc1/1920x1080/Pm5XsK2s5RCWWfSH.mp4?tag=28",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066780465034645504/img/Jh3ZHQUE9ZU3yhYU.jpg",
+          "durationMs": 74733
+        }
+      ],
+      "conversationId": "2066783536435302590"
+    },
+    {
+      "id": "2066827380295975266",
+      "url": "https://x.com/AI_Jasonyu/status/2066827380295975266",
+      "text": "兄弟们，我一直有个判断：OCR 这种活，早晚会被多模态大模型给吃掉。\n\n这周看到百度发的 PP-OCRv6，我改主意了。\n\n一个 1.5MB 的模型，能直接塞进浏览器里跑，单图最快 97 毫秒就能出结果，逐字识别的准确率还反超了 GPT-5.5、Gemini-3.1-Pro 和 235B 参数的 Qwen3-VL，我有点震惊了！\n\n对做产品的人来说，这比「又一个 SOTA」重要得多。我有测试，先往下看 👇",
+      "author": {
+        "id": "756319701861601281",
+        "handle": "AI_Jasonyu",
+        "name": "鱼总聊AI",
+        "verified": true,
+        "followers": 53299,
+        "avatar": "https://pbs.twimg.com/profile_images/1877193368725581824/7_ocNC-C_normal.jpg"
+      },
+      "metrics": {
+        "likes": 2600,
+        "retweets": 272,
+        "replies": 163,
+        "quotes": 16,
+        "bookmarks": 3467,
+        "views": 220139
+      },
+      "lang": "zh",
+      "createdAt": "Tue Jun 16 10:17:01 +0000 2026",
+      "createdAtISO": "2026-06-16T10:17:01+00:00",
+      "createdAtLocal": "2026-06-16 12:17",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK7YNOkWgAA1Of6.jpg",
+          "width": 1323,
+          "height": 539
+        }
+      ],
+      "conversationId": "2066827380295975266"
+    },
+    {
+      "id": "2066936134974746935",
+      "url": "https://x.com/tom_doerr/status/2066936134974746935",
+      "text": "Persistent memory for Claude Code sessions\n\nhttps://t.co/yy0PmGv0C0 https://t.co/iyBSLEfuj2",
+      "author": {
+        "id": "1326180756310331399",
+        "handle": "tom_doerr",
+        "name": "Tom Dörr",
+        "verified": true,
+        "followers": 209703,
+        "avatar": "https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg"
+      },
+      "metrics": {
+        "likes": 86,
+        "retweets": 16,
+        "replies": 0,
+        "quotes": 0,
+        "bookmarks": 94,
+        "views": 5130
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 17:29:11 +0000 2026",
+      "createdAtISO": "2026-06-16T17:29:11+00:00",
+      "createdAtLocal": "2026-06-16 19:29",
+      "urls": [
+        "https://github.com/Digital-Process-Tools/claude-remember"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK87ditWQAA060O.png",
+          "width": 810,
+          "height": 882
+        }
+      ],
+      "conversationId": "2066936134974746935"
+    },
+    {
+      "id": "2066800292604026943",
+      "url": "https://x.com/VincentLogic/status/2066800292604026943",
+      "text": "有人在 Codex 黑客松上做了一个 MCP 插件，把 ChatGPT 和 Codex 打通了\n\n解决的问题很具体：GPT 5.5 Pro 是目前规划和调研最强的模型，但 Codex 里用不了。Codex 擅长执行，但规划能力不如 5.5 Pro\n\n他的做法是用 MCP 把本地开发环境暴露给 ChatGPT，让 5.5 Pro 负责规划和拆解任务，然后把执行部分交给 Codex 来干\n\n等于让两个 AI 各干自己最擅长的事：一个想，一个做\n\n还有一个意外收获：ChatGPT 和 Codex 的速率限制是分开算的。同一个账号，接上这个之后相当于额度翻倍\n\n这个思路其实挺值得借鉴的。很多人纠结\"到底用哪个 AI 工具\"，但真正的答案可能是：都用，让它们配合\n\nAI 工具之间的壁垒正在被 MCP 这种协议打通，以后可能不是选一个最强的，而是搭一个最合适的组合",
+      "author": {
+        "id": "1861449351328854016",
+        "handle": "VincentLogic",
+        "name": "Vincent | 信号＞噪音",
+        "verified": true,
+        "followers": 53585,
+        "avatar": "https://pbs.twimg.com/profile_images/2010360210008023040/tDA3CwgH_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1148,
+        "retweets": 152,
+        "replies": 73,
+        "quotes": 17,
+        "bookmarks": 1749,
+        "views": 133199
+      },
+      "lang": "zh",
+      "createdAt": "Tue Jun 16 08:29:23 +0000 2026",
+      "createdAtISO": "2026-06-16T08:29:23+00:00",
+      "createdAtLocal": "2026-06-16 10:29",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066800207598379008/vid/avc1/1920x1080/0e5FOWwyVmsgzYSU.mp4?tag=28",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066800207598379008/img/N3X9nag1HZQCFgyt.jpg",
+          "durationMs": 27861
+        }
+      ],
+      "conversationId": "2066800292604026943"
+    },
+    {
+      "id": "2066916079838884249",
+      "url": "https://x.com/_MaxBlade/status/2066916079838884249",
+      "text": "The future of vibecoding is looping. \n\n( my recent app cnvs has done $5.7k in 5 days and was made primarily with design looping )\n\nyou can easily break free from ai slop and create designs that feel artisan and worth paying for. \n\nim begging you to bookmark this 10 min beginner guide and start setting up loops, it will change everything for you. \n\nTimestamps :\n0:27 – The ultra-simple looping diagram explained\n1:18 – The best loop to start with: the design loop\n1:38 – Using Codex + GPT Image Gen for the mockup\n3:57 – Handing the mockup to Claude Code\n4:45 – Loop starts (screenshot → compare → iterate)\n7:31 – Loop finished : reviewing the result",
+      "author": {
+        "id": "885173782452871168",
+        "handle": "_MaxBlade",
+        "name": "Max Blade",
+        "verified": true,
+        "followers": 16562,
+        "avatar": "https://pbs.twimg.com/profile_images/2048487891383570432/DbSH8tCi_normal.jpg"
+      },
+      "metrics": {
+        "likes": 247,
+        "retweets": 16,
+        "replies": 22,
+        "quotes": 2,
+        "bookmarks": 574,
+        "views": 18975
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 16:09:29 +0000 2026",
+      "createdAtISO": "2026-06-16T16:09:29+00:00",
+      "createdAtLocal": "2026-06-16 18:09",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066913460542156800/vid/avc1/3262x2160/Xv5AMtImXl0BF-RK.mp4?tag=28",
+          "width": 3262,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066913460542156800/img/ht9XTLbHgiRco6qT.jpg",
+          "durationMs": 567350
+        }
+      ],
+      "conversationId": "2066916079838884249"
+    },
+    {
+      "id": "2066561245629550848",
+      "url": "https://x.com/AurelienCa80656/status/2066561245629550848",
+      "text": "Here’s another demo created from multiple Gaussian Splats of a house in Provence.\n\nVisitors can freely explore the interiors and exteriors, follow guided tours, browse photo galleries, and interact with hotspots throughout the experience.\nDeveloped with @playcanvas  &amp; @Storysplat https://t.co/HGhswNRCiq",
+      "author": {
+        "id": "1789925441328852992",
+        "handle": "AurelienCa80656",
+        "name": "Aurélien Camart",
+        "verified": false,
+        "followers": 246,
+        "avatar": "https://pbs.twimg.com/profile_images/2054639211639078912/1gjv4Cb1_normal.jpg"
+      },
+      "metrics": {
+        "likes": 98,
+        "retweets": 3,
+        "replies": 4,
+        "quotes": 0,
+        "bookmarks": 67,
+        "views": 4439
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 16:39:30 +0000 2026",
+      "createdAtISO": "2026-06-15T16:39:30+00:00",
+      "createdAtLocal": "2026-06-15 18:39",
+      "mentions": [
+        "playcanvas"
+      ],
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066560692484796416/vid/avc1/1280x720/d3ZBCgSR1N_z4O5v.mp4?tag=14",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066560692484796416/img/xdC-aKymjsDVrnhE.jpg",
+          "durationMs": 124700
+        }
+      ],
+      "conversationId": "2066561245629550848"
+    },
+    {
+      "id": "2066939366568804508",
+      "url": "https://x.com/framer/status/2066939366568804508",
+      "text": "Introducing Framer 3.0 with Agents, Branching, Community, and an all-new design. See everything that’s new below. https://t.co/CepZS4Phhh",
+      "author": {
+        "id": "1056838028",
+        "handle": "framer",
+        "name": "Framer",
+        "verified": false,
+        "followers": 198879,
+        "avatar": "https://pbs.twimg.com/profile_images/2001241755329376257/sVbl4dmW_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1651,
+        "retweets": 209,
+        "replies": 161,
+        "quotes": 236,
+        "bookmarks": 508,
+        "views": 1208306
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 17:42:01 +0000 2026",
+      "createdAtISO": "2026-06-16T17:42:01+00:00",
+      "createdAtLocal": "2026-06-16 19:42",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066939268514426880/vid/avc1/1280x720/y75bLn4hRZ9Jo4W3.mp4?tag=14",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066939268514426880/img/eREuteMWJmZVFHUZ.jpg",
+          "durationMs": 75000
+        }
+      ],
+      "conversationId": "2066939366568804508"
+    },
+    {
+      "id": "2066906020740534581",
+      "url": "https://x.com/pbakaus/status/2066906020740534581",
+      "text": "You can now enable design linting in your Codex, Claude Code and Cursor. Yes, really.\n\nInstall or update Impeccable for glorious *automatic slop and design system drift prevention*.\n\nThis is not a drill. It dramatically improved the frontend dev performance of all harnesses in our test codebases in ways that a regular skill simply can't.\n\nI wanted to build hooks powered by the deterministic Impeccable detector engine for months. We've finally shipped it. Many thanks to @Abdul_wahab_one, who contributed the initial implementation.\n\nThis new architecture is a foundational piece for the upcoming Impeccable 4.",
+      "author": {
+        "id": "12999402",
+        "handle": "pbakaus",
+        "name": "Paul Bakaus",
+        "verified": true,
+        "followers": 17313,
+        "avatar": "https://pbs.twimg.com/profile_images/1550292580117622784/cT3WhwXw_normal.jpg"
+      },
+      "metrics": {
+        "likes": 606,
+        "retweets": 27,
+        "replies": 17,
+        "quotes": 3,
+        "bookmarks": 1125,
+        "views": 96870
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 15:29:31 +0000 2026",
+      "createdAtISO": "2026-06-16T15:29:31+00:00",
+      "createdAtLocal": "2026-06-16 17:29",
+      "isQuote": true,
+      "conversationId": "2066906020740534581",
+      "quoted": {
+        "id": "2066890036646449455",
+        "url": "https://x.com/impeccable_ai/status/2066890036646449455",
+        "text": "Impeccable 3.7 brings linting to design.\n\nUntil now it was a skill you asked for help. Now it's a design-system-aware feedback loop that runs while your agent builds, catching slop and design drift before they land.\n\n🪝 Design hooks for Claude, Codex, and Cursor\nThey run after every UI edit and quietly nudge your agent to fix slop and drift. The output isn't another wall of lint: it separates new findings from already-seen ones, flags clean scans, and asks the agent to use judgment. Fix real issues, leave intentional demos alone, save exceptions to config instead of littering your source.\n\n🎨 Slop detection is now project-aware\nReads your actual design system from DESIGN.md, your typography, palette, radius scale, and tokens, and flags drift from your system, not just generic AI slop:\n• this font isn't in your design system\n• this color is outside your documented palette\n• this radius doesn't match your rounded scale\nThe same engine powers both the hooks and the CLI, and it's where we're investing next.\n\n🖥️ Live Mode, ready for real projects\nSvelte/SvelteKit now preview variants as temporary framework components with live params, then accept cleanly back into your source component. Manual text edits got evidence / apply / discard routes, insertions preserve their anchors, and mapped lists and JSX slots clean up far more reliably.\n\n⚡ Leaner core, sharper detector\nRule-level evals across 3 providers and 4 niches cut guidance with no measurable lift and dropped examples that taught models bad patterns. The detector now skips hidden and screen-reader-only elements, understands OKLCH alpha and Sass-like inputs, and tightened checks for repeated kickers, oversized H1s, clipped overflow, and cramped padding.\n\n🛠️ CLI caught up\nimpeccable detect loads DESIGN.md by default, motion findings name the exact token or cubic-bezier instead of just \"bounce,\" and impeccable ignores gives real CRUD for exceptions. Hooks and CLI share the same ignores. No split-brain config. Plus a much-improved interactive installer with hooks setup built in.\n\nUpgrade:\nnpx impeccable install\nnpm i -g impeccable",
+        "author": {
+          "id": "2038769465962250240",
+          "handle": "impeccable_ai",
+          "name": "Impeccable",
+          "verified": true,
+          "followers": 2793,
+          "avatar": "https://pbs.twimg.com/profile_images/2060498922519572480/-xHVZQmj_normal.png"
+        },
+        "metrics": {
+          "likes": 304,
+          "retweets": 24,
+          "replies": 8,
+          "quotes": 5,
+          "bookmarks": 681,
+          "views": 120273
+        },
+        "lang": "en",
+        "createdAt": "Tue Jun 16 14:26:00 +0000 2026",
+        "createdAtISO": "2026-06-16T14:26:00+00:00",
+        "createdAtLocal": "2026-06-16 16:26",
+        "media": [
+          {
+            "type": "video",
+            "url": "https://video.twimg.com/amplify_video/2066821166325702656/vid/avc1/1080x1080/eUIUDWLmlxxEWlxY.mp4?tag=28",
+            "width": 1080,
+            "height": 1080,
+            "bitrate": 8768000,
+            "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066821166325702656/img/utWyQIG2-fYeMZv-.jpg",
+            "durationMs": 12000
+          }
+        ],
+        "conversationId": "2066890036646449455"
+      }
+    },
+    {
+      "id": "2066943954046873901",
+      "url": "https://x.com/aisdk/status/2066943954046873901",
+      "text": "AI SDK 7 beta is available now.\n\nSee some of the highlights below. https://t.co/54IWGjXs7L",
+      "author": {
+        "id": "1856474042280103936",
+        "handle": "aisdk",
+        "name": "AI SDK",
+        "verified": true,
+        "followers": 35522,
+        "avatar": "https://pbs.twimg.com/profile_images/1856739755280527360/qPyTbiar_normal.jpg"
+      },
+      "metrics": {
+        "likes": 477,
+        "retweets": 32,
+        "replies": 15,
+        "quotes": 11,
+        "bookmarks": 171,
+        "views": 55273
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 18:00:15 +0000 2026",
+      "createdAtISO": "2026-06-16T18:00:15+00:00",
+      "createdAtLocal": "2026-06-16 20:00",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK9CkpGboAAZEwF.png",
+          "width": 2400,
+          "height": 1256
+        }
+      ],
+      "conversationId": "2066943954046873901"
+    },
+    {
+      "id": "2066870851841274249",
+      "url": "https://x.com/WeiboLLM/status/2066870851841274249",
+      "text": "⭐ VibeThinker-3B is released — a dense 3B model for frontier-level verifiable reasoning.\n\n🚀 Reasoning: 94.3 on AIME’26, 76.4 on IMO-AnsBench, and 80.2 Pass@1 on LCB v6; with CLR, AIME‘26 improves to 97.1 and IMO-AnsBench to 80.6.\n\n💻 OOD Coding: On recent unseen LeetCode weekly contests, VibeThinker-3B passes 123/128 (96.1%) first-attempt Python submissions.\n\n⚡ Efficiency: Only 3B parameters, yet reaching the performance range of much larger top-tier reasoning models.\n\n🧠 Perspective: Small models are not just cheaper substitutes. In parameter-dense domains with clear verification signals, SLMs offer a path to frontier-level reasoning that complements traditional Scaling Law.\n\nModel : https://t.co/94A14zpqCV\nGithub: https://t.co/32so5P6C7L\nPaper: https://t.co/UDd264RsZb\n\n#AI #LLM #Reasoning #OpenSource #SmallModel",
+      "author": {
+        "id": "1967563909961064448",
+        "handle": "WeiboLLM",
+        "name": "WeiboLLM",
+        "verified": false,
+        "followers": 909,
+        "avatar": "https://pbs.twimg.com/profile_images/1985541430480420865/5YKwDvU3_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1102,
+        "retweets": 138,
+        "replies": 45,
+        "quotes": 34,
+        "bookmarks": 824,
+        "views": 83021
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 13:09:46 +0000 2026",
+      "createdAtISO": "2026-06-16T13:09:46+00:00",
+      "createdAtLocal": "2026-06-16 15:09",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK7_gixa4AAklfq.jpg",
+          "width": 1620,
+          "height": 814
+        }
+      ],
+      "conversationId": "2066870851841274249"
+    },
+    {
+      "id": "2066938937344495629",
+      "url": "https://x.com/Zai_org/status/2066938937344495629",
+      "text": "Introducing GLM-5.2: Frontier Intelligence, Open Weights\n\n- Significant improvements in coding and agentic tasks\n- Strong long-horizon capabilities with a 1M context window\n- Two levels of reasoning effort: GLM-5.2 (max) pushes the limits, while GLM-5.2 (high) strikes a strong balance between performance and token efficiency\n- MIT-licensed open weights\n- Same API pricing as GLM-5.1\n\nTech Blog: https://t.co/LAsxUdN0JZ\nWeights: https://t.co/g0A1C4UWx4\nAPI: https://t.co/Kc3E22cbN7\nCoding Plan: https://t.co/Nk8Y98HNhU\nChat: https://t.co/WCqWT0qCQb",
+      "author": {
+        "id": "1726486879456096256",
+        "handle": "Zai_org",
+        "name": "Z.ai",
+        "verified": false,
+        "followers": 93337,
+        "avatar": "https://pbs.twimg.com/profile_images/1970775077181411328/W8XKaUIh_normal.jpg"
+      },
+      "metrics": {
+        "likes": 7466,
+        "retweets": 994,
+        "replies": 392,
+        "quotes": 603,
+        "bookmarks": 1772,
+        "views": 2200856
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 17:40:19 +0000 2026",
+      "createdAtISO": "2026-06-16T17:40:19+00:00",
+      "createdAtLocal": "2026-06-16 19:40",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK84LPRXQAA6x0_.jpg",
+          "width": 4096,
+          "height": 2720
+        }
+      ],
+      "conversationId": "2066938937344495629"
+    },
+    {
+      "id": "2066906454704218337",
+      "url": "https://x.com/Steve8708/status/2066906454704218337",
+      "text": "Introducing /visual-plan - a skill to generate rich, visual plans for Claude Code and Codex.\n\nPlan mode in Claude Code is incredible.\n\nBut I always find my eyes glazing over when it gives me this huge markdown essay in my terminal.\n\nI found I can make much better visual plans with reusable components.\n\nSo I made a skill called `/visual-plan`.\n\nIt generates plans as MDX with visual, interactive components. Diagrams, interactive API specs, schema design changes, annotated code, and even pan and zoomable wireframes.\n\nSo for any UI work, you can look at a wireframe first, comment on it, iterate, and then have the agent work.\n\nI’ve found this to be a much more intuitive interface for reasoning about what the agent is doing.\n\nIt’s somewhat inspired by that popular post about how HTML is better than Markdown.\n\nBut HTML can be slow and verbose to write. And it doesn’t look good checked into a repo.\n\nThis has really made me feel like humans and engineering are entering a new abstraction phase, where we reason about things at the plan level.\n\nAs long as the plan is good, agents are getting more and more reliable at executing on it.\n\nAlmost to the degree that we trust the C compiler to compile to assembly reliably.\n\nPlans are the new intermediate representation.\n\nI also made a skill for the reverse of this, called `/visual-recap`.\n\nAfter the agent works, it gives you a recap of everything it did.\n\nSame idea: wireframes, interactive API specs and diffs, schemas, annotated code, etc.\n\nSo now when you’re reviewing what the agent did for you, or looking at a pull request of somebody else’s code, you can see a visual recap instead of just reading a wall of text.\n\nIt’s all free and open source. You can find it on my GitHub. \n\nWill link to it in the reply because we all know how dumb these algorithms are with links.",
+      "author": {
+        "id": "16705419",
+        "handle": "Steve8708",
+        "name": "Steve (Builder.io)",
+        "verified": true,
+        "followers": 130388,
+        "avatar": "https://pbs.twimg.com/profile_images/1733342770436472832/mBVPTgpn_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1340,
+        "retweets": 125,
+        "replies": 61,
+        "quotes": 9,
+        "bookmarks": 2174,
+        "views": 80763
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 15:31:14 +0000 2026",
+      "createdAtISO": "2026-06-16T15:31:14+00:00",
+      "createdAtLocal": "2026-06-16 17:31",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066906208624332801/vid/avc1/1080x1080/VhJZpT4oGLCQ8bLp.mp4?tag=28",
+          "width": 1080,
+          "height": 1080,
+          "bitrate": 8768000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066906208624332801/img/6AhexHl5EQVh4xYk.jpg",
+          "durationMs": 79533
+        }
+      ],
+      "conversationId": "2066906454704218337"
+    },
+    {
+      "id": "2066877763672256755",
+      "url": "https://x.com/Ibelick/status/2066877763672256755",
+      "text": "UI Skills are now easier for agents.\n\nIntroducing UI Skills CLI.\n\nask Codex, Cursor, Claude Code, or any agent to use the CLI, like:\n\"use `npx ui-skills start` to fix the motion in this dialog\"\n\nit finds the best design-engineering skill for the job and uses it as context https://t.co/oWaMtgognQ",
+      "author": {
+        "id": "55315637",
+        "handle": "Ibelick",
+        "name": "Ibelick",
+        "verified": true,
+        "followers": 11018,
+        "avatar": "https://pbs.twimg.com/profile_images/1639622839329325056/6w4WgjGQ_normal.jpg"
+      },
+      "metrics": {
+        "likes": 641,
+        "retweets": 38,
+        "replies": 13,
+        "quotes": 0,
+        "bookmarks": 936,
+        "views": 49459
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 13:37:14 +0000 2026",
+      "createdAtISO": "2026-06-16T13:37:14+00:00",
+      "createdAtLocal": "2026-06-16 15:37",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066876164170285056/vid/avc1/1520x1080/QyQgok_YDXbiCnWO.mp4?tag=28",
+          "width": 1520,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066876164170285056/img/HhKWfwLzJNXfpTCz.jpg",
+          "durationMs": 20033
+        }
+      ],
+      "conversationId": "2066877763672256755"
+    },
+    {
+      "id": "2066647737613832624",
+      "url": "https://x.com/NousResearch/status/2066647737613832624",
+      "text": "In partnership with @stripe, Hermes Agent now supports a full suite of Stripe skills.\n\nYour agent can buy things, pay per-call APIs, and provision its own SaaS, with configurable safety limits on every action. https://t.co/Gw3LINkCd3",
+      "author": {
+        "id": "1318419526132862976",
+        "handle": "NousResearch",
+        "name": "Nous Research",
+        "verified": true,
+        "followers": 213021,
+        "avatar": "https://pbs.twimg.com/profile_images/1816254738234761216/TX7TW-Mp_normal.jpg"
+      },
+      "metrics": {
+        "likes": 4580,
+        "retweets": 359,
+        "replies": 195,
+        "quotes": 149,
+        "bookmarks": 1420,
+        "views": 407779
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 22:23:11 +0000 2026",
+      "createdAtISO": "2026-06-15T22:23:11+00:00",
+      "createdAtLocal": "2026-06-16 00:23",
+      "mentions": [
+        "stripe"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK40uLGWwAAPBy5.jpg",
+          "width": 2160,
+          "height": 2160
+        }
+      ],
+      "conversationId": "2066647737613832624"
+    },
+    {
+      "id": "2066696412155515021",
+      "url": "https://x.com/jullerino/status/2066696412155515021",
+      "text": "Desktop app has fallen a bit behind over the last few weeks as I've focused on infra and other behind the scenes stuff (more on that soon), but spent some tokens getting some new stuff in, including:\n\n- In-app browser: Including annotation tools, drawings, screenshots/screenrecordings. Your agent has full context and control over it, just tell it what you wanna do\n    - Works seamlessly with `serve-sim` for iOS development.\n    - Or use it to look at your HTML plans\n- File Explorer, Viewer and Light-weight Editor. Great for small tiny edits you don't feel like throwing tokens at (still a bit buggy, will improve it over time)\n- Full sized terminals w/ vertical splits\n\nWill polish these up on nightly before pushing to latest later in the week. Enjoy!",
+      "author": {
+        "id": "3557533403",
+        "handle": "jullerino",
+        "name": "Julius",
+        "verified": true,
+        "followers": 16606,
+        "avatar": "https://pbs.twimg.com/profile_images/1526143235067985922/DmFx1k13_normal.jpg"
+      },
+      "metrics": {
+        "likes": 744,
+        "retweets": 16,
+        "replies": 48,
+        "quotes": 7,
+        "bookmarks": 233,
+        "views": 92878
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 16 01:36:36 +0000 2026",
+      "createdAtISO": "2026-06-16T01:36:36+00:00",
+      "createdAtLocal": "2026-06-16 03:36",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066696261043134464/vid/avc1/1584x1080/bTTSx1ksDOUsVkqZ.mp4?tag=28",
+          "width": 1584,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066696261043134464/img/NH2owxVbVmkfgg6b.jpg",
+          "durationMs": 65283
+        }
+      ],
+      "conversationId": "2066696412155515021"
+    },
+    {
+      "id": "2065428594638369189",
+      "url": "https://x.com/0x404page/status/2065428594638369189",
+      "text": "卧槽兄弟们，GitHub 上真的有一堆免费到离谱的项目。\n\n很多能力已经能直接干掉你正在月付的软件。\n\n1. TradingAgents\nAI 多 Agent 量化交易框架\nhttps://t.co/TUb3q0uILN…\n\n2. LibreChat\n一个界面接入 ChatGPT、Claude、Gemini 等多个模型\nhttps://t.co/UUMftLSOU4…\n\n3. HyperFrames\nHeyGen 开源的视频生成引擎\nhttps://t.co/OZKS8R1qnj…\n\n4. Fincept Terminal\n开源版彭博终端\nhttps://t.co/3QGYCnWJqV…\n\n5. MoneyPrinterTurbo\nAI 一键生成短视频\nhttps://t.co/XenuwHKMwg…\n\n6. Agentic Inbox\nCloudflare 开源 AI 邮件助手\nhttps://t.co/g92N5IMxIG…\n\n7. VoxCPM\nAI 声音克隆工具\nhttps://t.co/nWDB88AF0m\n\n8. Flowsint\n开源 OSINT 情报分析工具\nhttps://t.co/dNp65L5v0e…\n\n9. agent-skills\nClaude Code 技能库\nhttps://t.co/y7RnzfKJT8…\n\n10. Nango\n开源 API 集成平台\nhttps://t.co/xBK94t6Pgj\n\n兄弟们，这些真不是玩具项目。\n\n很多你还在交月费的软件，GitHub 上已经有人做出开源平替了。\n\n一句话：\n\n别只会收藏 AI 工具网站了。\n\n真正狠的东西，很多都藏在 GitHub 里。",
+      "author": {
+        "id": "32559467",
+        "handle": "0x404page",
+        "name": "0xFuck.ETH",
+        "verified": true,
+        "followers": 59415,
+        "avatar": "https://pbs.twimg.com/profile_images/1899085706883973120/FM1DsmFt_normal.jpg"
+      },
+      "metrics": {
+        "likes": 4396,
+        "retweets": 858,
+        "replies": 127,
+        "quotes": 11,
+        "bookmarks": 8147,
+        "views": 306967
+      },
+      "lang": "zh",
+      "createdAt": "Fri Jun 12 13:38:45 +0000 2026",
+      "createdAtISO": "2026-06-12T13:38:45+00:00",
+      "createdAtLocal": "2026-06-12 15:38",
+      "urls": [
+        "http://github.com/TauricResearch",
+        "http://github.com/danny-avila/Li"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKngWiVaEAAJfMa.jpg",
+          "width": 1200,
+          "height": 750
+        }
+      ],
+      "conversationId": "2065428594638369189"
+    },
+    {
+      "id": "2066634638366593408",
+      "url": "https://x.com/LandseerEnga/status/2066634638366593408",
+      "text": "claude code and codex can now drive iOS features on a live device.\n\nno scripts. no selectors. no xcode.\n\none prompt https://t.co/rUdRU5owy4",
+      "author": {
+        "id": "755289120021241856",
+        "handle": "LandseerEnga",
+        "name": "Landseer Enga",
+        "verified": true,
+        "followers": 2444,
+        "avatar": "https://pbs.twimg.com/profile_images/1849655218335776770/jAmUfWLb_normal.jpg"
+      },
+      "metrics": {
+        "likes": 341,
+        "retweets": 15,
+        "replies": 5,
+        "quotes": 0,
+        "bookmarks": 401,
+        "views": 47062
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 21:31:08 +0000 2026",
+      "createdAtISO": "2026-06-15T21:31:08+00:00",
+      "createdAtLocal": "2026-06-15 23:31",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066634021560549376/vid/avc1/1820x1080/aPGWvNfgNz97lh7m.mp4?tag=28",
+          "width": 1820,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066634021560549376/img/_GOkHRp0yilqGcBK.jpg",
+          "durationMs": 20178
+        }
+      ],
+      "conversationId": "2066634638366593408"
+    },
+    {
+      "id": "2066603744289022284",
+      "url": "https://x.com/jpschroeder/status/2066603744289022284",
+      "text": "Bad news: Fable is gone.\n\nGood news: you can use Composer 2.5 with pretty much any harness you want now. https://t.co/NaamrnG7iG",
+      "author": {
+        "id": "12008842",
+        "handle": "jpschroeder",
+        "name": "Justin Schroeder",
+        "verified": true,
+        "followers": 8030,
+        "avatar": "https://pbs.twimg.com/profile_images/1532735511953035270/1AwnrbP7_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1150,
+        "retweets": 28,
+        "replies": 45,
+        "quotes": 9,
+        "bookmarks": 616,
+        "views": 125964
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 19:28:22 +0000 2026",
+      "createdAtISO": "2026-06-15T19:28:22+00:00",
+      "createdAtLocal": "2026-06-15 21:28",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK4M_T0XgAAH-HF.png",
+          "width": 845,
+          "height": 675
+        }
+      ],
+      "conversationId": "2066603744289022284"
+    },
+    {
+      "id": "2066506555453771798",
+      "url": "https://x.com/atypica_AI/status/2066506555453771798",
+      "text": "We replicated a $100K product image test —\nand got the same answer with Atypica.\n\nBut that wasn't the interesting part, the AI research agent literally helped our client to understand their consumers ⬇️ https://t.co/Tu2Ce8HZRA",
+      "author": {
+        "id": "1947932538967924736",
+        "handle": "atypica_AI",
+        "name": "atypica.AI",
+        "verified": true,
+        "followers": 570,
+        "avatar": "https://pbs.twimg.com/profile_images/1947932970955821056/wqYnf-Xx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 28,
+        "retweets": 2,
+        "replies": 7,
+        "quotes": 4,
+        "bookmarks": 19,
+        "views": 48763
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 13:02:11 +0000 2026",
+      "createdAtISO": "2026-06-15T13:02:11+00:00",
+      "createdAtLocal": "2026-06-15 15:02",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066504835952758784/vid/avc1/2560x1440/XQks76G_i0qbjeCZ.mp4?tag=28",
+          "width": 2560,
+          "height": 1440,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066504835952758784/img/T-7hG48x5Haxn03v.jpg",
+          "durationMs": 93716
+        }
+      ],
+      "conversationId": "2066506555453771798"
+    },
+    {
+      "id": "2066535757582614794",
+      "url": "https://x.com/jalcowastaken/status/2066535757582614794",
+      "text": "https://t.co/9gvfaaUXbB stability has been significantly improved thanks to feedback from @orcdev and https://t.co/3UMOIaOrUL members. the site now also has light mode!\n\nand, best of all, it's @shadcn approved :) https://t.co/Fg9Krns5qs",
+      "author": {
+        "id": "2052223663626457088",
+        "handle": "jalcowastaken",
+        "name": "justin (jalco)",
+        "verified": true,
+        "followers": 98,
+        "avatar": "https://pbs.twimg.com/profile_images/2057237783522185216/4pNZzRFV_normal.jpg"
+      },
+      "metrics": {
+        "likes": 30,
+        "retweets": 2,
+        "replies": 7,
+        "quotes": 0,
+        "bookmarks": 27,
+        "views": 2656
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 14:58:13 +0000 2026",
+      "createdAtISO": "2026-06-15T14:58:13+00:00",
+      "createdAtLocal": "2026-06-15 16:58",
+      "mentions": [
+        "orcdev",
+        "shadcn"
+      ],
+      "urls": [
+        "http://scnstack.sh",
+        "http://shipper.club"
+      ],
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066535704130383873/vid/avc1/908x720/gN4ziux959qrjDWS.mp4?tag=14",
+          "width": 1364,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066535704130383873/img/MiFqAlovHWV1A45F.jpg",
+          "durationMs": 14466
+        }
+      ],
+      "conversationId": "2066535757582614794"
+    },
+    {
+      "id": "2066569082800160849",
+      "url": "https://x.com/Saboo_Shubham_/status/2066569082800160849",
+      "text": "We just dropped a 50-page guide on the shift from vibe coding to agentic engineering.\n\nIt covers the new Software Development Life Cycle with AI Agents.\n\n100% free. https://t.co/YymsvjcEkW",
+      "author": {
+        "id": "1275333333724000257",
+        "handle": "Saboo_Shubham_",
+        "name": "Shubham Saboo",
+        "verified": true,
+        "followers": 116974,
+        "avatar": "https://pbs.twimg.com/profile_images/2011150989668270080/wQ4NP39W_normal.jpg"
+      },
+      "metrics": {
+        "likes": 266,
+        "retweets": 43,
+        "replies": 23,
+        "quotes": 5,
+        "bookmarks": 390,
+        "views": 32753
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 17:10:38 +0000 2026",
+      "createdAtISO": "2026-06-15T17:10:38+00:00",
+      "createdAtLocal": "2026-06-15 19:10",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK3tmcwaoAAKdoA.jpg",
+          "width": 1292,
+          "height": 1630
+        }
+      ],
+      "conversationId": "2066569082800160849"
+    },
+    {
+      "id": "2064990937697460264",
+      "url": "https://x.com/_pierre_barre/status/2064990937697460264",
+      "text": "ZeroFS makes S3 behave like a real filesystem and block device (NFS / 9P / NBD), with microsecond latencies, always-on encryption, and S3 pricing.",
+      "author": {
+        "id": "1886705517172604929",
+        "handle": "_pierre_barre",
+        "name": "Pierre Barre",
+        "verified": true,
+        "followers": 60,
+        "avatar": "https://pbs.twimg.com/profile_images/1886705563842605056/h8oBmUI-_normal.png"
+      },
+      "metrics": {
+        "likes": 152,
+        "retweets": 30,
+        "replies": 6,
+        "quotes": 2,
+        "bookmarks": 76,
+        "views": 982932
+      },
+      "lang": "en",
+      "createdAt": "Thu Jun 11 08:39:39 +0000 2026",
+      "createdAtISO": "2026-06-11T08:39:39+00:00",
+      "createdAtLocal": "2026-06-11 10:39",
+      "conversationId": "2064990937697460264"
+    },
+    {
+      "id": "2066641903748338156",
+      "url": "https://x.com/JulianGoldieSEO/status/2066641903748338156",
+      "text": "🚨 BREAKING: This AI VIDEO FACTORY is INSANE…\n\nThis AI Agent turns random ideas into viral AI-generated videos.\n\nFully automated. No editor. No effort:\n\n→ Auto-generates video ideas w/ ChatGPT\n→ Creates wild scenes using Veo 3 + FAL API (e.g. Yeti vlogging w/ chopsticks)\n→ Auto-lip syncs, animates, renders & stores final video\n→ Logs prompt, caption, video URL + scene details in Google Sheets\n→ Optionally stitches clips into longer vids\n→ Ready to auto-post to TikTok, IG, YouTube, etc\n\nBuilt 100% in n8n. No editors. No VAs. Just wild videos on full autopilot.\n\nLIKE + COMMENT “VIDEO” & I’ll send you the FULL workflow + setup FREE!",
+      "author": {
+        "id": "1405031034",
+        "handle": "JulianGoldieSEO",
+        "name": "Julian Goldie SEO",
+        "verified": true,
+        "followers": 170704,
+        "avatar": "https://pbs.twimg.com/profile_images/1322760467979268096/b3RoYhTq_normal.jpg"
+      },
+      "metrics": {
+        "likes": 407,
+        "retweets": 58,
+        "replies": 287,
+        "quotes": 1,
+        "bookmarks": 442,
+        "views": 26576
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 22:00:00 +0000 2026",
+      "createdAtISO": "2026-06-15T22:00:00+00:00",
+      "createdAtLocal": "2026-06-16 00:00",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK3DkNIasAApzTo.jpg",
+          "width": 1251,
+          "height": 1251
+        }
+      ],
+      "conversationId": "2066641903748338156"
+    },
+    {
+      "id": "2066572256281583992",
+      "url": "https://x.com/IBuzovskyi/status/2066572256281583992",
+      "text": "HERMES AGENT ECOSYSTEM HIT 188K STARS.\nHERE ARE 5 REPOS BUILDING ON TOP OF IT\nTHAT YOU SHOULD KNOW ABOUT.\n\n1. GBRAIN (22.8K stars)\nby Garry Tan, CEO of Y Combinator.\n\npersistent memory layer built specifically\nfor Hermes and OpenClaw deployments.\nmarkdown-first. self-wiring knowledge graph.\nzero LLM calls for entity extraction.\n\nTan runs it himself: 146K+ pages,\n24K+ people, 66 autonomous cron jobs.\n\nwhat it adds to Hermes:\n→ unlimited long-term memory (no char cap)\n→ typed entities (people, companies, relationships)\n→ hybrid search (pgvector + BM25)\n→ nightly \"dream cycle\" that enriches pages while you sleep\n\nHermes memory handles sessions.\nGBrain handles institutional knowledge.\n\n2. HERMES WORKSPACE (5.7K stars)\nby outsourc-e. Nous Hackathon 2026 winner.\n\nfull web-based GUI for Hermes.\nchat, terminal, memory browser, skills manager,\nagent inspector, live sub-agent streaming.\n8 themes. Docker one-click deploy.\n\nwhat it adds:\n→ visual alternative to the built-in dashboard\n→ real-time sub-agent activity monitoring\n→ embedded terminal inside the workspace\n→ file browser with preview (markdown, images, HTML, code)\n\nif you prefer GUI over CLI, start here.\n\n3. MISSION CONTROL (5.3K stars)\nby builderz-labs.\n\nmulti-agent fleet management dashboard.\ndispatch tasks, track costs per agent,\ncoordinate workflows across profiles.\nself-hosted. SQLite-powered.\n\nwhat it adds:\n→ one dashboard for all your Hermes profiles\n→ cost tracking per agent per day\n→ task dispatch across multiple instances\n→ workflow coordination at scale\n\ninstall this when you run 3+ profiles\nand need visibility across all of them.\n\n4. SKILLCLAW (1.9k stars)\nby AMAP-ML. production-ready.\n\nauto-evolves your skill library\nfrom real session data. adds a post-task\nevolution loop on top of Hermes's\nbuilt-in skill creation.\n\nwhat it adds:\n→ deduplicates overlapping skills automatically\n→ improves skill quality from usage patterns\n→ works across multiple devices\n→ safety flows: skillclaw doctor hermes\n  checks health, skillclaw restore hermes recovers\n\n5. AGENTTRACE (v0.5.2)\nby luoyuctl. local-first.\n\nTUI for post-run session audits.\nreads Hermes logs (plus Claude Code,\nCodex, Gemini CLI, OpenClaw, and 7 more).\n\nwhat it adds:\n→ token spike detection across sessions\n→ tool failure tracking and retry loop detection\n→ latency gaps and health scoring\n→ session-to-session diffs and anomalies\n→ CI gates (fail builds on unhealthy agent runs)\n\nno upload. no cloud. everything stays local.\n\nbrew install luoyuctl/tap/agenttrace\n\nrun this after overnight cron jobs\nto find what went wrong before it costs more.\n\nwhich of these are you running?\n\nFULL HERMES NIGHT MODE DIVE 👇",
+      "author": {
+        "id": "1387382307229769732",
+        "handle": "IBuzovskyi",
+        "name": "YanXbt",
+        "verified": true,
+        "followers": 2185,
+        "avatar": "https://pbs.twimg.com/profile_images/2055755733002506240/uFECjFhT_normal.jpg"
+      },
+      "metrics": {
+        "likes": 293,
+        "retweets": 18,
+        "replies": 13,
+        "quotes": 2,
+        "bookmarks": 666,
+        "views": 30606
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 17:23:15 +0000 2026",
+      "createdAtISO": "2026-06-15T17:23:15+00:00",
+      "createdAtLocal": "2026-06-15 19:23",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066571678088355841/vid/avc1/2118x1080/9QEhAjIqn0jriv9A.mp4?tag=28",
+          "width": 2118,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066571678088355841/img/g2vEq0oyGzbFyDaE.jpg",
+          "durationMs": 175078
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2066572256281583992",
+      "quoted": {
+        "id": "2066145326780518736",
+        "url": "https://x.com/IBuzovskyi/status/2066145326780518736",
+        "text": "https://t.co/RIrh8yacO7",
+        "author": {
+          "id": "1387382307229769732",
+          "handle": "IBuzovskyi",
+          "name": "YanXbt",
+          "verified": true,
+          "followers": 2185,
+          "avatar": "https://pbs.twimg.com/profile_images/2055755733002506240/uFECjFhT_normal.jpg"
+        },
+        "metrics": {
+          "likes": 496,
+          "retweets": 54,
+          "replies": 6,
+          "quotes": 6,
+          "bookmarks": 1461,
+          "views": 152674
+        },
+        "lang": "zxx",
+        "createdAt": "Sun Jun 14 13:06:47 +0000 2026",
+        "createdAtISO": "2026-06-14T13:06:47+00:00",
+        "createdAtLocal": "2026-06-14 15:06",
+        "urls": [
+          "http://x.com/i/article/2066125194813444096"
+        ],
+        "conversationId": "2066145326780518736",
+        "article": {
+          "title": "HERMES AGENT BUILDS ITSELF WHILE YOU SLEEP. THE COMPLETE GUIDE TO THE 9-HOUR OVERNIGHT WORKFLOW.",
+          "markdown": ""
+        }
+      },
+      "article": {
+        "title": "HERMES AGENT BUILDS ITSELF WHILE YOU SLEEP. THE COMPLETE GUIDE TO THE 9-HOUR OVERNIGHT WORKFLOW.",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2066401066518802637",
+      "url": "https://x.com/mikenevermiss/status/2066401066518802637",
+      "text": "https://t.co/tlLZjVprSj",
+      "author": {
+        "id": "1788243647885987840",
+        "handle": "mikenevermiss",
+        "name": "MIKE",
+        "verified": true,
+        "followers": 11358,
+        "avatar": "https://pbs.twimg.com/profile_images/2004815313108389888/uzJndIfx_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1059,
+        "retweets": 132,
+        "replies": 51,
+        "quotes": 19,
+        "bookmarks": 3904,
+        "views": 798706
+      },
+      "lang": "zxx",
+      "createdAt": "Mon Jun 15 06:03:00 +0000 2026",
+      "createdAtISO": "2026-06-15T06:03:00+00:00",
+      "createdAtLocal": "2026-06-15 08:03",
+      "urls": [
+        "http://x.com/i/article/2066041362298912768"
+      ],
+      "conversationId": "2066401066518802637",
+      "article": {
+        "title": "How to Create Loops with Claude",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2066570558016569657",
+      "url": "https://x.com/sekachov/status/2066570558016569657",
+      "text": "eagle is too clunky, mymind is too ugly, arena is too slow, freeform is too buggy, figjam is too web, cosmos is almost perfect, but not local. all i needed was apple photos app, but for collecting references. so i made one.\n\nit's native, it's local, and it's blazing fast. https://t.co/CRTcMFmzTR",
+      "author": {
+        "id": "914848333642043393",
+        "handle": "sekachov",
+        "name": "alexey",
+        "verified": true,
+        "followers": 15584,
+        "avatar": "https://pbs.twimg.com/profile_images/2029673074778677248/SZaBRjjR_normal.jpg"
+      },
+      "metrics": {
+        "likes": 2223,
+        "retweets": 62,
+        "replies": 127,
+        "quotes": 11,
+        "bookmarks": 2349,
+        "views": 203775
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 17:16:30 +0000 2026",
+      "createdAtISO": "2026-06-15T17:16:30+00:00",
+      "createdAtLocal": "2026-06-15 19:16",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066570276725530624/vid/avc1/1174x720/pqFcYX2Xk7cb2EpB.mp4?tag=14",
+          "width": 2048,
+          "height": 1256,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066570276725530624/img/ZxEXS_B684DjGWBC.jpg",
+          "durationMs": 57351
+        }
+      ],
+      "conversationId": "2066570558016569657"
+    },
+    {
+      "id": "2066605772843131371",
+      "url": "https://x.com/swmansion/status/2066605772843131371",
+      "text": "Here’s Claude Code controlling both iOS simulator &amp; Android emulator in parallel with Argent. 📱📱 https://t.co/GDLCIvA64T",
+      "author": {
+        "id": "3377256880",
+        "handle": "swmansion",
+        "name": "Software Mansion",
+        "verified": true,
+        "followers": 22981,
+        "avatar": "https://pbs.twimg.com/profile_images/1243176655172009986/Jgdl2m15_normal.jpg"
+      },
+      "metrics": {
+        "likes": 311,
+        "retweets": 23,
+        "replies": 9,
+        "quotes": 1,
+        "bookmarks": 193,
+        "views": 13876
+      },
+      "lang": "ro",
+      "createdAt": "Mon Jun 15 19:36:26 +0000 2026",
+      "createdAtISO": "2026-06-15T19:36:26+00:00",
+      "createdAtLocal": "2026-06-15 21:36",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066604900037828608/vid/avc1/1848x1080/Juec4EwUpGnPkHXP.mp4?tag=28",
+          "width": 1848,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066604900037828608/img/XAT2JzuZUX6x2ycx.jpg",
+          "durationMs": 44083
+        }
+      ],
+      "conversationId": "2066605772843131371"
+    },
+    {
+      "id": "2066451514672009337",
+      "url": "https://x.com/mattpocockuk/status/2066451514672009337",
+      "text": "Here are my 7 phases of AI-powered development.\n\nI've been thinking that the pre-PRD phase needs more structure. You need to figure out the shape of the design tree first, before then walking down it with higher-fidelity prototypes.\n\nIn other words, /grill-with-docs needs to change again IMO",
+      "author": {
+        "id": "346640777",
+        "handle": "mattpocockuk",
+        "name": "Matt Pocock",
+        "verified": true,
+        "followers": 289873,
+        "avatar": "https://pbs.twimg.com/profile_images/1666460461884211204/SmBm505D_normal.jpg"
+      },
+      "metrics": {
+        "likes": 2678,
+        "retweets": 188,
+        "replies": 97,
+        "quotes": 11,
+        "bookmarks": 3265,
+        "views": 189290
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 09:23:28 +0000 2026",
+      "createdAtISO": "2026-06-15T09:23:28+00:00",
+      "createdAtLocal": "2026-06-15 11:23",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK2CSd0WcAA6tOm.jpg",
+          "width": 944,
+          "height": 673
+        }
+      ],
+      "conversationId": "2066451514672009337"
+    },
+    {
+      "id": "2066406107359465524",
+      "url": "https://x.com/andrewfarah/status/2066406107359465524",
+      "text": "sharing my 2nd open source proj:\n\nField Theory v0.3.2\n\ncontext management — writing, reading, voice, terminal, bookmarks, clipboard, etc\n\n› ia writer style editor\n› x bookmarks\n› codex panel\n› markdown\n› terminal\n› gemma\n› cli\n› all local\n\napp + code free (1.5k commits) https://t.co/1j8unRgaiD",
+      "author": {
+        "id": "14285126",
+        "handle": "andrewfarah",
+        "name": "Andrew Farah",
+        "verified": true,
+        "followers": 5490,
+        "avatar": "https://pbs.twimg.com/profile_images/1333825366541086723/9igbNiRX_normal.jpg"
+      },
+      "metrics": {
+        "likes": 225,
+        "retweets": 16,
+        "replies": 14,
+        "quotes": 1,
+        "bookmarks": 359,
+        "views": 19122
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 06:23:02 +0000 2026",
+      "createdAtISO": "2026-06-15T06:23:02+00:00",
+      "createdAtLocal": "2026-06-15 08:23",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066404742268694528/vid/avc1/3176x2160/S0CLMjmpjvIHvsdY.mp4?tag=27",
+          "width": 3176,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066404742268694528/img/5dKedQNPE_QJTE2K.jpg",
+          "durationMs": 97266
+        }
+      ],
+      "conversationId": "2066406107359465524"
+    },
+    {
+      "id": "2065835148474511530",
+      "url": "https://x.com/_pierre_barre/status/2065835148474511530",
+      "text": "ZeroFS makes S3 behave like a real filesystem and block device (NFS / 9P / NBD), with microsecond latencies, always-on encryption, and S3 pricing.",
+      "author": {
+        "id": "1886705517172604929",
+        "handle": "_pierre_barre",
+        "name": "Pierre Barre",
+        "verified": true,
+        "followers": 60,
+        "avatar": "https://pbs.twimg.com/profile_images/1886705563842605056/h8oBmUI-_normal.png"
+      },
+      "metrics": {
+        "likes": 98,
+        "retweets": 6,
+        "replies": 0,
+        "quotes": 1,
+        "bookmarks": 104,
+        "views": 1063583
+      },
+      "lang": "en",
+      "createdAt": "Sat Jun 13 16:34:15 +0000 2026",
+      "createdAtISO": "2026-06-13T16:34:15+00:00",
+      "createdAtLocal": "2026-06-13 18:34",
+      "conversationId": "2065835148474511530"
+    },
+    {
+      "id": "2066335291431133252",
+      "url": "https://x.com/tokufxug/status/2066335291431133252",
+      "text": "NVIDIAの人間3Dモデル「SOMA-X v0.2」が公開。\n\n1つの骨組みであらゆる体型を表現でき、ロボットや物理AIに最適。\n\n関節のねじれ補正による自然な変形、骨の自動スケール、高度な姿勢反転、超軽量データを備えてます。\n\nApache 2.0でオープンソース化されてます。（詳細はリプ欄） https://t.co/BdJl3LLJ9l",
+      "author": {
+        "id": "75732568",
+        "handle": "tokufxug",
+        "name": "Sadao Tokuyama",
+        "verified": true,
+        "followers": 5380,
+        "avatar": "https://pbs.twimg.com/profile_images/1614135119597686784/8APrdHkh_normal.png"
+      },
+      "metrics": {
+        "likes": 901,
+        "retweets": 142,
+        "replies": 5,
+        "quotes": 5,
+        "bookmarks": 820,
+        "views": 62192
+      },
+      "lang": "ja",
+      "createdAt": "Mon Jun 15 01:41:38 +0000 2026",
+      "createdAtISO": "2026-06-15T01:41:38+00:00",
+      "createdAtLocal": "2026-06-15 03:41",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066335207406579712/vid/avc1/1280x720/voYCN0VFwP2bc--7.mp4?tag=27",
+          "width": 1280,
+          "height": 720,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066335207406579712/img/ewo5AfuDIzP7CdLI.jpg",
+          "durationMs": 12579
+        }
+      ],
+      "conversationId": "2066335291431133252"
+    },
+    {
+      "id": "2066565711997337960",
+      "url": "https://x.com/haydenbleasel/status/2066565711997337960",
+      "text": "Files SDK 1.9 just dropped.\n\nThis release adds a Neon adapter and new plugins for durability, performance, safety and multi-backend workflows.\n\n→ audit, cache, failover\n→ signed URL policy\n→ soft delete, tiering, zip\n→ typed validation errors\n\nDetails below ↓ https://t.co/XWasnLfKBR",
+      "author": {
+        "id": "1628137603",
+        "handle": "haydenbleasel",
+        "name": "Hayden Bleasel",
+        "verified": true,
+        "followers": 16730,
+        "avatar": "https://pbs.twimg.com/profile_images/2010975885462024192/H1EkkFdO_normal.jpg"
+      },
+      "metrics": {
+        "likes": 119,
+        "retweets": 6,
+        "replies": 5,
+        "quotes": 1,
+        "bookmarks": 63,
+        "views": 8364
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 16:57:15 +0000 2026",
+      "createdAtISO": "2026-06-15T16:57:15+00:00",
+      "createdAtLocal": "2026-06-15 18:57",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066565652807356416/vid/avc1/1280x720/CT63NCTQcSqhI7SJ.mp4?tag=14",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066565652807356416/img/kIRx2Tx8g_9dVzrK.jpg",
+          "durationMs": 97642
+        }
+      ],
+      "conversationId": "2066565711997337960"
+    },
+    {
+      "id": "2054409189569581105",
+      "url": "https://x.com/chenzeling4/status/2054409189569581105",
+      "text": "This UI is absolutely insane. ✨\n\nbeautiful-html-templates gives you 32 gorgeous slide decks your coding agent can auto-generate. Just prompt and ship.\n\n⭐ 1.0K\n#OpenSource #Frontend #UI https://t.co/Yj1zAKyCYN",
+      "author": {
+        "id": "1498803336048353288",
+        "handle": "chenzeling4",
+        "name": "Zane Chen",
+        "verified": true,
+        "followers": 316,
+        "avatar": "https://pbs.twimg.com/profile_images/2060375011249061889/1Y9UjXhT_normal.png"
+      },
+      "metrics": {
+        "likes": 1,
+        "retweets": 1,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 1,
+        "views": 16
+      },
+      "lang": "en",
+      "createdAt": "Wed May 13 03:51:34 +0000 2026",
+      "createdAtISO": "2026-05-13T03:51:34+00:00",
+      "createdAtLocal": "2026-05-13 05:51",
+      "hashtags": [
+        "OpenSource",
+        "Frontend",
+        "UI"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HIK5d9kXkAAy9ML.jpg",
+          "width": 760,
+          "height": 900
+        }
+      ],
+      "conversationId": "2054409189569581105"
+    },
+    {
+      "id": "2066547840760029605",
+      "url": "https://x.com/omarsar0/status/2066547840760029605",
+      "text": "I just open-sourced my /learn skill.\n\nLearn anything with agents and HTML artifacts.\n\nI have been learning about all kinds of topics with it.\n\nInstall the skill and interact with any agent to help you through any topic.\n\nAsk it to generate visual and interactive artifacts and help you go deeper or generate knowledge checks (e.g., quizzes).\n\nUpskilling myself on any topic is one of the most impactful ways I have been able to use AI agents.\n\nIf you are a DAIR Academy pro member, you can use it with our AI Builder.\n\nSkill: https://t.co/5zqkHJuTmO\nTry now: https://t.co/1e8RZKs4uX",
+      "author": {
+        "id": "3448284313",
+        "handle": "omarsar0",
+        "name": "elvis",
+        "verified": true,
+        "followers": 307630,
+        "avatar": "https://pbs.twimg.com/profile_images/939313677647282181/vZjFWtAn_normal.jpg"
+      },
+      "metrics": {
+        "likes": 317,
+        "retweets": 37,
+        "replies": 17,
+        "quotes": 4,
+        "bookmarks": 513,
+        "views": 31920
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 15:46:14 +0000 2026",
+      "createdAtISO": "2026-06-15T15:46:14+00:00",
+      "createdAtLocal": "2026-06-15 17:46",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066547783327490048/vid/avc1/1216x720/qcHMYYlHprCbsmqb.mp4?tag=14",
+          "width": 1824,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066547783327490048/img/irJ0B4vK-ejTw_XV.jpg",
+          "durationMs": 19800
+        }
+      ],
+      "conversationId": "2066547840760029605"
+    },
+    {
+      "id": "2065636992411447454",
+      "url": "https://x.com/prsa_bahrami/status/2065636992411447454",
+      "text": "@vercel_dev How Is this different from @mattpocockuk ‘s \nhttps://t.co/EjDuzKxMBB",
+      "author": {
+        "id": "1764738151837323264",
+        "handle": "prsa_bahrami",
+        "name": "Parsa Bahraminejad",
+        "verified": true,
+        "followers": 128,
+        "avatar": "https://pbs.twimg.com/profile_images/2009094207147794432/dE-ebC_v_normal.jpg"
+      },
+      "metrics": {
+        "likes": 22,
+        "retweets": 0,
+        "replies": 2,
+        "quotes": 0,
+        "bookmarks": 32,
+        "views": 4676
+      },
+      "lang": "en",
+      "createdAt": "Sat Jun 13 03:26:51 +0000 2026",
+      "createdAtISO": "2026-06-13T03:26:51+00:00",
+      "createdAtLocal": "2026-06-13 05:26",
+      "mentions": [
+        "vercel_dev",
+        "mattpocockuk"
+      ],
+      "urls": [
+        "https://github.com/mattpocock/sandcastle"
+      ],
+      "isReply": true,
+      "conversationId": "2065509970775519569"
+    },
+    {
+      "id": "2065509970775519569",
+      "url": "https://x.com/vercel_dev/status/2065509970775519569",
+      "text": "AI SDK now supports agent harnesses like Claude Code, Codex, and Pi with sandboxed sessions and AI SDK-compatible streams:\n\n𝚌𝚘𝚗𝚜𝚝 𝚊𝚐𝚎𝚗𝚝 = 𝚗𝚎𝚠 𝙷𝚊𝚛𝚗𝚎𝚜𝚜𝙰𝚐𝚎𝚗𝚝({\n  𝚑𝚊𝚛𝚗𝚎𝚜𝚜: 𝚌𝚕𝚊𝚞𝚍𝚎𝙲𝚘𝚍𝚎,\n  𝚜𝚊𝚗𝚍𝚋𝚘𝚡: 𝚌𝚛𝚎𝚊𝚝𝚎𝚅𝚎𝚛𝚌𝚎𝚕𝚂𝚊𝚗𝚍𝚋𝚘𝚡(),\n});\n\nAvailable in canary: 𝚗𝚙𝚖 𝚒 𝚊𝚒@𝚌𝚊𝚗𝚊𝚛𝚢. We welcome your feedback as we bring agent harness portability to the ecosystem, with excellent DX.\nhttps://t.co/xojn6am7sg",
+      "author": {
+        "id": "1333485844053839878",
+        "handle": "vercel_dev",
+        "name": "Vercel Developers",
+        "verified": true,
+        "followers": 36946,
+        "avatar": "https://pbs.twimg.com/profile_images/1978602411490205696/oLOuP7a2_normal.png"
+      },
+      "metrics": {
+        "likes": 917,
+        "retweets": 70,
+        "replies": 49,
+        "quotes": 38,
+        "bookmarks": 842,
+        "views": 375361
+      },
+      "lang": "en",
+      "createdAt": "Fri Jun 12 19:02:07 +0000 2026",
+      "createdAtISO": "2026-06-12T19:02:07+00:00",
+      "createdAtLocal": "2026-06-12 21:02",
+      "conversationId": "2065509970775519569"
+    },
+    {
+      "id": "2066555279295008908",
+      "url": "https://x.com/ctatedev/status/2066555279295008908",
+      "text": "Introducing Generative UI for Claude Code, Codex and Pi\n\nCharts, forms, 3D, anything\n\nYour agent renders real UI for users while it works in a sandbox\n\nPowered by AI SDK's experimental HarnessAgent + json-render https://t.co/9fAWSbNX9k",
+      "author": {
+        "id": "152108221",
+        "handle": "ctatedev",
+        "name": "Chris Tate",
+        "verified": true,
+        "followers": 60114,
+        "avatar": "https://pbs.twimg.com/profile_images/1793812678462365696/rJGwsL4h_normal.jpg"
+      },
+      "metrics": {
+        "likes": 2324,
+        "retweets": 172,
+        "replies": 69,
+        "quotes": 18,
+        "bookmarks": 2952,
+        "views": 159129
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 16:15:47 +0000 2026",
+      "createdAtISO": "2026-06-15T16:15:47+00:00",
+      "createdAtLocal": "2026-06-15 18:15",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066555185372057600/vid/avc1/2160x2160/PDssnCOK0ILvkjrD.mp4?tag=28",
+          "width": 2160,
+          "height": 2160,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066555185372057600/img/tb00nqfg7bIf9kVt.jpg",
+          "durationMs": 14900
+        }
+      ],
+      "conversationId": "2066555279295008908"
+    },
+    {
+      "id": "2066543289445069117",
+      "url": "https://x.com/KSimback/status/2066543289445069117",
+      "text": "Hermes Atlas Dev: https://t.co/fEIDrUmfA5",
+      "author": {
+        "id": "3108019343",
+        "handle": "KSimback",
+        "name": "Kevin Simback 🍷",
+        "verified": true,
+        "followers": 18153,
+        "avatar": "https://pbs.twimg.com/profile_images/1633567594660634625/vUj28W2S_normal.jpg"
+      },
+      "metrics": {
+        "likes": 18,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "bookmarks": 30,
+        "views": 769
+      },
+      "lang": "lv",
+      "createdAt": "Mon Jun 15 15:28:09 +0000 2026",
+      "createdAtISO": "2026-06-15T15:28:09+00:00",
+      "createdAtLocal": "2026-06-15 17:28",
+      "urls": [
+        "https://hermesatlas.com/dev/"
+      ],
+      "isReply": true,
+      "conversationId": "2066543287192699172"
+    },
+    {
+      "id": "2066536210181632066",
+      "url": "https://x.com/JulianGoldieSEO/status/2066536210181632066",
+      "text": "I BUILT MY OWN AI AGENT OPERATING SYSTEM WITHOUT WRITING A SINGLE LINE OF CODE\n\nA developer team could spend weeks building this. I installed mine in minutes.\n\nThe Setup:\n\n→ Download the Agent OS zip file\n\n→ Unzip it and open the folder in Claude Code\n\n→ Copy one command from the README, paste it, and hit enter\n\nWhat You Get:\n\n✓ One Mission Control dashboard for every AI agent\n\n✓ Custom workflows for SEO, videos, ads, email, and more\n\n✓ The ability to plug in tools like Hermes or Open Jarvis in minutes\n\nThe workflow is simple:\n\n✔ Find an agent\n\n✔ Ask Claude if it can be added\n\n✔ Tell Claude to build it\n\n✔ Test it yourself and fix errors with screenshots\n\nClaude even keeps the same icons, branding, and UI when new tools are added.\n\nYou do not need 100 agents.\n\nStart with one useful workflow, prove it works, then keep upgrading your system.",
+      "author": {
+        "id": "1405031034",
+        "handle": "JulianGoldieSEO",
+        "name": "Julian Goldie SEO",
+        "verified": true,
+        "followers": 170704,
+        "avatar": "https://pbs.twimg.com/profile_images/1322760467979268096/b3RoYhTq_normal.jpg"
+      },
+      "metrics": {
+        "likes": 15,
+        "retweets": 3,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 23,
+        "views": 1208
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 15:00:01 +0000 2026",
+      "createdAtISO": "2026-06-15T15:00:01+00:00",
+      "createdAtLocal": "2026-06-15 17:00",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066064619475750912/vid/avc1/1280x720/efMRozAdj9oZgDWb.mp4?tag=27",
+          "width": 1280,
+          "height": 720,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066064619475750912/img/zbmSr4MFhQRFMvg5.jpg",
+          "durationMs": 455320
+        }
+      ],
+      "conversationId": "2066536210181632066"
+    },
+    {
+      "id": "1967982868464029781",
+      "url": "https://x.com/mhdfaran/status/1967982868464029781",
+      "text": "Now the second big thing: Gamma's API.\n\nFor the first time, you can:\n● Automate deck creation\n● Plug into your workflows\n● Connect your own data\n\nThink: Zapier + Gamma + Notion + Slack + Email\n\nThis turns Gamma into an enterprise-grade content engine. https://t.co/CtE2E77d9m",
+      "author": {
+        "id": "327708566",
+        "handle": "mhdfaran",
+        "name": "Farhan",
+        "verified": true,
+        "followers": 79068,
+        "avatar": "https://pbs.twimg.com/profile_images/1685658187825811457/h9QgcNrM_normal.jpg"
+      },
+      "metrics": {
+        "likes": 3,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 1,
+        "views": 177
+      },
+      "lang": "en",
+      "createdAt": "Tue Sep 16 16:04:13 +0000 2025",
+      "createdAtISO": "2025-09-16T16:04:13+00:00",
+      "createdAtLocal": "2025-09-16 18:04",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/1967982816844750848/vid/avc1/1280x720/zltjVQsyG6Ads2Cq.mp4?tag=14",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 2176000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/1967982816844750848/img/rwN0Q8vOpGBxoKZB.jpg",
+          "durationMs": 6229
+        }
+      ],
+      "isReply": true,
+      "conversationId": "1967982587940573633"
+    },
+    {
+      "id": "2064238044161405150",
+      "url": "https://x.com/tom_doerr/status/2064238044161405150",
+      "text": "Orchestrates 49 AI agents across five coding platforms\n\nhttps://t.co/fFGIezNf4R https://t.co/rOyVUMDuNn",
+      "author": {
+        "id": "1326180756310331399",
+        "handle": "tom_doerr",
+        "name": "Tom Dörr",
+        "verified": true,
+        "followers": 209703,
+        "avatar": "https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg"
+      },
+      "metrics": {
+        "likes": 82,
+        "retweets": 14,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 87,
+        "views": 5740
+      },
+      "lang": "en",
+      "createdAt": "Tue Jun 09 06:47:56 +0000 2026",
+      "createdAtISO": "2026-06-09T06:47:56+00:00",
+      "createdAtLocal": "2026-06-09 08:47",
+      "urls": [
+        "https://github.com/agent-sh/agentsys"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKWlj9UWMAAsiX2.jpg",
+          "width": 985,
+          "height": 1069
+        }
+      ],
+      "conversationId": "2064238044161405150"
+    },
+    {
+      "id": "2065392637209678224",
+      "url": "https://x.com/tom_doerr/status/2065392637209678224",
+      "text": "Generates full-stack AI apps with agents, RAG, and enterprise auth\n\nhttps://t.co/1ptz1qopy7 https://t.co/FyRKhtF0oR",
+      "author": {
+        "id": "1326180756310331399",
+        "handle": "tom_doerr",
+        "name": "Tom Dörr",
+        "verified": true,
+        "followers": 209703,
+        "avatar": "https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg"
+      },
+      "metrics": {
+        "likes": 142,
+        "retweets": 22,
+        "replies": 3,
+        "quotes": 0,
+        "bookmarks": 174,
+        "views": 7112
+      },
+      "lang": "en",
+      "createdAt": "Fri Jun 12 11:15:52 +0000 2026",
+      "createdAtISO": "2026-06-12T11:15:52+00:00",
+      "createdAtLocal": "2026-06-12 13:15",
+      "urls": [
+        "https://github.com/vstorm-co/full-stack-ai-agent-template"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKm_qIBW8AAOcCD.jpg",
+          "width": 1241,
+          "height": 1305
+        }
+      ],
+      "conversationId": "2065392637209678224"
+    },
+    {
+      "id": "2066545056413089811",
+      "url": "https://x.com/tom_doerr/status/2066545056413089811",
+      "text": "Natural language workflows for multi-step AI agent tasks\n\nhttps://t.co/h764rXlqAO https://t.co/byNXZcM1ut",
+      "author": {
+        "id": "1326180756310331399",
+        "handle": "tom_doerr",
+        "name": "Tom Dörr",
+        "verified": true,
+        "followers": 209703,
+        "avatar": "https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg"
+      },
+      "metrics": {
+        "likes": 31,
+        "retweets": 2,
+        "replies": 1,
+        "quotes": 0,
+        "bookmarks": 41,
+        "views": 2370
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 15:35:10 +0000 2026",
+      "createdAtISO": "2026-06-15T15:35:10+00:00",
+      "createdAtLocal": "2026-06-15 17:35",
+      "urls": [
+        "https://github.com/strands-agents/agent-sop"
+      ],
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HK3XxxJXQAA0kyS.jpg",
+          "width": 984,
+          "height": 1129
+        }
+      ],
+      "conversationId": "2066545056413089811"
+    },
+    {
+      "id": "2066467110960959833",
+      "url": "https://x.com/Kimi_Moonshot/status/2066467110960959833",
+      "text": "🌘 Meet Kimi K2.7 Code HighSpeed!\nA high-speed mode of our latest open-source multimodal coding model, Kimi K2.7 Code.\n\n⚡️ Up to 6× faster: Around 180 tok/s on coding tasks with median-length inputs, and up to 260 tok/s on shorter-context tasks.\n\n🔷  Rolling out to Kimi Code Beta Program members, Kimi API developers, and Kimi Business users. (Access will remain limited for now due to capacity constraints.)\n\n🔷  No invite needed. Anyone who joins the Beta Program has a chance to get access 👉 https://t.co/eKogsFGJt6\n\nOpen intelligence should be instant, affordable, and borderless. We'll continue improving the model and expanding access as more capacity becomes available!\n\n🔗 Kimi Code: https://t.co/uvoSJKyGCY\n🔗 API: https://t.co/mzWxjgGO1h",
+      "author": {
+        "id": "1863959670169501696",
+        "handle": "Kimi_Moonshot",
+        "name": "Kimi.ai",
+        "verified": false,
+        "followers": 179446,
+        "avatar": "https://pbs.twimg.com/profile_images/1910294000927645696/QseOV0uF_normal.png"
+      },
+      "metrics": {
+        "likes": 3881,
+        "retweets": 320,
+        "replies": 156,
+        "quotes": 139,
+        "bookmarks": 943,
+        "views": 489979
+      },
+      "lang": "en",
+      "createdAt": "Mon Jun 15 10:25:27 +0000 2026",
+      "createdAtISO": "2026-06-15T10:25:27+00:00",
+      "createdAtLocal": "2026-06-15 12:25",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066462196595634176/vid/avc1/1920x1080/UlNcRNPHGNF43y2p.mp4?tag=27",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066462196595634176/img/T7ux8S37-tTzsa3T.jpg",
+          "durationMs": 1362300
+        }
+      ],
+      "conversationId": "2066467110960959833"
+    },
+    {
+      "id": "2065445185367277722",
+      "url": "https://x.com/israfill/status/2065445185367277722",
+      "text": "i built a panel of 5 AI investors using minimax m3 that tear startup ideas apart in 60 seconds\n\neach one is a separate MiniMax M3 agent running in parallel: a market analyst, a competition researcher, an ex-CTO, a timing skeptic, and a partner who has heard 10,000 pitches\n\nideas i ran through it:\n\n- AI-powered todo list app: 12/100. verdict: this is a feature, not a company. bury this.\n- AI pin that replaces your phone: 16/100. it dug up Humane's corpse unprompted ($230M burned, sold to HP for parts)\n- AI agent that replies to viral tweets for growth: 18/100. the only moat here is the gullibility of new founders\n- solar permitting paperwork agent: 59/100. the only INVEST stamp after 15+ runs\n\nevery run also returns:\n- the one killer question that sinks the idea\n- a graveyard of real dead startups that tried it before you\n- a fix my idea button that pivots the idea and re-runs the panel\n- a downloadable one page investor memo\n\nwhy MiniMax M3 carries this:\n- 16 reasoning calls fire in parallel and you watch every agent think live in the terminal\n- it names real competitors, real funding rounds, real shutdowns with zero web access\n- a full panel run costs $0.02\n- openai-compatible, one base url swap and it runs anywhere\n\nand minimax confirmed the M3 weights go open source TODAY, so soon you can run this exact panel on your own GPUs\n\ntotal api spend to build and test everything: under $0.50\n\ndrop your startup idea in the replies or pressure test it yourself:\nhttps://t.co/sJPjyc6FaU",
+      "author": {
+        "id": "1768766800177836033",
+        "handle": "israfill",
+        "name": "Isra",
+        "verified": true,
+        "followers": 8802,
+        "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+      },
+      "metrics": {
+        "likes": 76,
+        "retweets": 5,
+        "replies": 34,
+        "quotes": 1,
+        "bookmarks": 39,
+        "views": 4261
+      },
+      "lang": "en",
+      "createdAt": "Fri Jun 12 14:44:40 +0000 2026",
+      "createdAtISO": "2026-06-12T14:44:40+00:00",
+      "createdAtLocal": "2026-06-12 16:44",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2065443498695028736/vid/avc1/2940x1912/WR2jEobcRSUurZdG.mp4?tag=27",
+          "width": 2940,
+          "height": 1912,
+          "bitrate": 25128000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2065443498695028736/img/_hqWFCi00ryXduk1.jpg",
+          "durationMs": 101770
+        }
+      ],
+      "conversationId": "2065445185367277722"
+    },
+    {
+      "id": "2058105350382141563",
+      "url": "https://x.com/israfill/status/2058105350382141563",
+      "text": "https://t.co/eQlAbtWLaY",
+      "author": {
+        "id": "1768766800177836033",
+        "handle": "israfill",
+        "name": "Isra",
+        "verified": true,
+        "followers": 8802,
+        "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+      },
+      "metrics": {
+        "likes": 154,
+        "retweets": 9,
+        "replies": 40,
+        "quotes": 4,
+        "bookmarks": 121,
+        "views": 25663
+      },
+      "lang": "zxx",
+      "createdAt": "Sat May 23 08:38:47 +0000 2026",
+      "createdAtISO": "2026-05-23T08:38:47+00:00",
+      "createdAtLocal": "2026-05-23 10:38",
+      "urls": [
+        "http://x.com/i/article/2058061331551367168"
+      ],
+      "conversationId": "2058105350382141563",
+      "article": {
+        "title": "How to Build $7k/Month AI Video Automation Playbook (2 Free Skills + Full Setup Guide)",
+        "markdown": ""
+      }
+    },
+    {
+      "id": "2064771594862608545",
+      "url": "https://x.com/israfill/status/2064771594862608545",
+      "text": "use kimi k2.6 for FREE through nvidia's api AND their new desktop app with 300 agents 😳\n\nkimi beats GPT-5 on coding benchmarks\n\nwhat you will get for $0:\n- kimi k2.6: SWE-Bench Pro 58.6, Multilingual 76.7\n- free for 1 year on NVIDIA's API\n- 4,000+ tool calls per session\n- 300 parallel agents\n\nwhat the new desktop app does:\n- runs native agent swarms on mac/windows\n- builds full PPTX, Word, Excel, PDF files\n- agents browse the web, click, type, fill forms for you\n- built-in finance data (yahoo, binance, world bank)\n- remembers your workflow + turns repeated tasks into skills\n\nhow to get both for free (5 min):\n> go to https://t.co/BIIXYD9PJA and sign up (web + desktop)\n> go to https://t.co/V6J008DsGg, search kimi-k2.6\n> generate a free api key\n> paste into any openai-compatible client (cursor, cline, etc)\n> base url: https://t.co/snZSjFRN41\n\nimportant:\n- nvidia tier has ~40 req/min rate limit\n- desktop free tier has some agent limits\n- not for production workloads\n- phone verify may be needed for nvidia\n\nsota coding model + full desktop agent suite = $0\nwhile most people are paying $20/mo for each\n\nbookmark this before the free tiers change",
+      "author": {
+        "id": "1768766800177836033",
+        "handle": "israfill",
+        "name": "Isra",
+        "verified": true,
+        "followers": 8802,
+        "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+      },
+      "metrics": {
+        "likes": 829,
+        "retweets": 94,
+        "replies": 37,
+        "quotes": 7,
+        "bookmarks": 1053,
+        "views": 109469
+      },
+      "lang": "en",
+      "createdAt": "Wed Jun 10 18:08:04 +0000 2026",
+      "createdAtISO": "2026-06-10T18:08:04+00:00",
+      "createdAtLocal": "2026-06-10 20:08",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKeKyoLaEAE6w83.jpg",
+          "width": 1200,
+          "height": 628
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2064771594862608545",
+      "quoted": {
+        "id": "2064606127971873065",
+        "url": "https://x.com/israfill/status/2064606127971873065",
+        "text": "you can use unlimited FREE deepseek v4 pro & flash, minimax m3, gemini 3.5 flash with zero credit card 😳\n\nb. ai giving 500k free credits on signup, no verification needed\n\nwhat you get:\n- deepseek v4 pro & flash\n- gemini 3.5 flash\n- minimax m3\n- more frontier models\n\nit's openai compatible so you can plug it into any agent or bot. you just swap the base url and your existing tools work\n\nfull setup guide (bai 500k free credits):\n\nstep 1: go to https://t.co/pK3GidYD3R\n> click \"try b. ai\" in the top right\n\nstep 2: sign up with google\n> any gmail works, burner is fine.\n\nstep 3: credits appear instantly\n> 500,000 in your account. no card, no verification need\n\nstep 4: swap your base url\n> replace your openai endpoint with https://t.co/pK3GidYD3R's api endpoint\n> all your existing tools and agents just work\n\nstep 5: repeat with a fresh email when you run out\n> use yourname+1@gmail.com, yourname+2@gmail.com etc\n> each account gets 500k fresh credits\n> incognito browser for each one\n\nthere's also a 1:1 top-up bonus up to $100 if you run through it all\n\nmeaning you deposit $10, they give $10 free extends your credits without creating new accounts\n\n3 things to test with 500k credits:\n1. stress test your agent pipeline across 4 models at once\n2. compare model outputs side by side to find your cheapest option\n3. run batch inference on a dataset without worrying about cost\n\nthis is the most generous free credit offer live right now\n\nbookmark this and get this before the subsidy pool runs out",
+        "author": {
+          "id": "1768766800177836033",
+          "handle": "israfill",
+          "name": "Isra",
+          "verified": true,
+          "followers": 8802,
+          "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+        },
+        "metrics": {
+          "likes": 862,
+          "retweets": 86,
+          "replies": 70,
+          "quotes": 3,
+          "bookmarks": 1242,
+          "views": 131517
+        },
+        "lang": "en",
+        "createdAt": "Wed Jun 10 07:10:34 +0000 2026",
+        "createdAtISO": "2026-06-10T07:10:34+00:00",
+        "createdAtLocal": "2026-06-10 09:10",
+        "media": [
+          {
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/HKb0F5CbYAAFIjK.jpg",
+            "width": 1472,
+            "height": 704
+          }
+        ],
+        "isQuote": true,
+        "conversationId": "2064606127971873065"
+      }
+    },
+    {
+      "id": "2065512940367937743",
+      "url": "https://x.com/israfill/status/2065512940367937743",
+      "text": "you can build production AI agents with GPT-5.5, grok 4.20, AND kimi k2.6 - 500 runs/month for FREE 😳\n\nno credit card, google login works.\n\nstackai were acquired by asana last year and just opened up their free tier\n\nwhat you get for $0:\n- 500 agent runs per month (resets monthly)\n- GPT-5.5, grok 4.20, kimi k2.6, claude, gemini, 30+ model providers\n- visual drag-and-drop workflow builder (no code needed)\n- RAG from documents, web, google drive, notion\n- multi-modal: vision, text-to-speech, speech-to-text\n- logic nodes: python, javascript, code execution\n- browser extension, slack bot, REST API access\n- 2 projects, 1 seat\n\nwhat sets it apart from other free agent builders:\n- founded by MIT PhDs, backed by $16M series A\n- acquired by asana - not a random startup\n- 100+ enterprise integrations (salesforce, sharepoint, snowflake)\n- human-in-the-loop oversight\n- SOC 2 / HIPAA / GDPR compliance even on free tier\n- switch models per step in your workflow\n\nhow to get started (3 min):\n\n> go to https://t.co/5fuoYSgXWe\n> sign up with google - no credit card\n> create a new project\n> pick your model (GPT-5.5, grok, kimi, claude, whichever)\n> build your agent with the drag-and-drop editor\n> publish and use the chat UI or API endpoint\n\nimportant:\n- 500 runs/month limit - fine for testing and prototyping\n- 2 projects cap - enough to experiment\n- you can use temporary emails for multiple accounts to extend runs\n- no production SLA, this is for building and learning\n- runs reset monthly, not daily\n\nvisual agent builder + 5 frontier models + enterprise integrations = $0\n\nwhile everyone else pays $20/mo for each model subscription\n\nbookmark this before the free tier changes",
+      "author": {
+        "id": "1768766800177836033",
+        "handle": "israfill",
+        "name": "Isra",
+        "verified": true,
+        "followers": 8802,
+        "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+      },
+      "metrics": {
+        "likes": 418,
+        "retweets": 43,
+        "replies": 33,
+        "quotes": 2,
+        "bookmarks": 710,
+        "views": 366316
+      },
+      "lang": "en",
+      "createdAt": "Fri Jun 12 19:13:55 +0000 2026",
+      "createdAtISO": "2026-06-12T19:13:55+00:00",
+      "createdAtLocal": "2026-06-12 21:13",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKosWlfbYAAnpk1.jpg",
+          "width": 3200,
+          "height": 1800
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2065512940367937743",
+      "quoted": {
+        "id": "2065321014066913629",
+        "url": "https://x.com/israfill/status/2065321014066913629",
+        "text": "use minimax M3 for FREE through tokenrouter - 1M context, zero cost 😳\n\nM3 beats GPT-5.5 on coding benchmarks (SWE-Bench Pro: 59% vs 58.6%)\n\nwhat you get for $0:\n- SWE-Bench Pro 59% (ahead of GPT-5.5, trails opus 4.8 by ~10 pts)\n- 1M context window actually usable at 500k+ tokens (opus caps at 200k)\n- 9-15x faster inference at long contexts (sparse attention)\n- free input AND output literally $0/0\n\nM3's real edge over opus right now:\n- 1M context for full codebase dumps\n- speed: fast enough for real-time agent loops\n- 1/20th the compute cost of opus for equivalent tasks\n\nhow to set up (3 min):\n\n> go to https://t.co/EtW28QHsgI and sign up (email + verify)\n> open API Key section and create a new key\n> copy the base URL and the key\n> paste into any openai-compatible client (hermes, claude code, cursor, https://t.co/5WBKCvaP6h)\n> base url: https://t.co/fzTiCsLBq2\n> model: minimax/M3\n\nimportant:\n- no credit card, no phone verify, no trial\n- one key also routes GPT, claude, gemini, deepseek\n- rate limits apply on free tier, fine for personal use and agent prototyping\n- free window ends june 17, 5 days left\n\nsota-level coding + 1M context + speed = $0\nwhile everyone else pays $200/mo for claude api\n\nbookmark this before the free window closes",
+        "author": {
+          "id": "1768766800177836033",
+          "handle": "israfill",
+          "name": "Isra",
+          "verified": true,
+          "followers": 8802,
+          "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+        },
+        "metrics": {
+          "likes": 501,
+          "retweets": 44,
+          "replies": 47,
+          "quotes": 5,
+          "bookmarks": 575,
+          "views": 70532
+        },
+        "lang": "en",
+        "createdAt": "Fri Jun 12 06:31:16 +0000 2026",
+        "createdAtISO": "2026-06-12T06:31:16+00:00",
+        "createdAtLocal": "2026-06-12 08:31",
+        "media": [
+          {
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/HKl-GD7acAArZMP.jpg",
+            "width": 1520,
+            "height": 672
+          }
+        ],
+        "isQuote": true,
+        "conversationId": "2065321014066913629"
+      }
+    },
+    {
+      "id": "2065868713895829991",
+      "url": "https://x.com/israfill/status/2065868713895829991",
+      "text": "your agent can search Twitter, Reddit, and GitHub for free - zero API keys, zero billing 😳\n\nagent-reach is trending on github with 23K stars. it lets your AI agent read Twitter posts, browse Reddit threads, search GitHub repos, watch YouTube videos - all without paying for a single API subscription\n\nwhat your agent accesses for $0:\n- Twitter/X posts, profiles, and search\n- Reddit threads and comments\n- YouTube videos, metadata, and search\n- GitHub repos, issues, and profiles\n- 10+ more platforms - all in one pip install\n\nwhat this replaces:\n- Twitter API: $100/mo for basic access\n- Reddit API: rate-limited free tier, expensive at scale\n- YouTube API: quota limits, pay for more\n- GitHub API: generous but still rate-limited\n\nwhy this matters:\n- most AI agents are blind to the internet because APIs cost money\n- this gives any agent real-time web access at zero marginal cost\n- perfect for research agents, content radar, competitive intel, market analysis\n\nhow to set up (2 min):\n\n> pip install agent-reach\n> run: agent-reach doctor\n> connect it to your agent as a tool\n> done - your agent can now search the internet for free\n\nimportant:\n- uses direct parsing, not official APIs - no keys needed\n- works with claude code, cursor, aider, langchain, any agent framework\n- MIT licensed, fully open source\n- not for production web scraping at scale - use for agentic research and prototyping\n- 23K stars and trending - community vetted\n\nlet your agent browse Twitter, Reddit, and GitHub for $0\nwhile everyone else is paying $100+/mo for API access\n\nbookmark this before payying for extra api\n\n↓ repo in comment",
+      "author": {
+        "id": "1768766800177836033",
+        "handle": "israfill",
+        "name": "Isra",
+        "verified": true,
+        "followers": 8802,
+        "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+      },
+      "metrics": {
+        "likes": 3605,
+        "retweets": 364,
+        "replies": 120,
+        "quotes": 18,
+        "bookmarks": 7019,
+        "views": 362413
+      },
+      "lang": "en",
+      "createdAt": "Sat Jun 13 18:47:38 +0000 2026",
+      "createdAtISO": "2026-06-13T18:47:38+00:00",
+      "createdAtLocal": "2026-06-13 20:47",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKtwKmZbMAEn1Ji.jpg",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "isQuote": true,
+      "conversationId": "2065868713895829991",
+      "quoted": {
+        "id": "2065512940367937743",
+        "url": "https://x.com/israfill/status/2065512940367937743",
+        "text": "you can build production AI agents with GPT-5.5, grok 4.20, AND kimi k2.6 - 500 runs/month for FREE 😳\n\nno credit card, google login works.\n\nstackai were acquired by asana last year and just opened up their free tier\n\nwhat you get for $0:\n- 500 agent runs per month (resets monthly)\n- GPT-5.5, grok 4.20, kimi k2.6, claude, gemini, 30+ model providers\n- visual drag-and-drop workflow builder (no code needed)\n- RAG from documents, web, google drive, notion\n- multi-modal: vision, text-to-speech, speech-to-text\n- logic nodes: python, javascript, code execution\n- browser extension, slack bot, REST API access\n- 2 projects, 1 seat\n\nwhat sets it apart from other free agent builders:\n- founded by MIT PhDs, backed by $16M series A\n- acquired by asana - not a random startup\n- 100+ enterprise integrations (salesforce, sharepoint, snowflake)\n- human-in-the-loop oversight\n- SOC 2 / HIPAA / GDPR compliance even on free tier\n- switch models per step in your workflow\n\nhow to get started (3 min):\n\n> go to https://t.co/5fuoYSgXWe\n> sign up with google - no credit card\n> create a new project\n> pick your model (GPT-5.5, grok, kimi, claude, whichever)\n> build your agent with the drag-and-drop editor\n> publish and use the chat UI or API endpoint\n\nimportant:\n- 500 runs/month limit - fine for testing and prototyping\n- 2 projects cap - enough to experiment\n- you can use temporary emails for multiple accounts to extend runs\n- no production SLA, this is for building and learning\n- runs reset monthly, not daily\n\nvisual agent builder + 5 frontier models + enterprise integrations = $0\n\nwhile everyone else pays $20/mo for each model subscription\n\nbookmark this before the free tier changes",
+        "author": {
+          "id": "1768766800177836033",
+          "handle": "israfill",
+          "name": "Isra",
+          "verified": true,
+          "followers": 8802,
+          "avatar": "https://pbs.twimg.com/profile_images/2057303557553246208/0DsDtZg9_normal.jpg"
+        },
+        "metrics": {
+          "likes": 418,
+          "retweets": 43,
+          "replies": 33,
+          "quotes": 2,
+          "bookmarks": 710,
+          "views": 366316
+        },
+        "lang": "en",
+        "createdAt": "Fri Jun 12 19:13:55 +0000 2026",
+        "createdAtISO": "2026-06-12T19:13:55+00:00",
+        "createdAtLocal": "2026-06-12 21:13",
+        "media": [
+          {
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/HKosWlfbYAAnpk1.jpg",
+            "width": 3200,
+            "height": 1800
+          }
+        ],
+        "isQuote": true,
+        "conversationId": "2065512940367937743"
+      }
+    },
+    {
+      "id": "2066185785204719769",
+      "url": "https://x.com/boringmarketer/status/2066185785204719769",
+      "text": "if you want Fable level performance NOW, the answer is to build your own coding harness \n\nhere's how I'm doing it \n\n(in a lightweight Pi-native way rather than a heavy Superpowers/Compound clone)\n\nfirst, I think we're going to see PERSONAL HARNESSES that derisk single model reliance, help users save money, and squeeze top frontier performance out of homegrown systems\n\nThe best engineers I know already do this...\n\n1) Use Pi, the open source coding harness that you can make your own and access any model from\n\n2) Set 5.5 codex as your default model\n\n3) Deeply analyze publicly available system prompts (guess which model I looked at?)\n\n4) Feed Codex context on Loop Engineering and other engineering skill repos\n\n5) As it to improve efficiency as a lot of engineering repos are super heavy and bloated/slow\n\n6) Ask it to use FUSION via Openrouter for planning, logic, and review tasks\n\n7) Ask it to use Kimi k2.7 code for subagents/execution\n\n8) Have it dog food the harness until it's dialed in then unleash it on a repo for a deep analysis",
+      "author": {
+        "id": "1620443590194348033",
+        "handle": "boringmarketer",
+        "name": "The Boring Marketer",
+        "verified": true,
+        "followers": 101030,
+        "avatar": "https://pbs.twimg.com/profile_images/1915712783183720448/AWDF0nBB_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1374,
+        "retweets": 90,
+        "replies": 70,
+        "quotes": 7,
+        "bookmarks": 2340,
+        "views": 92999
+      },
+      "lang": "en",
+      "createdAt": "Sun Jun 14 15:47:33 +0000 2026",
+      "createdAtISO": "2026-06-14T15:47:33+00:00",
+      "createdAtLocal": "2026-06-14 17:47",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKyQ2FvWMAAckqJ.jpg",
+          "width": 1038,
+          "height": 1236
+        }
+      ],
+      "conversationId": "2066185785204719769"
+    },
+    {
+      "id": "2066197968701513998",
+      "url": "https://x.com/iamlukethedev/status/2066197968701513998",
+      "text": "Seeing a lot of people struggling to enable Telegram Rich Messages in Hermes @NousResearch \n Here’s the fastest way to turn it on:\n Tell your agent: \n1️⃣ Update yourself\n\n2️⃣ Enable rich messages in my config: rich_messages: true\n 3️⃣ Restart the gateway\n 4️⃣ Send a test message\n Then test it with this prompt:\n\nLet’s test now \nSummarize this as a Telegram rich table with columns: Task, Owner, Status.\nGive me a checklist for the deployment, using completed and incomplete task boxes.\nFormat this as:\n- heading\n- short summary\n- table\n- checklist\n- collapsible details section for risks\n\n## Supported useful formats\n\nUse normal Markdown-style syntax:\n## Sprint Status\n\n| Item | Owner | Status |\n|---|---|---|\n| Driver App release | Alex | ✅ Done |\n| Portal QA | Sam | In progress |\n| Route optimizer | Luke | Blocked |\n\n- [x] Review PR\n- [ ] Run staging smoke test\n- [ ] Send release note\n\n<details>\n<summary>Risks</summary>\n\n- QA may slip if staging data is stale.\n- Route optimizer dependency needs confirmation.\n\n</details>",
+      "author": {
+        "id": "26743780",
+        "handle": "iamlukethedev",
+        "name": "Luke The Dev",
+        "verified": true,
+        "followers": 8110,
+        "avatar": "https://pbs.twimg.com/profile_images/1978432948836749312/hfXIZ_5S_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1277,
+        "retweets": 97,
+        "replies": 75,
+        "quotes": 9,
+        "bookmarks": 2078,
+        "views": 132180
+      },
+      "lang": "en",
+      "createdAt": "Sun Jun 14 16:35:58 +0000 2026",
+      "createdAtISO": "2026-06-14T16:35:58+00:00",
+      "createdAtLocal": "2026-06-14 18:35",
+      "mentions": [
+        "NousResearch"
+      ],
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/amplify_video/2066197749373014016/vid/avc1/1320x2868/fO6OGmsA188s-2IE.mp4?tag=27",
+          "width": 1320,
+          "height": 2868,
+          "bitrate": 10368000,
+          "thumbnail": "https://pbs.twimg.com/amplify_video_thumb/2066197749373014016/img/82qUW_oJKc5oaxUQ.jpg",
+          "durationMs": 16576
+        }
+      ],
+      "conversationId": "2066197968701513998"
+    },
+    {
+      "id": "2065963120762429448",
+      "url": "https://x.com/jasonzhou1993/status/2065963120762429448",
+      "text": "Has been using this skill for Claude Code to call CodeX to generate images for free\n\nThis is extremely useful https://t.co/y2wSSlt0i8",
+      "author": {
+        "id": "842560988683550721",
+        "handle": "jasonzhou1993",
+        "name": "Jason Zhou",
+        "verified": true,
+        "followers": 30678,
+        "avatar": "https://pbs.twimg.com/profile_images/1613651966663749632/AuQiWkVc_normal.jpg"
+      },
+      "metrics": {
+        "likes": 110,
+        "retweets": 8,
+        "replies": 4,
+        "quotes": 1,
+        "bookmarks": 142,
+        "views": 14380
+      },
+      "lang": "en",
+      "createdAt": "Sun Jun 14 01:02:46 +0000 2026",
+      "createdAtISO": "2026-06-14T01:02:46+00:00",
+      "createdAtLocal": "2026-06-14 03:02",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKvF0jwbAAAPCtn.jpg",
+          "width": 3445,
+          "height": 4096
+        }
+      ],
+      "conversationId": "2065963120762429448"
+    },
+    {
+      "id": "2066092575107473817",
+      "url": "https://x.com/HowToPrompt__/status/2066092575107473817",
+      "text": "China open-sourced a vector database that destroys Pinecone, Chroma, and Weaviate.\n\nIt's called Zvec, an in-process vector database that runs directly inside your app.\n\nNo servers. No config. No $200/month bill.\n\n→ Searches billions of vectors in milliseconds\n→ pip install zvec and you're done\n→ Battle-tested inside Alibaba at production scale\n→ Works on Linux, macOS, Windows, even iOS\n\n100% Open Source.",
+      "author": {
+        "id": "1478392249675300868",
+        "handle": "HowToPrompt__",
+        "name": "How To Prompt",
+        "verified": true,
+        "followers": 25778,
+        "avatar": "https://pbs.twimg.com/profile_images/2009866827518881792/Th8eH2US_normal.jpg"
+      },
+      "metrics": {
+        "likes": 1119,
+        "retweets": 144,
+        "replies": 21,
+        "quotes": 2,
+        "bookmarks": 1406,
+        "views": 58606
+      },
+      "lang": "en",
+      "createdAt": "Sun Jun 14 09:37:10 +0000 2026",
+      "createdAtISO": "2026-06-14T09:37:10+00:00",
+      "createdAtLocal": "2026-06-14 11:37",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKw71QbakAAXEHx.jpg",
+          "width": 1202,
+          "height": 1128
+        }
+      ],
+      "conversationId": "2066092575107473817"
+    },
+    {
+      "id": "2065531158356717721",
+      "url": "https://x.com/Marie_Haynes/status/2065531158356717721",
+      "text": "This is really big news. Google introduced the Open Knowledge Format (OKF) - a standardized way to store information in a directory of markdown files. Makes it really easy to make a digital brain that agents can use.\n\nThese files can serve as a living wiki. You can give agents the ability to query them or edit them. They can interlink. \n\nSeems to me this could replace Notion or Obsidian. I can think of so many uses for this. \n\nGoogle's blog post: https://t.co/DqSjg4UpvH\n\nAn easier to understand explanation is the SPEC.md file:\nhttps://t.co/A3qSz3Tfas\n\nI gave those two links to Antigravity and asked how we could use it for any of the projects we're working on. It came up with so many ideas. I would imagine Claude Fable 5 would whip up some pretty amazing things based on this system. \n\nCurrently creating an OKF library of our pepper garden. It's going to be a fun weekend.",
+      "author": {
+        "id": "213142014",
+        "handle": "Marie_Haynes",
+        "name": "Marie Haynes",
+        "verified": true,
+        "followers": 100833,
+        "avatar": "https://pbs.twimg.com/profile_images/1957228632415297537/fl2YY2tU_normal.jpg"
+      },
+      "metrics": {
+        "likes": 6720,
+        "retweets": 819,
+        "replies": 167,
+        "quotes": 103,
+        "bookmarks": 12887,
+        "views": 987317
+      },
+      "lang": "en",
+      "createdAt": "Fri Jun 12 20:26:18 +0000 2026",
+      "createdAtISO": "2026-06-12T20:26:18+00:00",
+      "createdAtLocal": "2026-06-12 22:26",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/HKo776pWQAMLQZ_.jpg",
+          "width": 953,
+          "height": 669
+        }
+      ],
+      "conversationId": "2065531158356717721"
+    },
     {
       "id": "2064799879352959085",
       "url": "https://x.com/XiaomiMiMo/status/2064799879352959085",
