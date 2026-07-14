@@ -10,9 +10,8 @@ import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import {
   EMBED_MODEL as model,
   PREFIX_SCHEME as prefixScheme,
-  passageText,
+  embedItemsForPost,
   quantizeEmbedding,
-  searchText,
 } from "./lib/embed.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -42,6 +41,7 @@ if (index.model && index.model !== model) {
   process.exit(1);
 }
 
+// Keyed on id only: any vector (main or chunk) present for a post is enough to skip it.
 const embedded = new Set(index.items.map((it) => it.id));
 const fresh = posts.filter((p) => !embedded.has(p.id));
 
@@ -50,14 +50,18 @@ if (fresh.length === 0) {
   process.exit(0);
 }
 
-console.log(`Embedding ${fresh.length} new post(s) (index has ${index.items.length})…`);
+console.log(`Embedding ${fresh.length} new post(s) (index has ${embedded.size} posts, ${index.items.length} vectors)…`);
 const extractor = await pipeline("feature-extraction", model);
 const added = [];
 
 for (const [i, post] of fresh.entries()) {
-  const text = searchText(post) ? passageText(post) : `passage: ${post.id}`;
-  const output = await extractor(text, { pooling: "mean", normalize: true });
-  added.push({ id: post.id, embedding: quantizeEmbedding(output.data) });
+  for (const entry of embedItemsForPost(post)) {
+    const output = await extractor(entry.text, { pooling: "mean", normalize: true });
+    const embedding = quantizeEmbedding(output.data);
+    added.push(
+      entry.part !== undefined ? { id: post.id, part: entry.part, embedding } : { id: post.id, embedding },
+    );
+  }
   if ((i + 1) % 25 === 0 || i === fresh.length - 1) {
     console.log(`Embedded ${i + 1}/${fresh.length}`);
   }
@@ -65,6 +69,7 @@ for (const [i, post] of fresh.entries()) {
 
 // Prepend new items (newest-first, mirroring the archive order).
 const items = [...added, ...index.items];
+const uniqueIdCount = new Set(items.map((it) => it.id)).size;
 
 await writeFile(
   indexPath,
@@ -77,9 +82,12 @@ await writeFile(
     prefix_scheme: prefixScheme,
     dimensions: items[0]?.embedding.length ?? index.dimensions ?? 0,
     encoding: "int8_normalized",
-    count: items.length,
+    count: uniqueIdCount,
+    vector_count: items.length,
     items,
   }),
 );
 
-console.log(`Added ${added.length} embedding(s); index now ${items.length}. Wrote ${indexPath}`);
+console.log(
+  `Added ${added.length} vector(s) for ${fresh.length} post(s); index now ${uniqueIdCount} posts / ${items.length} vectors. Wrote ${indexPath}`,
+);

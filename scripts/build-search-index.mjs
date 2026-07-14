@@ -6,9 +6,8 @@ import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import {
   EMBED_MODEL as model,
   PREFIX_SCHEME as prefixScheme,
-  passageText,
+  embedItemsForPost,
   quantizeEmbedding,
-  searchText,
 } from "./lib/embed.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -21,12 +20,13 @@ const extractor = await pipeline("feature-extraction", model);
 const items = [];
 
 for (const [index, post] of posts.entries()) {
-  const text = searchText(post) ? passageText(post) : `passage: ${post.id}`;
-  const output = await extractor(text, { pooling: "mean", normalize: true });
-  items.push({
-    id: post.id,
-    embedding: quantizeEmbedding(output.data),
-  });
+  for (const entry of embedItemsForPost(post)) {
+    const output = await extractor(entry.text, { pooling: "mean", normalize: true });
+    const embedding = quantizeEmbedding(output.data);
+    items.push(
+      entry.part !== undefined ? { id: post.id, part: entry.part, embedding } : { id: post.id, embedding },
+    );
+  }
 
   if ((index + 1) % 25 === 0 || index === posts.length - 1) {
     console.log(`Embedded ${index + 1}/${posts.length}`);
@@ -44,9 +44,10 @@ await writeFile(
     prefix_scheme: prefixScheme,
     dimensions: items[0]?.embedding.length ?? 0,
     encoding: "int8_normalized",
-    count: items.length,
+    count: posts.length,
+    vector_count: items.length,
     items,
   }),
 );
 
-console.log(`Wrote ${outputPath}`);
+console.log(`Wrote ${outputPath} (${posts.length} posts, ${items.length} vectors)`);
