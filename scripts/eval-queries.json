@@ -1,0 +1,256 @@
+[
+  {
+    "query": "model context protocol",
+    "class": "en-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1861079762506252723", "note": "@alexalbert__: \"Introducing the Model Context Protocol (MCP) — An open standard we've been working on at Anthropic that solves a core challenge with LLM apps - connecting them to your data.\"" },
+      { "id": "1890187359024730188", "note": "@cline: \"Let's finally explain MCP servers in a way that actually makes sense. ... MCP (Model Context Protocol) servers\"" }
+    ]
+  },
+  {
+    "query": "vector database",
+    "class": "en-topic",
+    "precision": "exact",
+    "relevant": [
+      { "id": "1930966573197693436", "note": "@akshay_pachaar: \"What Is a Vector Database? From foundational concepts like what is a vector? to advanced features like payload configurations, hybrid search, sharding, multitenancy, quantization, RBAC\"" },
+      { "id": "1934613072141848705", "note": "@Aurimas_Gr: \"Fundamentals of a Vector Database. With the rise of GenAI, Vector Databases skyrocketed in popularity.\"" }
+    ]
+  },
+  {
+    "query": "retrieval augmented generation",
+    "class": "en-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1879154648327811134", "note": "@akshay_pachaar: \"Let's build a robust multi-tenant RAG app that easily integrates with any data source! ... you still need to do RAG—chunking, indexing, retrieval, and generation.\"" },
+      { "id": "1881589920789110918", "note": "@tom_doerr: \"RAGFlow: Retrieval-Augmented Generation engine\"" }
+    ]
+  },
+  {
+    "query": "LLM fine-tuning techniques",
+    "class": "en-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1996467023334039646", "note": "@_avichawla: \"I have been fine-tuning LLMs for over 2 years now! Here are the top 5 LLM fine-tuning techniques, explained with visuals\"" },
+      { "id": "1998402253166920002", "note": "@asmah2107: \"LLM Fine-tuning techniques I'd learn if I wanted to customize them: Bookmark this. 1.LoRA 2.QLoRA 3.Prefix Tuning...\"" }
+    ]
+  },
+  {
+    "query": "claude code best practices",
+    "class": "en-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2037788648691884207", "note": "@techNmak: \"Someone finally documented how to actually use Claude Code. 22K+ stars. claude-code-best-practice. Direct from Boris Cherny and team\"" }
+    ]
+  },
+  {
+    "query": "context engineering",
+    "class": "en-topic",
+    "precision": "exact",
+    "relevant": [
+      { "id": "1989478835176575457", "note": "@Context7AI: \"Pro tip: Stop typing `use context7` in every prompt. Add a simple rule in your MCP client, and it will auto-invoke Context7 for any coding question\"" },
+      { "id": "2014702620758118768", "note": "@Context7AI: \"Introducing Context7 Skills! We extracted 24k skills from 65k repos ... Perfect for Cursor, Claude Code & others\"" }
+    ]
+  },
+  {
+    "query": "multi-agent orchestration",
+    "class": "en-topic",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2034666400007016590", "note": "@lvwerra: \"Excited to release: AgentUI > a fresh chat interface - natively multi-agent > agents coordinate via reports and figures\"" }
+    ]
+  },
+  {
+    "query": "AI coding agent swarm",
+    "class": "en-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2024507517359788224", "note": "@jpschroeder: \"We're open sourcing dmux. Our internal tool for running Codex and Claude Code swarms. - tmux + worktrees + claude/codex/opencode\"" }
+    ]
+  },
+  {
+    "query": "hogyan működik a Model Context Protocol",
+    "class": "hu-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1861079762506252723", "note": "@alexalbert__: \"Introducing the Model Context Protocol (MCP) — An open standard we've been working on at Anthropic ... connecting them to your data.\"" },
+      { "id": "1890187359024730188", "note": "@cline: \"Let's finally explain MCP servers in a way that actually makes sense. ... MCP (Model Context Protocol) servers\"" }
+    ]
+  },
+  {
+    "query": "mi az a vektor adatbázis",
+    "class": "hu-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1930966573197693436", "note": "@akshay_pachaar: \"What Is a Vector Database? From foundational concepts like what is a vector?\"" }
+    ]
+  },
+  {
+    "query": "kódellenőrzés AI ügynökökkel",
+    "class": "hu-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1979209716178780625", "note": "@coderabbitai: \"You know you can enable Cursor to run the CodeRabbit CLI as part of your dev workflow, right? ... code that gets reviewed for issues way before it reaches the PR!\"" }
+    ]
+  },
+  {
+    "query": "önjavító AI ügynök rendszer",
+    "class": "hu-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2074527573116133425", "note": "@0xCodez, article \"Build self-improving agent system with Fable 5 in 14 steps: loops, dynamic workflows, routines\" — \"Anthropic just released 5 workshops on building self-improving agentic systems from scratch\"" }
+    ]
+  },
+  {
+    "query": "több ügynökös orchestration",
+    "class": "hu-topic",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2034666400007016590", "note": "@lvwerra: \"Excited to release: AgentUI > a fresh chat interface - natively multi-agent > agents coordinate via reports and figures\"" }
+    ]
+  },
+  {
+    "query": "akshay_pachaar",
+    "class": "handle",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2073783428735250595", "note": "author @akshay_pachaar: \"How to build a 1-person AI company that: - Runs locally - 100% open-source - No human employees\"" },
+      { "id": "2068317780064276917", "note": "author @akshay_pachaar: \"Web scraping will never be the same. (100% open-source visual search at scale) PixelRAG is a retrieval system\"" },
+      { "id": "2066886861235315008", "note": "author @akshay_pachaar: \"HarnessX: a harness that compiles itself.\"" }
+    ]
+  },
+  {
+    "query": "mattpocockuk",
+    "class": "handle",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2075856898142740821", "note": "author @mattpocockuk: \"One clarification for folks using /wayfinder: The flow for big work should be: /wayfinder -> /to-spec...\"" },
+      { "id": "2074860312423997800", "note": "author @mattpocockuk: \"mattpocock/skills v1.1 is out! - /wayfinder helps you plan more ambitious work than ever\"" },
+      { "id": "2074149038266449959", "note": "author @mattpocockuk: \"Skills v1.1 cooking /wayfinder goes live, /to-spec & /to-tickets, improvements to /writing-grea...\"" }
+    ]
+  },
+  {
+    "query": "rauchg",
+    "class": "handle",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2074630835878453601", "note": "author @rauchg: \"The filesystem is beautiful. Want your ... agent to have GitHub powers? Define\"" },
+      { "id": "2073106884819841270", "note": "author @rauchg: \"This is so powerful. Sandbox can now run docker and fuse, unconstrained. MicroVMs are the gift that keeps on giving.\"" },
+      { "id": "2072463293654942090", "note": "author @rauchg: \"WordPress on @vercel Fluid with Active CPU from a single Dockerfile.vercel. MySQL on\"" }
+    ]
+  },
+  {
+    "query": "LangChain",
+    "class": "handle",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2033269622103793917", "note": "author @LangChain: \"New LangChain Academy Course: Building Reliable Agents — Shipping agents to production is har...\"" },
+      { "id": "2029272199073354105", "note": "author @LangChain: \"Announcing LangSmith Skills + CLI — Agent improvements are increasingly driven by coding agent...\"" },
+      { "id": "2028902968888881624", "note": "author @LangChain: \"New LangChain Academy Course: Building Reliable Agents. Shipping agents to production is hard.\"" }
+    ]
+  },
+  {
+    "query": "How to Create the Right Skill for Your AI Agent",
+    "class": "article-title",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2076010365268451391", "note": "articleTitle: \"How to Create the Right Skill for Your AI Agent\" (@alex_prompter, article about Plano proxy for AI agents)" }
+    ]
+  },
+  {
+    "query": "Agentic OS: Turning a Model Into a System",
+    "class": "article-title",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2074962644331798671", "note": "articleTitle: \"Agentic OS: Turning a Model Into a System\" (@Sancho_Wizard: \"This guy turned Claude into a complete Agent OS instead.\")" }
+    ]
+  },
+  {
+    "query": "Obsidian: A Vault That Never Forgets and Never Lets You Repeat Yourself",
+    "class": "article-title",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2074968369670025701", "note": "articleTitle: \"Obsidian: A Vault That Never Forgets and Never Lets You Repeat Yourself\" (@chewadot, NotebookLM/Obsidian vault article)" }
+    ]
+  },
+  {
+    "query": "What the hell is a loop, anyway?",
+    "class": "article-title",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2073492320159510869", "note": "articleTitle: \"What the hell is a loop, anyway?\" (@aparnadhinak, article about agent loops)" }
+    ]
+  },
+  {
+    "query": "stop typing use context7 in every prompt",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "1989478835176575457", "note": "@Context7AI: \"Pro tip: Stop typing `use context7` in every prompt.\"" }
+    ]
+  },
+  {
+    "query": "github for prompts just got better",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "1915791667405222173", "note": "@mattshumer_: \"Github for prompts just got better. ShumerPrompt v2 is here!\"" }
+    ]
+  },
+  {
+    "query": "a harness that compiles itself",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2066886861235315008", "note": "@akshay_pachaar: \"HarnessX: a harness that compiles itself. every harness improvement so far has come from a human editing code by hand.\"" }
+    ]
+  },
+  {
+    "query": "web scraping will never be the same",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2068317780064276917", "note": "@akshay_pachaar: \"Web scraping will never be the same. (100% open-source visual search at scale) PixelRAG is a retrieval system\"" }
+    ]
+  },
+  {
+    "query": "microvms are the gift that keeps on giving",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2073106884819841270", "note": "@rauchg: \"This is so powerful. Sandbox can now run docker and fuse, unconstrained. MicroVMs are the gift that keeps on giving.\"" }
+    ]
+  },
+  {
+    "query": "a shared way for AI apps to plug into your data without custom code for every source",
+    "class": "paraphrase",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1861079762506252723", "note": "@alexalbert__: \"Introducing the Model Context Protocol (MCP) ... No more building custom integrations for every data source. MCP provides one protocol to connect them all\" — paraphrased without saying 'MCP' or 'protocol'" }
+    ]
+  },
+  {
+    "query": "reading a webpage by taking a screenshot instead of parsing the raw html",
+    "class": "paraphrase",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2068317780064276917", "note": "@akshay_pachaar: \"PixelRAG is a retrieval system that skips HTML parsing completely. Instead of scraping a page into text and embedding chunks, it screenshots the page and retrieves the image.\" — paraphrased avoiding 'PixelRAG', 'RAG'" }
+    ]
+  },
+  {
+    "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
+    "class": "paraphrase",
+    "precision": "broad",
+    "relevant": [
+      { "id": "2066886861235315008", "note": "@akshay_pachaar: \"HarnessX is what happens when a system makes those edits itself. ... a loop reads the traces, plans a change, writes the edit, then critiques it.\" — paraphrased avoiding 'harness', 'HarnessX'" }
+    ]
+  },
+  {
+    "query": "storing and searching information by meaning using numeric representations instead of exact words",
+    "class": "paraphrase",
+    "precision": "broad",
+    "relevant": [
+      { "id": "1930966573197693436", "note": "@akshay_pachaar: \"What Is a Vector Database? From foundational concepts like what is a vector? ... hybrid search, sharding, multitenancy, quantization\" — paraphrased avoiding 'vector', 'database'" }
+    ]
+  }
+]
