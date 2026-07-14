@@ -70,17 +70,21 @@ function byDate(post: BookmarkPost) {
   return new Date(post.createdAtISO ?? post.createdAt ?? 0).getTime();
 }
 
-async function embedQueries(queries: string[], model: string) {
+// Prefix threading is keyed off the loaded index's `prefix_scheme` field, never off the
+// model name — an old (v1 MiniLM) index has no `prefix_scheme` and gets zero prefix, so the
+// client stays byte-identical against it. Only a new "e5" index gets "query: " prepended.
+async function embedQueries(queries: string[], index: SearchIndexPayload) {
   const { pipeline } = await import("@huggingface/transformers");
-  extractorPromise ??= pipeline("feature-extraction", model);
+  extractorPromise ??= pipeline("feature-extraction", index.model);
   const extractor = (await extractorPromise) as (
     text: string,
     options: { pooling: "mean"; normalize: boolean },
   ) => Promise<{ data: Iterable<number> }>;
+  const prefix = index.prefix_scheme === "e5" ? "query: " : "";
   const embeddings: number[][] = [];
 
   for (const query of queries) {
-    const output = await extractor(query, { pooling: "mean", normalize: true });
+    const output = await extractor(`${prefix}${query}`, { pooling: "mean", normalize: true });
     embeddings.push(Array.from(output.data));
   }
 
@@ -250,7 +254,7 @@ export function BookmarksApp() {
           : "status.broadWarming",
     );
 
-    embedQueries(expandedQueries, searchIndex.model)
+    embedQueries(expandedQueries, searchIndex)
       .then((embeddings) => {
         if (cancelled) return;
         const vectorResults = multiVectorSearch(searchIndex, embeddings).slice(0, 900);
@@ -324,7 +328,7 @@ export function BookmarksApp() {
     let ranked: { id: string; score: number }[];
     if (searchIndex) {
       const queries = expandSemanticQueries(q, input.precision);
-      const embeddings = await embedQueries(queries, searchIndex.model);
+      const embeddings = await embedQueries(queries, searchIndex);
       const vec = multiVectorSearch(searchIndex, embeddings).slice(0, 900);
       const merged = mergeHybridResults(kw, vec, input.precision);
       ranked = input.precision === "exact" ? applyRelativeFloor(merged, 0.5) : merged;

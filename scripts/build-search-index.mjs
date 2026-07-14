@@ -3,7 +3,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
-import { EMBED_MODEL as model, quantizeEmbedding, searchText } from "./lib/embed.mjs";
+import {
+  EMBED_MODEL as model,
+  PREFIX_SCHEME as prefixScheme,
+  passageText,
+  quantizeEmbedding,
+  searchText,
+} from "./lib/embed.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourcePath = join(root, "public/data/all-bookmarks.json");
@@ -15,8 +21,8 @@ const extractor = await pipeline("feature-extraction", model);
 const items = [];
 
 for (const [index, post] of posts.entries()) {
-  const text = searchText(post);
-  const output = await extractor(text || post.id, { pooling: "mean", normalize: true });
+  const text = searchText(post) ? passageText(post) : `passage: ${post.id}`;
+  const output = await extractor(text, { pooling: "mean", normalize: true });
   items.push({
     id: post.id,
     embedding: quantizeEmbedding(output.data),
@@ -31,10 +37,11 @@ await writeFile(
   outputPath,
   JSON.stringify({
     ok: true,
-    schema_version: "1.0",
+    schema_version: "2.0",
     generated_at: new Date().toISOString(),
     source: "public/data/all-bookmarks.json",
     model,
+    prefix_scheme: prefixScheme,
     dimensions: items[0]?.embedding.length ?? 0,
     encoding: "int8_normalized",
     count: items.length,

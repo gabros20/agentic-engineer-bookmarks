@@ -7,6 +7,7 @@ export type SearchIndexPayload = {
   generated_at?: string;
   source?: string;
   model: string;
+  prefix_scheme?: "e5";
   dimensions: number;
   encoding?: "float32" | "int8_normalized";
   count: number;

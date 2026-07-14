@@ -2,7 +2,10 @@
 // embed-new.mjs (incremental). Keep searchText identical across both so the
 // vector space stays consistent between a full build and incremental top-ups.
 
-export const EMBED_MODEL = "Xenova/all-MiniLM-L6-v2";
+export const EMBED_MODEL = "Xenova/multilingual-e5-small";
+
+/** e5 asymmetric-prefix scheme this build writes into the index (see lib/bookmark-search.ts). */
+export const PREFIX_SCHEME = "e5";
 
 /** The text fed to the embedder for a BookmarkPost (post-normalization). */
 export function searchText(post) {
@@ -21,6 +24,11 @@ export function searchText(post) {
     .join("\n")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** e5 "passage: " prefixed document text — what gets embedded for each indexed post. */
+export function passageText(post) {
+  return `passage: ${searchText(post)}`;
 }
 
 /** int8-quantize a normalized float embedding (matches the on-disk encoding). */

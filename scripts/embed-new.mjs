@@ -7,7 +7,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
-import { EMBED_MODEL as model, quantizeEmbedding, searchText } from "./lib/embed.mjs";
+import {
+  EMBED_MODEL as model,
+  PREFIX_SCHEME as prefixScheme,
+  passageText,
+  quantizeEmbedding,
+  searchText,
+} from "./lib/embed.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourcePath = join(root, "public/data/all-bookmarks.json");
@@ -28,6 +34,14 @@ if (!index || !Array.isArray(index.items)) {
   process.exit(1);
 }
 
+if (index.model && index.model !== model) {
+  console.error(
+    `Embedding model changed (index has "${index.model}", scripts/lib/embed.mjs now uses "${model}") — ` +
+      "mixing vector spaces would corrupt search. Run `npm run build:search` for a full rebuild instead.",
+  );
+  process.exit(1);
+}
+
 const embedded = new Set(index.items.map((it) => it.id));
 const fresh = posts.filter((p) => !embedded.has(p.id));
 
@@ -41,8 +55,8 @@ const extractor = await pipeline("feature-extraction", model);
 const added = [];
 
 for (const [i, post] of fresh.entries()) {
-  const text = searchText(post);
-  const output = await extractor(text || post.id, { pooling: "mean", normalize: true });
+  const text = searchText(post) ? passageText(post) : `passage: ${post.id}`;
+  const output = await extractor(text, { pooling: "mean", normalize: true });
   added.push({ id: post.id, embedding: quantizeEmbedding(output.data) });
   if ((i + 1) % 25 === 0 || i === fresh.length - 1) {
     console.log(`Embedded ${i + 1}/${fresh.length}`);
@@ -56,10 +70,11 @@ await writeFile(
   indexPath,
   JSON.stringify({
     ok: true,
-    schema_version: "1.0",
+    schema_version: "2.0",
     generated_at: new Date().toISOString(),
     source: "public/data/all-bookmarks.json",
     model,
+    prefix_scheme: prefixScheme,
     dimensions: items[0]?.embedding.length ?? index.dimensions ?? 0,
     encoding: "int8_normalized",
     count: items.length,
