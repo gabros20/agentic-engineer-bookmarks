@@ -7,9 +7,10 @@
 //  3. max-pool correctness on synthetic multi-part items
 //  4. RRF (mergeHybridResults) feeds one entry per id
 //  5. embedItemsForPost item shape (bonus smoke coverage)
+//  6. searchText: post.urls collapse to registrable domains (Task 5)
 
 import assert from "node:assert/strict";
-import { chunkArticle, embedItemsForPost } from "./lib/embed.mjs";
+import { chunkArticle, embedItemsForPost, searchText } from "./lib/embed.mjs";
 import { mergeHybridResults, multiVectorSearch, vectorSearch } from "./lib/search-core.mjs";
 
 let pass = 0;
@@ -142,6 +143,59 @@ test("chunkArticle: no title -> no dangling prefix", () => {
   const chunks = chunkArticle(makePara("word", 10), "");
   assert.equal(chunks.length, 1);
   assert.ok(!chunks[0].startsWith(": "), "empty title should not leave a bare colon prefix");
+});
+
+// ---- searchText: post.urls -> registrable domains only (Task 5) ----------
+
+test("searchText: post.urls collapse to bare domain, www. stripped", () => {
+  const post = {
+    id: "u1",
+    text: "hello",
+    author: { name: "a", screenName: "b" },
+    urls: ["https://github.com/foo/bar", "https://www.example.com/path?q=1"],
+  };
+  const text = searchText(post);
+  assert.ok(text.includes("github.com"), "bare github.com domain should appear");
+  assert.ok(!text.includes("/foo/bar"), "URL path should not survive");
+  assert.ok(text.includes("example.com"), "www. should be stripped down to the bare domain");
+  assert.ok(!text.includes("www.example.com"), "www. prefix should not survive");
+});
+
+test("searchText: internal x.com/twitter.com links are dropped entirely", () => {
+  const post = {
+    id: "u2",
+    text: "hello",
+    author: { name: "a", screenName: "b" },
+    urls: ["http://x.com/i/article/123", "https://www.twitter.com/someone/status/456"],
+  };
+  const text = searchText(post);
+  assert.ok(!text.includes("x.com"), "x.com should be dropped, not just its path");
+  assert.ok(!text.includes("twitter.com"), "twitter.com should be dropped, not just its path");
+});
+
+test("searchText: malformed URL is dropped without throwing", () => {
+  const post = {
+    id: "u3",
+    text: "hello",
+    author: { name: "a", screenName: "b" },
+    urls: ["not a url", "https://github.com/foo"],
+  };
+  assert.doesNotThrow(() => searchText(post));
+  const text = searchText(post);
+  assert.ok(text.includes("github.com"), "well-formed URL alongside a malformed one should still map");
+  assert.ok(!text.includes("not a url"), "malformed URL should not survive verbatim");
+});
+
+test("searchText: duplicate domains across multiple post.urls are deduped", () => {
+  const post = {
+    id: "u4",
+    text: "hello",
+    author: { name: "a", screenName: "b" },
+    urls: ["https://github.com/foo/bar", "https://github.com/baz/qux"],
+  };
+  const text = searchText(post);
+  const occurrences = text.split("github.com").length - 1;
+  assert.equal(occurrences, 1, "github.com should appear exactly once despite two urls on that domain");
 });
 
 // ---- 5. embedItemsForPost (bonus smoke coverage) -------------------------

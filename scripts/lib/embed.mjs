@@ -7,6 +7,28 @@ export const EMBED_MODEL = "Xenova/multilingual-e5-small";
 /** e5 asymmetric-prefix scheme this build writes into the index (see lib/bookmark-search.ts). */
 export const PREFIX_SCHEME = "e5";
 
+/**
+ * Registrable domains for a post's URLs (dedupe-preserving-order, `www.` stripped,
+ * internal x.com/twitter.com links dropped — tweet permalinks and i/article/... links
+ * carry no semantic value for the embedder). Malformed URLs are silently dropped rather
+ * than thrown on: raw URL strings otherwise waste embedding tokens without adding
+ * meaning, but the domain itself (e.g. "github.com") is useful context.
+ */
+function urlDomains(urls) {
+  const seen = new Set();
+  for (const url of urls) {
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (hostname === "x.com" || hostname === "twitter.com") continue;
+    seen.add(hostname);
+  }
+  return [...seen];
+}
+
 /** The text fed to the embedder for a BookmarkPost (post-normalization). */
 export function searchText(post) {
   return [
@@ -15,7 +37,7 @@ export function searchText(post) {
     post.articleText,
     post.author?.name,
     post.author?.screenName,
-    ...(post.urls ?? []),
+    ...urlDomains(post.urls ?? []),
     post.quotedTweet?.text,
     post.quotedTweet?.author?.name,
     post.quotedTweet?.author?.screenName,
