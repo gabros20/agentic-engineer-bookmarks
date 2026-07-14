@@ -31,7 +31,8 @@ export function getDigestSystemPrompt(lang: DigestLang) {
 export function buildDigestUserPrompt(query: string, sources: DigestSource[], lang: DigestLang) {
   const lines = sources.map((s, i) => {
     const article = s.articleTitle ? ` [article: ${s.articleTitle}]` : "";
-    return `${i + 1}. id=${s.id} @${s.screenName} (${s.author})${article}\n   ${s.text}\n   ${s.url}`;
+    const excerpt = s.articleExcerpt ? `\n   excerpt: ${s.articleExcerpt}` : "";
+    return `${i + 1}. id=${s.id} @${s.screenName} (${s.author})${article}\n   ${s.text}${excerpt}\n   ${s.url}`;
   });
 
   if (lang === "hu") {

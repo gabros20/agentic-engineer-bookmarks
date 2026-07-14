@@ -45,7 +45,10 @@ function summarizeSources(sources: DigestSource[], lang: ChatLang) {
   const lines = sources.slice(0, 20).map((s, i) => {
     const article = s.articleTitle ? ` [article: ${s.articleTitle}]` : "";
     const snippet = s.text.length > 160 ? s.text.slice(0, 159) + "…" : s.text;
-    return `${i + 1}. id=${s.id} @${s.screenName} (${s.author})${article}\n   ${snippet}\n   ${s.url}`;
+    const excerpt = s.articleExcerpt
+      ? `\n   excerpt: ${s.articleExcerpt.length > 200 ? s.articleExcerpt.slice(0, 199) + "…" : s.articleExcerpt}`
+      : "";
+    return `${i + 1}. id=${s.id} @${s.screenName} (${s.author})${article}\n   ${snippet}${excerpt}\n   ${s.url}`;
   });
   return `\n${heading}:\n${lines.join("\n")}\n`;
 }

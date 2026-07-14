@@ -6,6 +6,7 @@ export const digestSourceSchema = z.object({
   screenName: z.string(),
   text: z.string(),
   articleTitle: z.string().optional(),
+  articleExcerpt: z.string().optional(),
   url: z.string(),
 });
 
