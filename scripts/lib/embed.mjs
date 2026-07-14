@@ -38,12 +38,12 @@ export function quantizeEmbedding(data) {
 
 // ── index schema v2: chunked article vectors ──────────────────────────────
 
-const CHUNK_TARGET_WORDS = 200;
+const CHUNK_TARGET_WORDS = 280;
 const CHUNK_HARD_CAP_WORDS = 350;
-// A trailing chunk this small (or smaller) reads as an orphan sentence, not a
-// standalone unit of meaning — fold it into the previous chunk instead of
-// shipping a near-empty vector.
-const CHUNK_TINY_TRAILING_WORDS = 60;
+// A chunk this small (or smaller), wherever it lands, reads as an orphan sentence, not a
+// standalone unit of meaning — fold it into a neighboring chunk instead of shipping a
+// near-empty vector.
+const CHUNK_MIN_WORDS = 40;
 
 /** Strip markdown syntax noise before word-counting/embedding: code fences and images removed, links reduced to their visible text. */
 function stripMarkdownNoise(markdown) {
@@ -59,11 +59,40 @@ function wordCount(text) {
 }
 
 /**
- * Split article markdown into ~200-word chunks on paragraph boundaries (hard cap
- * ~350 words per chunk; a tiny trailing chunk merges into the previous one instead of
- * shipping as its own near-empty vector). Each chunk is prefixed with the article title
- * so it stays anchored to its subject once separated from the rest of the article.
- * Returns [] for empty/whitespace-only markdown.
+ * Merge any chunk below CHUNK_MIN_WORDS into a neighbor instead of shipping it as its
+ * own near-empty vector: fold into the previous chunk, or into the next chunk if the
+ * tiny one is first (no previous to fold into). Runs left-to-right and re-checks the
+ * merged-into slot so consecutive tiny chunks (e.g. two short paragraphs in a row) don't
+ * slip through.
+ */
+function mergeTinyChunks(chunks) {
+  const merged = [...chunks];
+  let i = 0;
+  while (i < merged.length && merged.length > 1) {
+    if (wordCount(merged[i]) >= CHUNK_MIN_WORDS) {
+      i += 1;
+      continue;
+    }
+    if (i === 0) {
+      merged[0] = `${merged[0]} ${merged[1]}`;
+      merged.splice(1, 1);
+      // Re-check index 0: the newly merged chunk could itself still be tiny if the
+      // chunk it absorbed was also below the minimum.
+    } else {
+      merged[i - 1] = `${merged[i - 1]} ${merged[i]}`;
+      merged.splice(i, 1);
+      // Don't advance i: the element that shifted into this slot still needs checking.
+    }
+  }
+  return merged;
+}
+
+/**
+ * Split article markdown into ~280-word chunks on paragraph boundaries (hard cap ~350
+ * words per chunk; any chunk below CHUNK_MIN_WORDS — wherever it lands — merges into a
+ * neighbor instead of shipping as its own near-empty vector). Each chunk is prefixed
+ * with the article title so it stays anchored to its subject once separated from the
+ * rest of the article. Returns [] for empty/whitespace-only markdown.
  */
 export function chunkArticle(markdown, title) {
   if (!markdown || !markdown.trim()) return [];
@@ -74,7 +103,7 @@ export function chunkArticle(markdown, title) {
     .filter(Boolean);
   if (!paragraphs.length) return [];
 
-  const chunks = [];
+  let chunks = [];
   let bufferParas = [];
   let bufferWords = 0;
 
@@ -97,10 +126,7 @@ export function chunkArticle(markdown, title) {
   }
   if (bufferParas.length) chunks.push(bufferParas.join(" "));
 
-  if (chunks.length >= 2 && wordCount(chunks[chunks.length - 1]) <= CHUNK_TINY_TRAILING_WORDS) {
-    const tail = chunks.pop();
-    chunks[chunks.length - 1] = `${chunks[chunks.length - 1]} ${tail}`;
-  }
+  chunks = mergeTinyChunks(chunks);
 
   const prefix = title ? `${title}: ` : "";
   return chunks.map((chunk) => `${prefix}${chunk}`);

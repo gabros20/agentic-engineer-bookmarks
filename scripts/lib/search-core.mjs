@@ -132,7 +132,12 @@ export function multiVectorSearch(index, queryEmbeddings) {
     let average = 0;
 
     for (const scores of perQueryScores) {
-      const score = scores.get(id) ?? Number.NEGATIVE_INFINITY;
+      // Invariant: `ids` is built from `index.items`, and `scorePerIdMax` scores every
+      // item in `index.items` for every query embedding — so `id` is always present in
+      // every per-query map. If that ever stops holding (e.g. a future top-k prune inside
+      // scorePerIdMax), fail loudly rather than silently blending in -Infinity.
+      if (!scores.has(id)) throw new Error(`multiVectorSearch: id "${id}" missing from a per-query score map`);
+      const score = scores.get(id);
       best = Math.max(best, score);
       average += score;
     }

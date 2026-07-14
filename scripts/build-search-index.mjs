@@ -33,6 +33,11 @@ for (const [index, post] of posts.entries()) {
   }
 }
 
+// count = unique bookmark ids (aligned with scripts/embed-new.mjs), vector_count = total
+// items (main + chunk vectors). Computed from `items`, not `posts.length`, so a future
+// duplicate id in the source archive can't silently inflate `count` past the real id count.
+const uniqueIdCount = new Set(items.map((it) => it.id)).size;
+
 await writeFile(
   outputPath,
   JSON.stringify({
@@ -44,10 +49,10 @@ await writeFile(
     prefix_scheme: prefixScheme,
     dimensions: items[0]?.embedding.length ?? 0,
     encoding: "int8_normalized",
-    count: posts.length,
+    count: uniqueIdCount,
     vector_count: items.length,
     items,
   }),
 );
 
-console.log(`Wrote ${outputPath} (${posts.length} posts, ${items.length} vectors)`);
+console.log(`Wrote ${outputPath} (${uniqueIdCount} posts, ${items.length} vectors)`);

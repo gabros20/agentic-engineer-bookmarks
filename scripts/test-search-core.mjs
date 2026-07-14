@@ -2,7 +2,7 @@
 // Plain node:assert, no framework (none exists in this repo). Run via `npm run test:search`.
 //
 // Covers:
-//  1. chunkArticle: empty / short / long / tiny-trailing-merge
+//  1. chunkArticle: empty / short / long / tiny-chunk merge (trailing + non-trailing orphan)
 //  2. grouping identity on v1-shaped items (vectorSearch + multiVectorSearch)
 //  3. max-pool correctness on synthetic multi-part items
 //  4. RRF (mergeHybridResults) feeds one entry per id
@@ -71,16 +71,18 @@ test("chunkArticle: strips code fences, inline code, images, and unwraps links",
   assert.ok(!joined.includes("inline code"), "inline code should be stripped");
 });
 
-test("chunkArticle: long article splits on paragraph boundaries near the ~200-word target", () => {
-  // 9 paragraphs x 100 words = 900 words -> chunks of 200,200,200,200,100 (see brief's
-  // target/hard-cap rules: close a chunk once it reaches 200 words).
+test("chunkArticle: long article splits on paragraph boundaries near the ~280-word target", () => {
+  // 9 paragraphs x 100 words = 900 words -> chunks of 300,300,300 (target closes a chunk
+  // once it reaches 280 words; each 3-paragraph run hits 300 before a 4th would push it
+  // over, since 300 >= 280 but adding a 4th 100-word paragraph would need to check the
+  // 350 hard cap first on the *next* iteration — here each triplet closes exactly at 300).
   const paras = Array.from({ length: 9 }, (_, i) => makePara(`p${i}`, 100));
   const md = paras.join("\n\n");
   const chunks = chunkArticle(md, "Long Article");
 
-  assert.equal(chunks.length, 5, `expected 5 chunks, got ${chunks.length}`);
+  assert.equal(chunks.length, 3, `expected 3 chunks, got ${chunks.length}`);
   const wordCounts = chunks.map((c) => words(c.slice("Long Article: ".length)).length);
-  assert.deepEqual(wordCounts, [200, 200, 200, 200, 100]);
+  assert.deepEqual(wordCounts, [300, 300, 300]);
   assert.equal(
     wordCounts.reduce((a, b) => a + b, 0),
     900,
@@ -98,7 +100,7 @@ test("chunkArticle: a single over-cap paragraph is kept whole (no mid-paragraph 
 });
 
 test("chunkArticle: hard cap forces an early close instead of overshooting", () => {
-  // chunk1 target-closes at 180 (never reaches 200 alone); next para is 200 words —
+  // chunk1 never reaches the 280-word target alone (180w); next para is 200 words —
   // 180 + 200 = 380 > 350 hard cap, so chunk1 closes at 180 before the 200-word para starts chunk2.
   const md = [makePara("a", 180), makePara("b", 200)].join("\n\n");
   const chunks = chunkArticle(md, "T");
@@ -107,13 +109,33 @@ test("chunkArticle: hard cap forces an early close instead of overshooting", () 
 });
 
 test("chunkArticle: tiny trailing chunk merges into the previous one", () => {
-  // para1 (220w) closes immediately as its own chunk (>= 200-word target).
-  // para2 (20w) is left as a lone trailing chunk below the tiny-merge threshold (60w) ->
+  // para1 (300w) closes immediately as its own chunk (>= 280-word target, single para).
+  // para2 (20w) is left as a lone trailing chunk below the tiny-merge minimum (40w) ->
   // merges into chunk1 instead of shipping as a near-empty vector.
-  const md = [makePara("a", 220), makePara("b", 20)].join("\n\n");
+  const md = [makePara("a", 300), makePara("b", 20)].join("\n\n");
   const chunks = chunkArticle(md, "T");
   assert.equal(chunks.length, 1, "tiny trailing chunk should have merged, not stayed separate");
-  assert.equal(words(chunks[0].slice("T: ".length)).length, 240);
+  assert.equal(words(chunks[0].slice("T: ".length)).length, 320);
+});
+
+test("chunkArticle: tiny NON-trailing orphan chunk merges into its previous neighbor", () => {
+  // para A (300w) closes alone as chunk1 (>= 280-word target).
+  // para B (10w) starts chunk2's buffer; para C (341w) would push chunk2 to 351w > the
+  // 350 hard cap, so chunk2 closes EARLY at just 10 words — a tiny chunk stuck in the
+  // MIDDLE (not last), which the old trailing-only merge rule could never catch.
+  // para C (341w) then closes alone as chunk3 (>= 280-word target).
+  // Pre-merge chunks would be [300, 10, 341]; the 10-word orphan (< the 40-word minimum)
+  // must fold into its previous neighbor (chunk1), leaving [310, 341].
+  const md = [makePara("a", 300), makePara("b", 10), makePara("c", 341)].join("\n\n");
+  const chunks = chunkArticle(md, "T");
+  const wordCounts = chunks.map((c) => words(c.slice("T: ".length)).length);
+  assert.deepEqual(chunks.length, 2, `expected the orphan to merge into chunk1, got ${chunks.length} chunks`);
+  assert.deepEqual(wordCounts, [310, 341]);
+  assert.equal(
+    wordCounts.reduce((a, b) => a + b, 0),
+    651,
+    "no words lost or duplicated across the merge",
+  );
 });
 
 test("chunkArticle: no title -> no dangling prefix", () => {
@@ -138,7 +160,7 @@ test("embedItemsForPost: article post -> main item + numbered chunk items", () =
     text: "hello world",
     author: { name: "a", screenName: "b" },
     articleTitle: "Big Piece",
-    articleText: Array.from({ length: 5 }, (_, i) => makePara(`p${i}`, 100)).join("\n\n"), // 500 words -> 200,200,100
+    articleText: Array.from({ length: 5 }, (_, i) => makePara(`p${i}`, 100)).join("\n\n"), // 500 words -> 300,200
   };
   const items = embedItemsForPost(post);
   assert.ok(items.length > 1, "article post should produce chunk items beyond the main vector");
