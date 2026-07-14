@@ -95,35 +95,52 @@ export function keywordSearch(index, query) {
   }
 }
 
+/**
+ * Score every item (main vector + any article-chunk vectors) against a single query
+ * embedding, then group by bookmark id keeping the MAX score per id — one entry per id
+ * in the output. With a v1 index (one item per id, no `part`) this is structurally the
+ * identity: max of a single value is that value.
+ */
+function scorePerIdMax(items, queryEmbedding) {
+  const byId = new Map();
+  for (const item of items) {
+    const score = dotProduct(queryEmbedding, item.embedding);
+    const prev = byId.get(item.id);
+    if (prev === undefined || score > prev) byId.set(item.id, score);
+  }
+  return byId;
+}
+
 export function vectorSearch(index, queryEmbedding) {
-  return index.items
-    .map((item) => ({
-      id: item.id,
-      score: dotProduct(queryEmbedding, item.embedding),
-    }))
+  return [...scorePerIdMax(index.items, queryEmbedding).entries()]
+    .map(([id, score]) => ({ id, score }))
     .sort((a, b) => b.score - a.score);
 }
 
 export function multiVectorSearch(index, queryEmbeddings) {
   if (!queryEmbeddings.length) return [];
 
-  return index.items
-    .map((item) => {
-      let best = Number.NEGATIVE_INFINITY;
-      let average = 0;
+  // Per query embedding: max-pool per id across items (main + chunks) first, so a
+  // multi-part bookmark contributes one score per query, not one per vector.
+  const perQueryScores = queryEmbeddings.map((embedding) => scorePerIdMax(index.items, embedding));
 
-      for (const embedding of queryEmbeddings) {
-        const score = dotProduct(embedding, item.embedding);
-        best = Math.max(best, score);
-        average += score;
-      }
+  const ids = new Set(index.items.map((item) => item.id));
+  const results = [];
 
-      return {
-        id: item.id,
-        score: best * 0.8 + (average / queryEmbeddings.length) * 0.2,
-      };
-    })
-    .sort((a, b) => b.score - a.score);
+  for (const id of ids) {
+    let best = Number.NEGATIVE_INFINITY;
+    let average = 0;
+
+    for (const scores of perQueryScores) {
+      const score = scores.get(id) ?? Number.NEGATIVE_INFINITY;
+      best = Math.max(best, score);
+      average += score;
+    }
+
+    results.push({ id, score: best * 0.8 + (average / perQueryScores.length) * 0.2 });
+  }
+
+  return results.sort((a, b) => b.score - a.score);
 }
 
 export function mergeHybridResults(keywordResults, vectorResults, precision = "broad") {
