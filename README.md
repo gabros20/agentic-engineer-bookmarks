@@ -20,10 +20,10 @@ public/data/search-index.json    # int8 MiniLM embeddings, one per bookmark
 
 Current export:
 
-- `4,818` saved posts
-- `145` X Article bookmarks
-- `4,063` posts with media
-- `2,117` posts with video/GIF media
+- `5,370` saved posts
+- `186` X Article bookmarks
+- `4,525` posts with media
+- `2,414` posts with video/GIF media
 - Source: X bookmarks fetched through [`xrelay`](https://github.com/gabros20/x-relay) (`x-relay-mcp`)
 
 The archive file is in xrelay's native `ArchiveFile` shape (`{ schema: "x-relay/archive@1", source, generatedAt, count, tweets: [...] }`). The app's data layer (`lib/xrelay-archive.ts`) maps each `ArchiveTweet` to its render shape on load and also accepts the legacy `{ data: [...] }` shape, so it keeps working across formats.
