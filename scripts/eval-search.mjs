@@ -44,16 +44,51 @@ const [bookmarksPayload, index, goldenQueries] = await Promise.all([
 const posts = normalizeBookmarkPayload(bookmarksPayload);
 const postIds = new Set(posts.map((p) => p.id));
 
-// Fail loudly on any golden id that doesn't exist in the archive.
+const VALID_PRECISIONS = new Set(["exact", "broad"]);
+const VALID_CLASSES = new Set(["en-topic", "hu-topic", "handle", "article-title", "phrase", "paraphrase"]);
+
+// Fail loudly on any golden query with malformed shape: unknown relevant ids, a
+// missing/out-of-range relevant array, an invalid precision, or an unknown class.
 const unknownIds = [];
+const badRelevantCount = [];
+const badPrecision = [];
+const badClass = [];
 for (const q of goldenQueries) {
   for (const r of q.relevant) {
     if (!postIds.has(r.id)) unknownIds.push({ query: q.query, id: r.id });
+  }
+  if (!Array.isArray(q.relevant) || q.relevant.length < 1 || q.relevant.length > 5) {
+    badRelevantCount.push({ query: q.query, count: Array.isArray(q.relevant) ? q.relevant.length : typeof q.relevant });
+  }
+  if (!VALID_PRECISIONS.has(q.precision)) {
+    badPrecision.push({ query: q.query, precision: q.precision });
+  }
+  if (!VALID_CLASSES.has(q.class)) {
+    badClass.push({ query: q.query, class: q.class });
   }
 }
 if (unknownIds.length) {
   console.error(`FATAL: ${unknownIds.length} golden relevant id(s) not found in ${BOOKMARKS_PATH}:`);
   for (const u of unknownIds) console.error(`  query="${u.query}" id=${u.id}`);
+  process.exit(1);
+}
+if (badRelevantCount.length) {
+  console.error(`FATAL: ${badRelevantCount.length} golden quer(y/ies) with relevant[] not in the required 1-5 range:`);
+  for (const b of badRelevantCount) console.error(`  query="${b.query}" relevant.length=${b.count}`);
+  process.exit(1);
+}
+if (badPrecision.length) {
+  console.error(
+    `FATAL: ${badPrecision.length} golden quer(y/ies) with invalid precision (must be "exact" or "broad"):`,
+  );
+  for (const b of badPrecision) console.error(`  query="${b.query}" precision=${JSON.stringify(b.precision)}`);
+  process.exit(1);
+}
+if (badClass.length) {
+  console.error(
+    `FATAL: ${badClass.length} golden quer(y/ies) with unknown class (must be one of ${[...VALID_CLASSES].join(", ")}):`,
+  );
+  for (const b of badClass) console.error(`  query="${b.query}" class=${JSON.stringify(b.class)}`);
   process.exit(1);
 }
 
