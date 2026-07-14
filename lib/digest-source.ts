@@ -6,7 +6,7 @@ const EXCERPT_LIMIT = 500;
 
 export function toDigestSource(post: BookmarkPost): DigestSource {
   const screenName = post.author?.screenName ?? "";
-  const articleExcerpt = post.articleText ? truncateAtWord(post.articleText, EXCERPT_LIMIT) : undefined;
+  const articleExcerpt = buildArticleExcerpt(post.articleText);
   return {
     id: post.id,
     author: post.author?.name ?? screenName,
@@ -21,6 +21,32 @@ export function toDigestSource(post: BookmarkPost): DigestSource {
 function truncate(s: string, n: number) {
   if (!s) return s;
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+// Twin of stripMarkdownNoise() in scripts/lib/embed.mjs (kept as a separate copy —
+// unifying across the lib/ vs scripts/ boundary is out of scope here). Same core rules
+// (strip fenced/inline code and images, unwrap links to their visible text), plus
+// heading hashes and blockquote markers stripped too: unlike embed.mjs's word-count/
+// embedding use, this text is spliced verbatim into an LLM prompt line, where a leading
+// "#" or ">" reads as stray markdown noise rather than content.
+function stripMarkdownNoise(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
+    .replace(/`[^`]*`/g, " ") // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links -> visible text
+    .replace(/^#{1,6}\s+/gm, "") // heading hashes
+    .replace(/^>\s?/gm, ""); // blockquote markers
+}
+
+// Builds the LLM-facing article excerpt: strip markdown noise, collapse all whitespace
+// runs (including embedded paragraph breaks) to single spaces, then truncate at a word
+// boundary. Returns undefined (not "") for empty/whitespace-only/markdown-only input, so
+// callers can honor the "articleExcerpt is ABSENT, not empty" contract.
+function buildArticleExcerpt(articleText: string | undefined): string | undefined {
+  if (!articleText) return undefined;
+  const collapsed = stripMarkdownNoise(articleText).replace(/\s+/g, " ").trim();
+  return collapsed ? truncateAtWord(collapsed, EXCERPT_LIMIT) : undefined;
 }
 
 // Same as truncate(), but cuts at the last word boundary within the limit
