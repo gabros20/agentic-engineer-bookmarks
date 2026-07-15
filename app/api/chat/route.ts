@@ -19,8 +19,14 @@ const requestSchema = z.object({
       precision: z.enum(["exact", "broad"]).nullable().default(null),
       sources: z.array(z.unknown()).default([]),
       digest: z.unknown().nullable().default(null),
+      // Task 14: live archive size (posts.length), threaded from the client so the system
+      // prompt's "~N saved posts" stays in sync instead of a hardcoded, drifting figure.
+      // Optional/nullable so an older cached client bundle (or any other future caller of
+      // this route) that doesn't send it still gets a valid request — getChatSystemPrompt
+      // falls back to the original static text when this is null/absent.
+      archiveCount: z.number().nullable().default(null),
     })
-    .default({ language: "en", query: null, precision: null, sources: [], digest: null }),
+    .default({ language: "en", query: null, precision: null, sources: [], digest: null, archiveCount: null }),
 });
 
 export async function POST(request: NextRequest) {
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
   const { messages, context } = parsed.data;
 
   const system = [
-    getChatSystemPrompt(context.language),
+    getChatSystemPrompt(context.language, context.archiveCount),
     "",
     buildChatContextBlock(context as ChatContext),
   ].join("\n");

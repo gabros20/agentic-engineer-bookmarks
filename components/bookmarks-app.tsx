@@ -550,8 +550,15 @@ export function BookmarksApp() {
           setHybridResults(new Map(reranked.map((result) => [result.id, result.score])));
         });
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        // Dev-only signal, matching rerank's silent-skip pattern (lib/rerank.ts's
+        // performRerank) — this catch swallows embedding/expansion/network failures on
+        // purpose (falls back to keyword-only results) and must never surface to the UI,
+        // but a fully silent catch made these failures invisible even in dev.
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[search] hybrid pipeline failed, falling back to keyword-only:", err);
+        }
         setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
         setSearchStatusKey("status.keyword");
       });
@@ -698,8 +705,11 @@ export function BookmarksApp() {
       precision: displayQuery ? precision : null,
       sources: visiblePosts.slice(0, 20).map(toDigestSource),
       digest: displayQuery ? getDigest(displayQuery) : null,
+      // 0 while the archive hasn't loaded yet reads as "unknown" server-side (falls back to
+      // the static default text), same as omitting it entirely — see formatArchiveCount.
+      archiveCount: posts.length || null,
     };
-  }, [lang, displayQuery, precision, visiblePosts]);
+  }, [lang, displayQuery, precision, visiblePosts, posts.length]);
 
   // search_bookmarks tool executor — runs the same hybrid search the live UI uses.
   async function runChatSearch(input: SearchBookmarksInput): Promise<SearchBookmarksResult> {

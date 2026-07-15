@@ -9,9 +9,31 @@ export type ChatContext = {
   precision: "exact" | "broad" | null;
   sources: DigestSource[];
   digest: SavedDigest | null;
+  /** Live archive size (posts.length), threaded from the client. Task 14: replaces the
+   *  hardcoded "~4,600"/"~4600" that drifted from the real (now 5,370+) count. `null`/
+   *  missing/non-positive falls back to the original static text (see
+   *  formatArchiveCount below) rather than printing a wrong or "~0" number. */
+  archiveCount: number | null;
 };
 
-const SYSTEM_EN = `You are a research assistant embedded in Tamas's personal X (Twitter) bookmark archive (~4,600 saved posts). The user opens you with Cmd-K and asks short questions about what they have saved.
+/**
+ * "~N saved posts" text for the system prompt, rounded to the nearest hundred so it reads
+ * as an approximation (matching the original hardcoded "~4,600"/"~4600") rather than an
+ * exact, sync-drifting count. Falls back to the pre-Task-14 hardcoded figure when no live
+ * count is available (e.g. an older client, or a request made before `posts` loaded
+ * client-side) — same number the prompt always shipped with, so this is a safe default,
+ * not a regression. EN uses a thousands separator ("~5,400"); HU does not
+ * ("~5400") — matches the pre-existing locale convention in these two strings.
+ */
+function formatArchiveCount(archiveCount: number | null | undefined, lang: ChatLang): string {
+  if (typeof archiveCount !== "number" || !Number.isFinite(archiveCount) || archiveCount <= 0) {
+    return lang === "hu" ? "~4600" : "~4,600";
+  }
+  const rounded = Math.round(archiveCount / 100) * 100;
+  return lang === "hu" ? `~${rounded}` : `~${rounded.toLocaleString("en-US")}`;
+}
+
+const systemEn = (countText: string) => `You are a research assistant embedded in Tamas's personal X (Twitter) bookmark archive (${countText} saved posts). The user opens you with Cmd-K and asks short questions about what they have saved.
 
 How to answer
 - Prefer the context the user is currently looking at (CURRENT_VIEW below) when it's relevant. Only call tools when the answer isn't already in view.
@@ -25,7 +47,7 @@ Tools
 
 Respond in English.`;
 
-const SYSTEM_HU = `Kutatási asszisztens vagy Tamas személyes X (Twitter) könyvjelző-archívumában (~4600 mentett poszt). A felhasználó a Cmd-K-val nyit meg téged, és rövid kérdéseket tesz fel a mentett tartalmairól.
+const systemHu = (countText: string) => `Kutatási asszisztens vagy Tamas személyes X (Twitter) könyvjelző-archívumában (${countText} mentett poszt). A felhasználó a Cmd-K-val nyit meg téged, és rövid kérdéseket tesz fel a mentett tartalmairól.
 
 Hogyan válaszolj
 - Először az aktuálisan látható kontextust használd (lent: CURRENT_VIEW), ha releváns. Csak akkor hívj eszközt, ha az válasz nincs a látható nézetben.
@@ -66,8 +88,9 @@ function summarizeDigest(digest: SavedDigest | null, lang: ChatLang) {
   return `\n${heading}:\n${themeLines.join("\n")}\n${overallLabel}: ${digest.overall}\n`;
 }
 
-export function getChatSystemPrompt(lang: ChatLang) {
-  return lang === "hu" ? SYSTEM_HU : SYSTEM_EN;
+export function getChatSystemPrompt(lang: ChatLang, archiveCount: number | null = null) {
+  const countText = formatArchiveCount(archiveCount, lang);
+  return lang === "hu" ? systemHu(countText) : systemEn(countText);
 }
 
 export function buildChatContextBlock(context: ChatContext): string {

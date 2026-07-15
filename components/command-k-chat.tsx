@@ -54,6 +54,9 @@ export type ChatContextSnapshot = {
   precision: "exact" | "broad" | null;
   sources: DigestSource[];
   digest: SavedDigest | null;
+  /** Live archive size (posts.length) — Task 14, threaded into the chat system prompt's
+   *  "~N saved posts" so it no longer drifts from a hardcoded figure. */
+  archiveCount: number | null;
 };
 
 type Props = {

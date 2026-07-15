@@ -57,7 +57,7 @@ export const messages = {
     "status.exactHybrid": "Exact hybrid search",
     "status.broadExpansion": "Broad hybrid expansion",
     "status.broadHybrid": "Broad hybrid search",
-    "status.modelDownloading": "downloading semantic model… {pct}%",
+    "status.modelDownloading": "Downloading semantic model… {pct}%",
     "status.summary": "Showing {shown} of {total} matching saved posts · {status}",
 
     "empty.results": "No bookmarks match this filter.",
@@ -152,7 +152,7 @@ export const messages = {
     "status.exactHybrid": "Pontos hibrid keresés",
     "status.broadExpansion": "Bő hibrid bővítés",
     "status.broadHybrid": "Bő hibrid keresés",
-    "status.modelDownloading": "szemantikus modell letöltése… {pct}%",
+    "status.modelDownloading": "Szemantikus modell letöltése… {pct}%",
     "status.summary": "{shown} megjelenítve · {total} mentett poszt · {status}",
 
     "empty.results": "Nincs ennek a szűrőnek megfelelő könyvjelző.",
