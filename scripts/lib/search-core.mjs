@@ -402,13 +402,16 @@ export function buildRerankDocText(post) {
 
 /**
  * Cross-encoder rerank of the top `limit` hybrid results. Verbatim mirror of
- * lib/rerank.ts's rerankResults: min-max normalizes BOTH the cross-encoder scores and the
+ * lib/rerank.ts's performRerank: min-max normalizes BOTH the cross-encoder scores and the
  * incoming hybrid scores over the window, blends CE_BLEND_WEIGHT*ce + HYBRID_BLEND_WEIGHT*
  * hybrid, re-sorts the window, appends the untouched tail. Silent-skip on any failure
  * (model load, tokenization, inference, or a scoreFn length mismatch) — returns `results`
  * unchanged, logs once via console.debug, never throws.
+ *
+ * Always run through the `rerankResults` coalescing scheduler below — never called directly
+ * by anything outside this module.
  */
-export async function rerankResults(query, results, getDocText, limit = RERANK_WINDOW, scoreFn = scoreWithCrossEncoder) {
+async function performRerank(query, results, getDocText, limit, scoreFn) {
   const trimmedQuery = (query ?? "").trim();
   if (!trimmedQuery || results.length < 2) return results;
 
@@ -436,4 +439,44 @@ export async function rerankResults(query, results, getDocText, limit = RERANK_W
     console.debug("[rerank] skipped:", err?.message ?? err);
     return results;
   }
+}
+
+// F1 fix — Node port of lib/rerank.ts's coalescing scheduler (see that file's doc comment
+// for the full rationale: single-threaded main-JS-thread WASM inference that can't be
+// aborted mid-flight, so the fix is to never let a second forward pass stack on top of a
+// running one). At most one scoring pass is ever in flight; a call always parks first
+// (replacing, and immediately superseding-to-input-order, any previously-parked call), then
+// a deferred microtask promotes the sole parked task once nothing is in flight. Because
+// scripts/eval-search.mjs awaits each `rerankResults` call fully before issuing the next,
+// this scheduler is transparent for that serial usage — every eval query still gets its own
+// real scoring pass.
+let rerankInFlight = false;
+let pendingRerankTask = null;
+
+function scheduleNextRerankTask() {
+  if (rerankInFlight || !pendingRerankTask) return;
+  const task = pendingRerankTask;
+  pendingRerankTask = null;
+  rerankInFlight = true;
+  performRerank(task.query, task.results, task.getDocText, task.limit, task.scoreFn)
+    .then(task.resolve)
+    .finally(() => {
+      rerankInFlight = false;
+      scheduleNextRerankTask();
+    });
+}
+
+/**
+ * `scoreFn` defaults to the real cross-encoder (`scoreWithCrossEncoder`) and is only ever
+ * overridden by tests, which stub it to exercise the blend math (and the coalescing
+ * scheduler above) without loading the real ~23 MB model.
+ */
+export function rerankResults(query, results, getDocText, limit = RERANK_WINDOW, scoreFn = scoreWithCrossEncoder) {
+  return new Promise((resolve) => {
+    if (pendingRerankTask) {
+      pendingRerankTask.resolve(pendingRerankTask.results);
+    }
+    pendingRerankTask = { query, results, getDocText, limit, scoreFn, resolve };
+    void Promise.resolve().then(scheduleNextRerankTask);
+  });
 }

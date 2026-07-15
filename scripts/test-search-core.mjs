@@ -679,6 +679,105 @@ await testAsync("rerankResults: fewer than 2 results short-circuits without call
   });
 });
 
+// ---- rerankResults coalescing scheduler (F1 fix, review-task11-quality-r1.md) --------
+//
+// A rerank call never starts scoring synchronously — it always parks first, then a
+// deferred microtask promotes the sole parked task once nothing is in flight. That means
+// two calls issued back-to-back with no intervening `await` also coalesce onto only the
+// later one: the earlier one is superseded (resolves with its own input order, scorer
+// never invoked) before it ever gets a chance to run.
+
+await testAsync("rerankResults coalescing: two calls issued in the same tick — only the latest is scored, the superseded one resolves its own input order", async () => {
+  const resultsA = [
+    { id: "a1", score: 10 },
+    { id: "a2", score: 5 },
+  ];
+  const resultsB = [
+    { id: "b1", score: 3 },
+    { id: "b2", score: 7 },
+  ];
+  let scorerACalled = false;
+  const scoreFnA = async () => {
+    scorerACalled = true;
+    return [0.1, 0.9];
+  };
+  const scoreFnB = async (query, docTexts) => {
+    assert.deepEqual(docTexts, ["doc b1", "doc b2"]);
+    return [0.9, 0.1]; // flips b1/b2 vs. their hybrid order
+  };
+
+  // No `await` between these two — genuinely the same synchronous tick/microtask batch.
+  const promiseA = rerankResults("query a", resultsA, (id) => `doc ${id}`, 50, scoreFnA);
+  const promiseB = rerankResults("query b", resultsB, (id) => `doc ${id}`, 50, scoreFnB);
+
+  const [resultA, resultB] = await Promise.all([promiseA, promiseB]);
+
+  assert.equal(scorerACalled, false, "the superseded call's scorer must never be invoked");
+  assert.deepEqual(resultA, resultsA, "the superseded call resolves with its own input order, unchanged");
+  assert.deepEqual(resultB.map((r) => r.id), ["b1", "b2"], "the latest call gets real cross-encoder ordering");
+});
+
+await testAsync("rerankResults coalescing: serial awaited calls are unaffected — each gets its own real scoring pass", async () => {
+  const calls = [];
+  const scoreFn = async (query, docTexts) => {
+    calls.push(query);
+    return docTexts.map(() => 0.5);
+  };
+
+  const first = await rerankResults("first", rerankHybrid, (id) => `doc ${id}`, 50, scoreFn);
+  const second = await rerankResults("second", rerankHybrid, (id) => `doc ${id}`, 50, scoreFn);
+
+  assert.deepEqual(calls, ["first", "second"], "both serial, awaited calls must invoke the scorer, in order");
+  assert.equal(first.length, rerankHybrid.length);
+  assert.equal(second.length, rerankHybrid.length);
+});
+
+await testAsync("rerankResults coalescing: a third call replaces a still-parked second call — the second resolves input order, the third is scored", async () => {
+  const results1 = [
+    { id: "x1", score: 10 },
+    { id: "x2", score: 5 },
+  ];
+  const results2 = [
+    { id: "y1", score: 4 },
+    { id: "y2", score: 8 },
+  ];
+  const results3 = [
+    { id: "z1", score: 1 },
+    { id: "z2", score: 2 },
+  ];
+
+  let releaseScoreFn1;
+  const scoreFn1Gate = new Promise((resolve) => {
+    releaseScoreFn1 = resolve;
+  });
+  const scoreFn1 = async () => {
+    await scoreFn1Gate;
+    return [0.9, 0.1];
+  };
+  let scorer2Called = false;
+  const scoreFn2 = async () => {
+    scorer2Called = true;
+    return [0.5, 0.5];
+  };
+  const scoreFn3 = async () => [0.1, 0.9]; // z2 has the higher hybrid AND ce score -> ranks first
+
+  const promise1 = rerankResults("q1", results1, (id) => `doc ${id}`, 50, scoreFn1);
+  // Let call 1's deferred kickoff microtask run so it is genuinely in flight (blocked on
+  // scoreFn1Gate) before call 2 arrives.
+  await Promise.resolve();
+
+  const promise2 = rerankResults("q2", results2, (id) => `doc ${id}`, 50, scoreFn2);
+  const promise3 = rerankResults("q3", results3, (id) => `doc ${id}`, 50, scoreFn3);
+
+  releaseScoreFn1();
+  const [result1, result2, result3] = await Promise.all([promise1, promise2, promise3]);
+
+  assert.deepEqual(result1.map((r) => r.id), ["x1", "x2"], "call 1's real (in-flight) scoring pass completes normally");
+  assert.equal(scorer2Called, false, "call 2's scorer must never run — it was superseded while still parked");
+  assert.deepEqual(result2, results2, "the superseded parked call resolves with its own input order, unchanged");
+  assert.deepEqual(result3.map((r) => r.id), ["z2", "z1"], "call 3 (the latest parked task) gets its own real scoring pass");
+});
+
 // ---- summary ---------------------------------------------------------------
 
 console.log(`\n${pass} passed, ${fail} failed`);
