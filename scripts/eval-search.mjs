@@ -16,7 +16,10 @@ import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import {
+  applyAbsoluteVectorFloor,
   applyRelativeFloor,
+  BROAD_MERGED_RELATIVE_FLOOR,
+  BROAD_VECTOR_COSINE_FLOOR,
   buildKeywordIndex,
   expandSemanticQueries,
   keywordSearch,
@@ -111,13 +114,25 @@ async function embedQueries(queries) {
 
 // ---- run the pipeline per golden query, exactly as components/bookmarks-app.tsx does ----
 
+// Broad-mode relevance floors (T1.3): only active against the v2 e5 index — see
+// BROAD_VECTOR_COSINE_FLOOR / BROAD_MERGED_RELATIVE_FLOOR in scripts/lib/search-core.mjs.
+// Pipeline order for broad mode: pooled vector results -> absolute floor -> slice(0,900)
+// -> RRF merge -> relative floor. Exact mode is untouched (keeps its 0.5 relative floor).
+const FLOORS_ACTIVE = index.prefix_scheme === "e5";
+
 async function runQuery(query, precision) {
   const keywordResults = keywordSearch(keywordIndex, query);
   const expandedQueries = expandSemanticQueries(query, precision);
   const embeddings = await embedQueries(expandedQueries);
-  const vectorResults = multiVectorSearch(index, embeddings).slice(0, VECTOR_SLICE);
+  const pooledVectorResults = multiVectorSearch(index, embeddings);
+  const vectorResults = (
+    precision === "broad" && FLOORS_ACTIVE
+      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
+      : pooledVectorResults
+  ).slice(0, VECTOR_SLICE);
   const merged = mergeHybridResults(keywordResults, vectorResults, precision);
-  return precision === "exact" ? applyRelativeFloor(merged, EXACT_FLOOR) : merged;
+  if (precision === "exact") return applyRelativeFloor(merged, EXACT_FLOOR);
+  return FLOORS_ACTIVE ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR) : merged;
 }
 
 // ---- metrics: binary relevance, Recall@10 / MRR@10 / nDCG@10 ----

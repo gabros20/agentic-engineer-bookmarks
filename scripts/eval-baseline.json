@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-15T13:53:38.768Z",
+  "generated_at": "2026-07-15T14:10:31.390Z",
   "model": "Xenova/multilingual-e5-small",
   "index_count": 5370,
   "archive_count": 5370,
@@ -7,8 +7,8 @@
   "overall": {
     "n": 32,
     "recall10": 0.6458,
-    "mrr10": 0.4353,
-    "ndcg10": 0.4711
+    "mrr10": 0.4361,
+    "ndcg10": 0.4718
   },
   "by_class": {
     "article-title": {
@@ -32,8 +32,8 @@
     "hu-topic": {
       "n": 5,
       "recall10": 0.2,
-      "mrr10": 0.0286,
-      "ndcg10": 0.0667
+      "mrr10": 0.0333,
+      "ndcg10": 0.0712
     },
     "paraphrase": {
       "n": 4,
@@ -50,8 +50,8 @@
   },
   "broad_tail": {
     "n": 18,
-    "medianResultCount": 3659,
-    "p90ResultCount": 4997
+    "medianResultCount": 40,
+    "p90ResultCount": 59
   },
   "per_query": [
     {
@@ -61,7 +61,7 @@
       "recall10": 0.5,
       "mrr10": 0.5,
       "ndcg10": 0.38685280723454163,
-      "resultCount": 1866
+      "resultCount": 51
     },
     {
       "query": "vector database",
@@ -79,7 +79,7 @@
       "recall10": 0.5,
       "mrr10": 1,
       "ndcg10": 0.6131471927654584,
-      "resultCount": 1317
+      "resultCount": 38
     },
     {
       "query": "LLM fine-tuning techniques",
@@ -88,7 +88,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 1686
+      "resultCount": 38
     },
     {
       "query": "claude code best practices",
@@ -97,7 +97,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 2453
+      "resultCount": 40
     },
     {
       "query": "context engineering",
@@ -124,7 +124,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 3599
+      "resultCount": 46
     },
     {
       "query": "hogyan működik a Model Context Protocol",
@@ -133,16 +133,16 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 4795
+      "resultCount": 53
     },
     {
       "query": "mi az a vektor adatbázis",
       "class": "hu-topic",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.14285714285714285,
-      "ndcg10": 0.3333333333333333,
-      "resultCount": 4881
+      "mrr10": 0.16666666666666666,
+      "ndcg10": 0.3562071871080222,
+      "resultCount": 13
     },
     {
       "query": "kódellenőrzés AI ügynökökkel",
@@ -151,7 +151,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 2840
+      "resultCount": 40
     },
     {
       "query": "önjavító AI ügynök rendszer",
@@ -160,7 +160,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 2856
+      "resultCount": 37
     },
     {
       "query": "több ügynökös orchestration",
@@ -169,7 +169,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 954
+      "resultCount": 12
     },
     {
       "query": "akshay_pachaar",
@@ -214,7 +214,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 4435
+      "resultCount": 48
     },
     {
       "query": "Agentic OS: Turning a Model Into a System",
@@ -223,7 +223,7 @@
       "recall10": 1,
       "mrr10": 0.2,
       "ndcg10": 0.38685280723454163,
-      "resultCount": 4735
+      "resultCount": 45
     },
     {
       "query": "Obsidian: A Vault That Never Forgets and Never Lets You Repeat Yourself",
@@ -232,7 +232,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 4865
+      "resultCount": 22
     },
     {
       "query": "What the hell is a loop, anyway?",
@@ -241,7 +241,7 @@
       "recall10": 1,
       "mrr10": 0.25,
       "ndcg10": 0.43067655807339306,
-      "resultCount": 4923
+      "resultCount": 59
     },
     {
       "query": "stop typing use context7 in every prompt",
@@ -313,7 +313,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 5087
+      "resultCount": 80
     },
     {
       "query": "reading a webpage by taking a screenshot instead of parsing the raw html",
@@ -322,7 +322,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 4931
+      "resultCount": 50
     },
     {
       "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
@@ -331,7 +331,7 @@
       "recall10": 1,
       "mrr10": 0.1111111111111111,
       "ndcg10": 0.3010299956639812,
-      "resultCount": 4997
+      "resultCount": 40
     },
     {
       "query": "storing and searching information by meaning using numeric representations instead of exact words",
@@ -340,7 +340,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 3659
+      "resultCount": 48
     }
   ]
 }

@@ -8,10 +8,19 @@
 //  4. RRF (mergeHybridResults) feeds one entry per id
 //  5. embedItemsForPost item shape (bonus smoke coverage)
 //  6. searchText: post.urls collapse to registrable domains (Task 5)
+//  7. applyAbsoluteVectorFloor / applyRelativeFloor: broad-mode floor math (Task 6)
 
 import assert from "node:assert/strict";
 import { chunkArticle, embedItemsForPost, searchText } from "./lib/embed.mjs";
-import { buildKeywordIndex, keywordSearch, mergeHybridResults, multiVectorSearch, vectorSearch } from "./lib/search-core.mjs";
+import {
+  applyAbsoluteVectorFloor,
+  applyRelativeFloor,
+  buildKeywordIndex,
+  keywordSearch,
+  mergeHybridResults,
+  multiVectorSearch,
+  vectorSearch,
+} from "./lib/search-core.mjs";
 
 let pass = 0;
 let fail = 0;
@@ -390,6 +399,45 @@ test("buildKeywordIndex: a phrase only present in quotedTweet.text is findable v
 test("buildKeywordIndex: posts without articleText/quotedTweet build without throwing (nullish guards)", () => {
   const posts = [{ id: "bare1", text: "just a plain tweet", author: { name: "a", screenName: "b" } }];
   assert.doesNotThrow(() => buildKeywordIndex(posts));
+});
+
+// ---- applyAbsoluteVectorFloor (Task 6 / T1.3) ------------------------------
+
+test("applyAbsoluteVectorFloor: scale-aware — cosine floor is compared against dot * 127, not the raw cosine", () => {
+  // int8-quantized item vectors score ~127*cosine on a matching query; a 0.80 cosine
+  // floor must therefore be applied as raw_score >= 0.80*127 = 101.6, not raw_score >= 0.80.
+  const results = [
+    { id: "above", score: 110 }, // 110/127 = 0.866 -> passes a 0.80 floor
+    { id: "just-above", score: 102 }, // 102/127 = 0.803 -> passes a 0.80 floor
+    { id: "below", score: 100 }, // 100/127 = 0.787 -> fails a 0.80 floor
+  ];
+  const filtered = applyAbsoluteVectorFloor(results, 0.8);
+  const ids = filtered.map((r) => r.id);
+  assert.deepEqual(ids, ["above", "just-above"], "only items with raw score >= cosineFloor*127 should survive");
+});
+
+test("applyAbsoluteVectorFloor: falsy/zero/negative cosineFloor is a no-op (v1 index / disabled-floor path)", () => {
+  const results = [
+    { id: "a", score: 5 },
+    { id: "b", score: -3 },
+  ];
+  assert.deepEqual(applyAbsoluteVectorFloor(results, 0), results, "0 (falsy) floor should not filter anything");
+  assert.deepEqual(applyAbsoluteVectorFloor(results, -1), results, "negative floor should not filter anything");
+  assert.deepEqual(applyAbsoluteVectorFloor(results, undefined), results, "undefined floor should not filter anything");
+});
+
+test("applyRelativeFloor: filters merged RRF scores to a fraction of the top score (broad-mode merged floor math)", () => {
+  const merged = [
+    { id: "top", score: 0.1 },
+    { id: "mid", score: 0.05 }, // exactly 50% of top -> kept (>=)
+    { id: "low", score: 0.04 }, // below 50% of top -> dropped
+  ];
+  const floored = applyRelativeFloor(merged, 0.5);
+  assert.deepEqual(
+    floored.map((r) => r.id),
+    ["top", "mid"],
+    "only entries scoring >= fraction * topScore should survive",
+  );
 });
 
 // ---- summary ---------------------------------------------------------------

@@ -201,6 +201,43 @@ export function applyRelativeFloor(results, fraction) {
   return results.filter((r) => r.score >= floor);
 }
 
+// Item embeddings on disk are int8-quantized (scripts/lib/embed.mjs `quantizeToInt8`):
+// a normalized float32 vector scaled by 127 and rounded. Query embeddings stay float32
+// normalized. So `dot(queryFloat, itemInt8) ≈ 127 * cosine(query, item)`. This constant
+// converts a cosine-similarity floor into the raw dot-product scale that
+// scorePerIdMax/vectorSearch/multiVectorSearch actually produce, so callers can reason
+// in cosine terms (0..1) while filtering raw scores. Verified empirically in
+// scripts/calibrate-floors.mjs (raw dot / 127 lands in the expected cosine range).
+const INT8_VECTOR_SCALE = 127;
+
+/**
+ * Broad-mode relevance floors, calibrated by scripts/calibrate-floors.mjs on 2026-07-15
+ * against the e5 v2 index (multilingual-e5-small, prefix_scheme "e5", chunked +
+ * max-pooled per Task 4), see docs/SEARCH-UPGRADE-PLAN.md T1.3.
+ *
+ * BROAD_VECTOR_COSINE_FLOOR is applied to POOLED per-id vector scores (post max-pool
+ * grouping, pre-900-slice) via applyAbsoluteVectorFloor. BROAD_MERGED_RELATIVE_FLOOR is
+ * applied to merged RRF scores via applyRelativeFloor. Both apply ONLY when the loaded
+ * index has prefix_scheme === "e5" — cosine distributions are model-specific, so a v1
+ * (MiniLM) index must see unchanged (unfloored) behavior. Exact mode is untouched by
+ * either constant; it keeps its own hardcoded 0.5 relative floor.
+ */
+export const BROAD_VECTOR_COSINE_FLOOR = 0.82;
+export const BROAD_MERGED_RELATIVE_FLOOR = 0.5;
+
+/**
+ * Filter pooled per-id vector results (the output of vectorSearch/multiVectorSearch) to
+ * those whose cosine similarity to the query is >= cosineFloor. Scale-aware: item
+ * embeddings are int8-quantized, so the raw score is compared against
+ * `cosineFloor * INT8_VECTOR_SCALE`, not against cosineFloor directly (see
+ * INT8_VECTOR_SCALE above). A falsy/non-positive cosineFloor is a no-op.
+ */
+export function applyAbsoluteVectorFloor(results, cosineFloor) {
+  if (!cosineFloor || cosineFloor <= 0) return results;
+  const floor = cosineFloor * INT8_VECTOR_SCALE;
+  return results.filter((r) => r.score >= floor);
+}
+
 function addReciprocalRanks(scores, results, weight) {
   const k = 60;
   for (const [index, result] of results.entries()) {
