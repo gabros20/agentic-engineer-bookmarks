@@ -503,19 +503,28 @@ test("minMaxNormalize: empty array is a no-op", () => {
   assert.deepEqual(minMaxNormalize([]), []);
 });
 
-test("buildRerankDocText: assembles text + articleTitle + first 300 chars of articleText + quoted text, whitespace-collapsed", () => {
+test("buildRerankDocText: assembles author prefix + text + articleTitle + first 300 chars of articleText + quoted text, whitespace-collapsed", () => {
   const post = {
     text: "hello   world",
     articleTitle: "My  Title",
     articleText: `${"x".repeat(310)} tail-beyond-300`,
+    author: { name: "Guillermo Rauch", screenName: "rauchg" },
     quotedTweet: { text: "a\nquoted\ttweet" },
   };
   const docText = buildRerankDocText(post);
   assert.ok(!/\s{2,}/.test(docText), "no run of 2+ whitespace chars should survive collapsing");
-  assert.ok(docText.startsWith("hello world My Title"), "fields should appear in text, articleTitle, articleText, quoted order");
+  assert.ok(
+    docText.startsWith("@rauchg (Guillermo Rauch): hello world My Title"),
+    "fields should appear in authorPrefix, text, articleTitle, articleText, quoted order",
+  );
   assert.ok(docText.includes("x".repeat(300)), "first 300 chars of articleText should be included");
   assert.ok(!docText.includes("tail-beyond-300"), "articleText past the 300-char excerpt cap should not appear");
   assert.ok(docText.includes("a quoted tweet"), "quoted tweet text should be included, newlines/tabs collapsed");
+});
+
+test("buildRerankDocText: author prefix omits the parenthesized name when only screenName is present", () => {
+  const docText = buildRerankDocText({ text: "hi", author: { screenName: "rauchg" } });
+  assert.equal(docText, "@rauchg: hi");
 });
 
 test("buildRerankDocText: caps the final assembled text at ~1000 chars", () => {
@@ -524,7 +533,7 @@ test("buildRerankDocText: caps the final assembled text at ~1000 chars", () => {
   assert.ok(docText.length <= 1000, `expected length <= 1000, got ${docText.length}`);
 });
 
-test("buildRerankDocText: missing optional fields (no article, no quoted tweet) does not throw or leave stray whitespace", () => {
+test("buildRerankDocText: missing optional fields (no author, no article, no quoted tweet) does not throw or leave stray whitespace", () => {
   assert.doesNotThrow(() => buildRerankDocText({ text: "just a tweet" }));
   const docText = buildRerankDocText({ text: "just a tweet" });
   assert.equal(docText, "just a tweet");

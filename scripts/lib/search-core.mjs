@@ -379,12 +379,18 @@ export function minMaxNormalize(values) {
 }
 
 /**
- * Doc text fed to the cross-encoder: post text + articleTitle + first
- * ARTICLE_EXCERPT_CHARS chars of articleText + quoted tweet text, whitespace-collapsed and
- * capped at DOC_TEXT_CHAR_CAP chars. Verbatim mirror of lib/rerank.ts's buildRerankDocText.
+ * Doc text fed to the cross-encoder: an "@screenName (author name): " authorship prefix,
+ * then post text + articleTitle + first ARTICLE_EXCERPT_CHARS chars of articleText + quoted
+ * tweet text, whitespace-collapsed and capped at DOC_TEXT_CHAR_CAP chars. Verbatim mirror of
+ * lib/rerank.ts's buildRerankDocText (see that file's doc comment for why the authorship
+ * prefix was added — Fix wave r1, .orchestrate/task-11-report.md).
  */
 export function buildRerankDocText(post) {
+  const screenName = post.author?.screenName;
+  const authorName = post.author?.name;
+  const authorPrefix = screenName ? `@${screenName}${authorName ? ` (${authorName})` : ""}: ` : undefined;
   const parts = [
+    authorPrefix,
     post.text,
     post.articleTitle,
     post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,

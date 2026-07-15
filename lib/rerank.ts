@@ -141,18 +141,32 @@ export function minMaxNormalize(values: number[]): number[] {
 
 /**
  * Doc text fed to the cross-encoder as the "passage" half of the (query, passage) pair:
- * post text + articleTitle + first ARTICLE_EXCERPT_CHARS chars of articleText + quoted
- * tweet text, whitespace-collapsed and capped at DOC_TEXT_CHAR_CAP chars. The cross-encoder
- * truncates at 512 tokens anyway, so this cap is a cheap pre-truncation for tokenizer
- * throughput, not a correctness requirement.
+ * an "@screenName (author name): " authorship prefix, then post text + articleTitle +
+ * first ARTICLE_EXCERPT_CHARS chars of articleText + quoted tweet text, whitespace-collapsed
+ * and capped at DOC_TEXT_CHAR_CAP chars. The cross-encoder truncates at 512 tokens anyway,
+ * so this cap is a cheap pre-truncation for tokenizer throughput, not a correctness
+ * requirement.
+ *
+ * The authorship prefix is a deliberate deviation from the original brief (which excluded
+ * author fields entirely): without it, the cross-encoder only sees post text, so for
+ * handle-class queries (e.g. "rauchg") it ranks tweets that *mention* "@rauchg" above tweets
+ * *authored by* rauchg — the keyword index's boosted `author` field is the only thing
+ * currently supplying that signal, and rerank was silently discarding it. See
+ * .orchestrate/task-11-report.md's "Fix wave r1" section for the eval numbers that justified
+ * this change.
  */
 export function buildRerankDocText(post: {
   text?: string;
   articleTitle?: string;
   articleText?: string;
+  author?: { name?: string; screenName?: string };
   quotedTweet?: { text?: string };
 }): string {
+  const screenName = post.author?.screenName;
+  const authorName = post.author?.name;
+  const authorPrefix = screenName ? `@${screenName}${authorName ? ` (${authorName})` : ""}: ` : undefined;
   const parts = [
+    authorPrefix,
     post.text,
     post.articleTitle,
     post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,
