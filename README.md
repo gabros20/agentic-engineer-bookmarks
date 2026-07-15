@@ -99,13 +99,13 @@ npm run sync
 
 ```bash
 xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000
-node scripts/embed-new.mjs
 node scripts/backfill-articles.mjs
+node scripts/embed-new.mjs
 ```
 
 - `xrelay archive bookmarks` fetches your bookmarks newest-first and stops once it hits already-archived IDs, prepending only the new ones. `--limit 5000` ensures the stop condition (not the default `40` cap) is what halts the pull.
-- `scripts/embed-new.mjs` embeds **only** the newly added posts and appends them to `search-index.json` (main vector, plus one chunk vector per ~280-word slice of any article body — index schema v2).
-- `scripts/backfill-articles.mjs` fetches the full article body (title + markdown) for any X Article bookmark that doesn't have one yet, via `xrelay`, and writes it into the archive in place. Idempotent — re-running only touches bookmarks with a still-empty article body — and exits `0` on ordinary single-item flakiness so it never fails a routine sync.
+- `scripts/backfill-articles.mjs` fetches the full article body (title + markdown) for any X Article bookmark that doesn't have one yet, via `xrelay`, and writes it into the archive in place. Idempotent — re-running only touches bookmarks with a still-empty article body — and exits `0` on ordinary single-item flakiness so it never fails a routine sync. This runs **before** embedding: a freshly-synced X Article has no body yet, and `embed-new.mjs` skips by id once a vector exists for a post, so an article embedded before its markdown lands would be text-only (no chunks) forever.
+- `scripts/embed-new.mjs` embeds **only** the newly added posts and appends them to `search-index.json` (main vector, plus one chunk vector per ~280-word slice of any article body — index schema v2). Running it last means it sees each new X Article's full markdown already backfilled, so the chunk vectors are cut from real content on the first pass.
 
 Then commit and push (Vercel redeploys on push to `main`):
 

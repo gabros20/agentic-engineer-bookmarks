@@ -9,7 +9,7 @@
     "test:search": "node scripts/test-search-core.mjs",
     "test:operators": "node scripts/test-query-operators.mjs",
     "migrate:archive": "node scripts/migrate-to-archive.mjs",
-    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000 && node scripts/embed-new.mjs && node scripts/backfill-articles.mjs",
+    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000 && node scripts/backfill-articles.mjs && node scripts/embed-new.mjs",
     "build": "next build",
     "start": "next start"
   },
