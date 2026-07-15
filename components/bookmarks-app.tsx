@@ -24,6 +24,7 @@ import type { DigestSource } from "@/lib/digest-schema";
 import { fetchQueryRewrites } from "@/lib/expand-client";
 import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
+import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@/lib/query-operators";
 import type { UIMessage } from "ai";
 import {
   buildKeywordIndex,
@@ -167,6 +168,19 @@ function searchable(post: BookmarkPost) {
 
 function byDate(post: BookmarkPost) {
   return new Date(post.createdAtISO ?? post.createdAt ?? 0).getTime();
+}
+
+// T4.1: render an operator Date back to the granularity the brief's examples use — a
+// `YYYY-MM` token (before:/after: parsed to the 1st of that month) displays compactly as
+// `YYYY-MM`; anything else (an explicit day was typed) displays as full `YYYY-MM-DD`. The
+// parsed Date itself doesn't retain which form the user typed, so this is a deterministic
+// re-derivation, not a stored flag — good enough for a chip/CTA label, not round-tripped
+// back into parseQueryOperators.
+function formatOperatorDate(date: Date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = date.getUTCDate();
+  return d === 1 ? `${y}-${m}` : `${y}-${m}-${String(d).padStart(2, "0")}`;
 }
 
 // Prefix threading is keyed off the loaded index's `prefix_scheme` field, never off the
@@ -340,10 +354,16 @@ export function BookmarksApp() {
     window.localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
   }, [favorites]);
 
+  // T4.1: parsed once per query change. `parsedQuery.text` is the RESIDUAL free text with
+  // every `from:`/`before:`/`after:` token stripped out — this is what gets debounced below
+  // and threaded through the whole rewrite-fetch + embed + hybrid-pipeline + rerank chain in
+  // the search effect, so operator tokens never reach the embedder or /api/expand.
+  const parsedQuery = useMemo(() => parseQueryOperators(query), [query]);
+
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    const timeout = window.setTimeout(() => setDebouncedQuery(parsedQuery.text), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [query]);
+  }, [parsedQuery.text]);
 
   useEffect(() => {
     setVisibleLimit(PAGE_SIZE);
@@ -514,7 +534,8 @@ export function BookmarksApp() {
   }, [debouncedQuery, keywordIndex, posts, postsById, precision, searchIndex, digestUnlocked, lang]);
 
   const visiblePosts = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const { text, operators } = parsedQuery;
+    const q = text.trim().toLowerCase();
     const scoped = posts.filter((post) => {
       if (scope === "favorites") return favorites.has(post.id);
       if (scope === "articles") return Boolean(post.articleTitle);
@@ -524,11 +545,29 @@ export function BookmarksApp() {
       if (scope === "text") return !post.media?.length && !post.articleTitle;
       return true;
     });
+
+    // T4.1: from:/before:/after: apply as hard filters BEFORE the text/hybrid filter below,
+    // in BOTH precision modes identically (this step runs regardless of precision). Empty
+    // residual text + active operators is a valid state — q is "" here, hybridResults is
+    // null (the search effect below short-circuits on an empty residual), so `filtered`
+    // falls through to `operatorScoped` unfiltered by text/hybrid, showing every
+    // operator-matching post in the current sort order.
+    const operatorScoped =
+      operators.from || operators.before || operators.after
+        ? scoped.filter((post) => {
+            if (operators.from && post.author.screenName.toLowerCase() !== operators.from) return false;
+            const postTime = byDate(post);
+            if (operators.after && postTime < operators.after.getTime()) return false;
+            if (operators.before && postTime >= operators.before.getTime()) return false;
+            return true;
+          })
+        : scoped;
+
     const filtered = q
       ? hybridResults
-        ? scoped.filter((post) => hybridResults.has(post.id))
-        : scoped.filter((post) => searchable(post).includes(q))
-      : scoped;
+        ? operatorScoped.filter((post) => hybridResults.has(post.id))
+        : operatorScoped.filter((post) => searchable(post).includes(q))
+      : operatorScoped;
 
     return [...filtered].sort((a, b) => {
       if (q && hybridResults) return (hybridResults.get(b.id) ?? 0) - (hybridResults.get(a.id) ?? 0);
@@ -537,7 +576,63 @@ export function BookmarksApp() {
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
       return byDate(b) - byDate(a);
     });
-  }, [favorites, hybridResults, posts, query, scope, sort]);
+  }, [favorites, hybridResults, posts, parsedQuery, scope, sort]);
+
+  // T4.1: human-readable stand-in for `query` at digest/chat call sites — residual text +
+  // a parenthesized operator suffix, e.g. `agents (from:simonw, after:2026-03)`. Keeps
+  // digest cache keys (lib/digest-cache.ts normalizes+keys off this string) distinct across
+  // different operator combinations for the same residual text. The actual searched/shown
+  // sources are already operator-filtered via visiblePosts above — this is display/cache-key
+  // only, not a second filtering pass.
+  const displayQuery = useMemo(() => {
+    const { text, operators } = parsedQuery;
+    const parts: string[] = [];
+    if (operators.from) parts.push(`from:${operators.from}`);
+    if (operators.after) parts.push(`after:${formatOperatorDate(operators.after)}`);
+    if (operators.before) parts.push(`before:${formatOperatorDate(operators.before)}`);
+    if (!parts.length) return text;
+    const suffix = `(${parts.join(", ")})`;
+    return text ? `${text} ${suffix}` : suffix;
+  }, [parsedQuery]);
+
+  // T4.1: removable chip descriptors for the active operators + any invalid tokens. Each
+  // chip's ✕ does a surgical string removal on the raw `query` state (not the parsed
+  // residual) so any other typed text survives untouched.
+  const operatorChips = useMemo(() => {
+    const { operators } = parsedQuery;
+    const chips: Array<{ key: string; label: string; invalid?: boolean; title?: string; onRemove: () => void }> = [];
+    if (operators.from) {
+      chips.push({
+        key: "op-from",
+        label: `from: ${operators.from}`,
+        onRemove: () => setQuery((current) => removeOperatorTokens(current, "from")),
+      });
+    }
+    if (operators.after) {
+      chips.push({
+        key: "op-after",
+        label: `after: ${formatOperatorDate(operators.after)}`,
+        onRemove: () => setQuery((current) => removeOperatorTokens(current, "after")),
+      });
+    }
+    if (operators.before) {
+      chips.push({
+        key: "op-before",
+        label: `before: ${formatOperatorDate(operators.before)}`,
+        onRemove: () => setQuery((current) => removeOperatorTokens(current, "before")),
+      });
+    }
+    operators.invalid.forEach((entry, i) => {
+      chips.push({
+        key: `op-invalid-${i}-${entry.token}`,
+        label: entry.token,
+        invalid: true,
+        title: entry.reason,
+        onRemove: () => setQuery((current) => removeInvalidToken(current, entry.token)),
+      });
+    });
+    return chips;
+  }, [parsedQuery]);
 
   const displayedPosts = visiblePosts.slice(0, visibleLimit);
 
@@ -556,17 +651,18 @@ export function BookmarksApp() {
       ? t("status.modelDownloading", { pct: modelDownloadState.pct })
       : t(searchStatusKey);
 
-  // Chat context snapshot taken whenever the chat opens.
+  // Chat context snapshot taken whenever the chat opens. T4.1: uses displayQuery (residual
+  // text + operator suffix) rather than the raw query, so the digest cache lookup key stays
+  // distinct per operator combination — visiblePosts (sources) is already operator-filtered.
   const chatContext = useMemo<ChatContextSnapshot>(() => {
-    const q = query.trim();
     return {
       language: lang,
-      query: q || null,
-      precision: q ? precision : null,
+      query: displayQuery || null,
+      precision: displayQuery ? precision : null,
       sources: visiblePosts.slice(0, 20).map(toDigestSource),
-      digest: q ? getDigest(q) : null,
+      digest: displayQuery ? getDigest(displayQuery) : null,
     };
-  }, [lang, query, precision, visiblePosts]);
+  }, [lang, displayQuery, precision, visiblePosts]);
 
   // search_bookmarks tool executor — runs the same hybrid search the live UI uses.
   async function runChatSearch(input: SearchBookmarksInput): Promise<SearchBookmarksResult> {
@@ -873,6 +969,27 @@ export function BookmarksApp() {
           </div>
         </label>
 
+        {operatorChips.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {operatorChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onRemove}
+                title={chip.title}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition ${
+                  chip.invalid
+                    ? "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
+                    : "border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)]"
+                }`}
+              >
+                <span>{chip.label}</span>
+                <XIcon size={10} />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 sm:gap-2">
           <OptionSelect
             value={sort}
@@ -922,7 +1039,7 @@ export function BookmarksApp() {
         </div>
 
         <AnimatePresence initial={false}>
-          {query.trim() && visiblePosts.length > 0 ? (
+          {displayQuery && visiblePosts.length > 0 ? (
             <motion.div
               key="ai-ctas"
               initial={{ opacity: 0, y: -8 }}
@@ -936,7 +1053,7 @@ export function BookmarksApp() {
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
                   const sources = visiblePosts.slice(0, 30).map(toDigestSource);
-                  const payload = { query: query.trim(), sources };
+                  const payload = { query: displayQuery, sources };
                   if (digestUnlocked) {
                     setDigestPayload(payload);
                     setDigestOpen(true);
@@ -954,9 +1071,8 @@ export function BookmarksApp() {
                 type="button"
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
-                  const q = query.trim();
-                  if (!q) return;
-                  const prompt = t("chat.shortlistPrompt", { q });
+                  if (!displayQuery) return;
+                  const prompt = t("chat.shortlistPrompt", { q: displayQuery });
                   if (digestUnlocked) {
                     setChatHistoryMessages(null);
                     setChatInitialPrompt(prompt);
