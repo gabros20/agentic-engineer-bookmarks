@@ -29,6 +29,7 @@ export const messages = {
     "search.precision.aria": "Search precision",
     "search.operator.aria.remove": "Remove filter: {label}",
 
+    "sort.relevance": "Relevance",
     "sort.newest": "Newest",
     "sort.oldest": "Oldest",
     "sort.bookmarks": "Saves",
@@ -123,6 +124,7 @@ export const messages = {
     "search.precision.aria": "Keresési pontosság",
     "search.operator.aria.remove": "Szűrő eltávolítása: {label}",
 
+    "sort.relevance": "Relevancia",
     "sort.newest": "Legújabb",
     "sort.oldest": "Legrégebbi",
     "sort.bookmarks": "Mentések",

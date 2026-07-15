@@ -2,7 +2,7 @@
 
 import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
@@ -365,6 +365,32 @@ export function BookmarksApp() {
     return () => window.clearTimeout(timeout);
   }, [parsedQuery.text]);
 
+  // T4.2: auto-switch/restore state machine for the "relevance" sort option. `wasQueryActiveRef`
+  // tracks whether the RAW query (including operator tokens, e.g. "from:simonw" with no residual
+  // text) was non-empty on the previous run, so operators-only input still counts as "a search
+  // started" for UX purposes — visiblePosts' sort branch below separately falls back to
+  // newest-first when there's no active hybrid ranking to sort by, so an operators-only search
+  // auto-switching to "relevance" is harmless. `previousSortRef` is written ONLY at the
+  // empty->non-empty transition (search start), so mid-search manual sort picks never get
+  // clobbered on later keystrokes, and clearing always restores whatever sort was active right
+  // before this search began — not whatever was picked mid-search. Intentionally depends only on
+  // `query` (not `sort`): reading `sort` here is fine even though it's outside the dep array,
+  // since every render re-creates this closure with the current `sort` and the effect only fires
+  // (using that render's closure) when `query` itself changes.
+  const previousSortRef = useRef(sort);
+  const wasQueryActiveRef = useRef(false);
+  useEffect(() => {
+    const isActive = query.trim().length > 0;
+    const wasActive = wasQueryActiveRef.current;
+    if (isActive && !wasActive) {
+      previousSortRef.current = sort;
+      setSort("relevance");
+    } else if (!isActive && wasActive) {
+      setSort(previousSortRef.current);
+    }
+    wasQueryActiveRef.current = isActive;
+  }, [query]);
+
   useEffect(() => {
     setVisibleLimit(PAGE_SIZE);
   }, [query, scope, sort]);
@@ -570,7 +596,15 @@ export function BookmarksApp() {
       : operatorScoped;
 
     return [...filtered].sort((a, b) => {
-      if (q && hybridResults) return (hybridResults.get(b.id) ?? 0) - (hybridResults.get(a.id) ?? 0);
+      // T4.2: "relevance" only means score order while there's an active hybrid ranking to sort
+      // by (q non-empty AND hybridResults populated). Every other sort value reorders WITHIN the
+      // already-matched set using its own comparator, active search or not. "relevance" with no
+      // active hybrid ranking (no search, or an operators-only search with an empty residual —
+      // hybridResults is null there per the search effect above) falls through to the final
+      // newest-first default below, same as "newest" itself.
+      if (q && hybridResults && sort === "relevance") {
+        return (hybridResults.get(b.id) ?? 0) - (hybridResults.get(a.id) ?? 0);
+      }
       if (sort === "oldest") return byDate(a) - byDate(b);
       if (sort === "bookmarks") return (b.metrics?.bookmarks ?? 0) - (a.metrics?.bookmarks ?? 0);
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
@@ -1008,6 +1042,7 @@ export function BookmarksApp() {
             leadingIcon={<SlidersHorizontal size={14} />}
             className="h-9 px-2.5 text-[13px] sm:h-10 sm:px-3 sm:text-sm"
             options={[
+              { value: "relevance", label: t("sort.relevance") },
               { value: "newest", label: t("sort.newest") },
               { value: "oldest", label: t("sort.oldest") },
               { value: "bookmarks", label: t("sort.bookmarks") },
@@ -1037,6 +1072,10 @@ export function BookmarksApp() {
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             onClick={() => {
+              // T4.2: seed the restore-ref to "newest" too, so the query-transition effect
+              // above (which will also fire from this same setQuery("")) restores "newest"
+              // instead of clobbering this with whatever sort was active before the search.
+              previousSortRef.current = "newest";
               setQuery("");
               setSort("newest");
               setScope("all");
