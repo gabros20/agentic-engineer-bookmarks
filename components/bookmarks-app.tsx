@@ -34,6 +34,7 @@ import {
   type SearchIndexPayload,
   type SearchPrecision,
 } from "@/lib/bookmark-search";
+import { buildRerankDocText, RERANK_WINDOW, rerankResults, warmupReranker } from "@/lib/rerank";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
 import type { ProgressInfo } from "@huggingface/transformers";
@@ -349,6 +350,10 @@ export function BookmarksApp() {
   }, [query, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
+  // Task 11: id -> post lookup for rerank doc-text assembly (both the search effect below
+  // and runChatSearch need it). Cheap to build once per `posts` identity change (O(n) over
+  // ~5,370 posts) and reused across every query's rerank call.
+  const postsById = useMemo(() => new Map(posts.map((post) => [post.id, post])), [posts]);
   const [keywordIndex, setKeywordIndex] = useState<ReturnType<typeof buildKeywordIndex> | null>(null);
   const modelDownloadState = useSyncExternalStore(
     subscribeModelDownloadState,
@@ -379,7 +384,11 @@ export function BookmarksApp() {
   useEffect(() => {
     if (!searchIndex) return;
     const handle = scheduleIdle(() => {
-      void warmupEmbedder(searchIndex.model);
+      // Task 11: reranker warmup rides in after the embedder warmup resolves (success or
+      // failure — warmupEmbedder never rejects) so the two model downloads never contend for
+      // bandwidth/CPU on first load. `void .then(...)` keeps this a fire-and-forget chain,
+      // same as the embedder-only warmup this replaces; warmupReranker itself never throws.
+      void warmupEmbedder(searchIndex.model).then(() => warmupReranker());
     });
     return () => handle.cancel();
   }, [searchIndex]);
@@ -447,18 +456,20 @@ export function BookmarksApp() {
         const staticKeys = new Set(staticExpansions.map((s) => s.trim().toLowerCase()));
         const newExpansions = expandedQueries.filter((candidate) => !staticKeys.has(candidate.trim().toLowerCase()));
         if (!newExpansions.length) {
-          return { expandedQueries, embeddings: staticEmbeddings };
+          return { expandedQueries, embeddings: staticEmbeddings, rewrites };
         }
         return embedQueries(newExpansions, searchIndex).then((newEmbeddings) => ({
           expandedQueries,
           embeddings: [...staticEmbeddings, ...newEmbeddings],
+          rewrites,
         }));
       })
       .then((outcome) => {
         if (cancelled || !outcome) return;
-        const { expandedQueries, embeddings } = outcome;
+        const { expandedQueries, embeddings, rewrites } = outcome;
         const pooledVectorResults = multiVectorSearch(searchIndex, embeddings);
         const finalResults = runHybridPipeline(keywordResults, pooledVectorResults, precision, searchIndex);
+        // Phase 1: hybrid results render immediately — unchanged from pre-Task-11 behavior.
         setHybridResults(new Map(finalResults.map((result) => [result.id, result.score])));
         setSearchStatusKey(
           precision === "exact"
@@ -467,6 +478,28 @@ export function BookmarksApp() {
               ? "status.broadExpansion"
               : "status.broadHybrid",
         );
+
+        // Phase 2 (Task 11, T3.2): fire the cross-encoder rerank asynchronously, never
+        // awaited here — phase 1 has already rendered. When it resolves (and this effect
+        // hasn't been cancelled by a newer query/cleanup), silently replace hybridResults
+        // with the reordered map; rerankResults itself never throws (silent-skip contract),
+        // so no .catch is needed here beyond the cancelled guard.
+        //
+        // EN cross-encoder + HU queries: rerank against the first LLM rewrite (== the EN
+        // translation, per Task 10's /api/expand contract) when one resolved for this query;
+        // otherwise rerank against the raw query text as-is. `rewrites` here is exactly what
+        // `rewritesPromise` resolved to above (cache hit or fresh fetch, or [] if
+        // broad+locked/timed-out/failed) — no separate cache read needed.
+        const rerankQuery = rewrites[0]?.trim() || q;
+        void rerankResults(
+          rerankQuery,
+          finalResults,
+          (id) => buildRerankDocText(postsById.get(id) ?? {}),
+          RERANK_WINDOW,
+        ).then((reranked) => {
+          if (cancelled) return;
+          setHybridResults(new Map(reranked.map((result) => [result.id, result.score])));
+        });
       })
       .catch(() => {
         if (cancelled) return;
@@ -478,7 +511,7 @@ export function BookmarksApp() {
       cancelled = true;
       rewriteController.abort();
     };
-  }, [debouncedQuery, keywordIndex, posts, precision, searchIndex, digestUnlocked, lang]);
+  }, [debouncedQuery, keywordIndex, posts, postsById, precision, searchIndex, digestUnlocked, lang]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -549,7 +582,13 @@ export function BookmarksApp() {
       const queries = expandSemanticQueries(q, input.precision);
       const embeddings = await embedQueries(queries, searchIndex);
       const pooledVec = multiVectorSearch(searchIndex, embeddings);
-      ranked = runHybridPipeline(kw, pooledVec, input.precision, searchIndex);
+      const hybridRanked = runHybridPipeline(kw, pooledVec, input.precision, searchIndex);
+      // Task 11, same treatment as the main search effect's phase 2, but a single await
+      // here (chat has no "render now, refine later" phase split) — rerankResults' own
+      // silent-skip contract means no try/catch is needed: on any failure it resolves to
+      // hybridRanked unchanged. Reranks against the raw chat query (runChatSearch has no
+      // LLM-rewrite step of its own to consult, unlike the main search effect).
+      ranked = await rerankResults(q, hybridRanked, (id) => buildRerankDocText(postsById.get(id) ?? {}), RERANK_WINDOW);
     } else {
       ranked = kw;
     }

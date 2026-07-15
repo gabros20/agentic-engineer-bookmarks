@@ -9,6 +9,8 @@
 //  5. embedItemsForPost item shape (bonus smoke coverage)
 //  6. searchText: post.urls collapse to registrable domains (Task 5)
 //  7. applyAbsoluteVectorFloor / applyRelativeFloor: broad-mode floor math (Task 6)
+//  8. rerankResults / minMaxNormalize / buildRerankDocText: cross-encoder blend math via a
+//     stubbed scorer (Task 11, T3.2) — the real ~23 MB model is never loaded in this file.
 
 import assert from "node:assert/strict";
 import { chunkArticle, embedItemsForPost, searchText } from "./lib/embed.mjs";
@@ -16,9 +18,12 @@ import {
   applyAbsoluteVectorFloor,
   applyRelativeFloor,
   buildKeywordIndex,
+  buildRerankDocText,
   keywordSearch,
   mergeHybridResults,
+  minMaxNormalize,
   multiVectorSearch,
+  rerankResults,
   vectorSearch,
 } from "./lib/search-core.mjs";
 
@@ -28,6 +33,20 @@ let fail = 0;
 function test(name, fn) {
   try {
     fn();
+    pass += 1;
+    console.log(`ok   - ${name}`);
+  } catch (err) {
+    fail += 1;
+    console.log(`FAIL - ${name}`);
+    console.log(`       ${err.message}`);
+  }
+}
+
+// rerankResults is async (it awaits a scorer), so it needs an await-ing counterpart to
+// `test` above. Node ESM supports top-level await, so callers just `await testAsync(...)`.
+async function testAsync(name, fn) {
+  try {
+    await fn();
     pass += 1;
     console.log(`ok   - ${name}`);
   } catch (err) {
@@ -467,6 +486,188 @@ test("applyRelativeFloor: minKeep guard does not protect rank minKeep+1 — a be
     ["rank1", "rank2", "rank3"],
     "a below-floor result at rank minKeep+1 should still be dropped by the floor",
   );
+});
+
+// ---- rerankResults / minMaxNormalize / buildRerankDocText (Task 11, T3.2) ------------
+
+test("minMaxNormalize: scales a differentiated array to [0, 1]", () => {
+  assert.deepEqual(minMaxNormalize([0, 5, 10]), [0, 0.5, 1]);
+});
+
+test("minMaxNormalize: ties (max === min) collapse to a neutral 0.5, not 0 or 1", () => {
+  assert.deepEqual(minMaxNormalize([3, 3, 3]), [0.5, 0.5, 0.5]);
+  assert.deepEqual(minMaxNormalize([7]), [0.5], "a single-element array is trivially a tie");
+});
+
+test("minMaxNormalize: empty array is a no-op", () => {
+  assert.deepEqual(minMaxNormalize([]), []);
+});
+
+test("buildRerankDocText: assembles text + articleTitle + first 300 chars of articleText + quoted text, whitespace-collapsed", () => {
+  const post = {
+    text: "hello   world",
+    articleTitle: "My  Title",
+    articleText: `${"x".repeat(310)} tail-beyond-300`,
+    quotedTweet: { text: "a\nquoted\ttweet" },
+  };
+  const docText = buildRerankDocText(post);
+  assert.ok(!/\s{2,}/.test(docText), "no run of 2+ whitespace chars should survive collapsing");
+  assert.ok(docText.startsWith("hello world My Title"), "fields should appear in text, articleTitle, articleText, quoted order");
+  assert.ok(docText.includes("x".repeat(300)), "first 300 chars of articleText should be included");
+  assert.ok(!docText.includes("tail-beyond-300"), "articleText past the 300-char excerpt cap should not appear");
+  assert.ok(docText.includes("a quoted tweet"), "quoted tweet text should be included, newlines/tabs collapsed");
+});
+
+test("buildRerankDocText: caps the final assembled text at ~1000 chars", () => {
+  const post = { text: "w ".repeat(2000) };
+  const docText = buildRerankDocText(post);
+  assert.ok(docText.length <= 1000, `expected length <= 1000, got ${docText.length}`);
+});
+
+test("buildRerankDocText: missing optional fields (no article, no quoted tweet) does not throw or leave stray whitespace", () => {
+  assert.doesNotThrow(() => buildRerankDocText({ text: "just a tweet" }));
+  const docText = buildRerankDocText({ text: "just a tweet" });
+  assert.equal(docText, "just a tweet");
+});
+
+const rerankHybrid = [
+  { id: "a", score: 10 },
+  { id: "b", score: 5 },
+  { id: "c", score: 0 },
+];
+
+await testAsync("rerankResults: min-max normalizes both sides then blends 0.6*ce + 0.4*hybrid, re-sorting the window", async () => {
+  // ceScoresRaw deliberately inverted vs. the incoming hybrid order: id "a" (hybrid rank 1)
+  // gets the WORST ce score, id "c" (hybrid rank 3) gets the BEST ce score.
+  const ceScoresRaw = [0.1, 0.5, 0.9]; // -> minMax -> [0, 0.5, 1] for a, b, c respectively
+  // hybrid [10, 5, 0] -> minMax -> [1, 0.5, 0] for a, b, c respectively
+  // blended: a = 0.6*0 + 0.4*1 = 0.4 | b = 0.6*0.5 + 0.4*0.5 = 0.5 | c = 0.6*1 + 0.4*0 = 0.6
+  const seenDocTexts = [];
+  const result = await rerankResults(
+    "python programming",
+    rerankHybrid,
+    (id) => {
+      seenDocTexts.push(id);
+      return `doc for ${id}`;
+    },
+    50,
+    async (query, docTexts) => {
+      assert.equal(query, "python programming");
+      assert.deepEqual(docTexts, ["doc for a", "doc for b", "doc for c"]);
+      return ceScoresRaw;
+    },
+  );
+  assert.deepEqual(result.map((r) => r.id), ["c", "b", "a"], "blend should re-sort the window by the new blended score");
+  assert.ok(Math.abs(result[0].score - 0.6) < 1e-9, `expected c's blended score ~0.6, got ${result[0].score}`);
+  assert.ok(Math.abs(result[1].score - 0.5) < 1e-9, `expected b's blended score ~0.5, got ${result[1].score}`);
+  assert.ok(Math.abs(result[2].score - 0.4) < 1e-9, `expected a's blended score ~0.4, got ${result[2].score}`);
+  assert.deepEqual(seenDocTexts, ["a", "b", "c"], "getDocText should be called once per windowed id, in order");
+});
+
+await testAsync("rerankResults: results beyond `limit` are an untouched tail — not scored, not reordered", async () => {
+  const results = [
+    { id: "a", score: 10 },
+    { id: "b", score: 9 },
+    { id: "c", score: 8 },
+    { id: "d", score: 7 },
+    { id: "e", score: 6 },
+  ];
+  const scoredIds = [];
+  const result = await rerankResults(
+    "query",
+    results,
+    (id) => {
+      if (id === "c" || id === "d" || id === "e") {
+        throw new Error(`getDocText should never be called for a tail id, got "${id}"`);
+      }
+      scoredIds.push(id);
+      return `doc ${id}`;
+    },
+    2, // window = [a, b], tail = [c, d, e]
+    async () => [0.1, 0.9], // a: ceNorm 0 (low), b: ceNorm 1 (high) -> flips the a>b hybrid order
+  );
+  assert.deepEqual(scoredIds, ["a", "b"], "only the windowed ids should reach getDocText/scoreFn");
+  assert.deepEqual(
+    result.slice(2),
+    [
+      { id: "c", score: 8 },
+      { id: "d", score: 7 },
+      { id: "e", score: 6 },
+    ],
+    "the tail beyond `limit` must survive byte-identical, in original order, with original scores",
+  );
+  assert.equal(result[0].id, "b", "the window itself should still be re-sorted by the blend");
+});
+
+await testAsync("rerankResults: silent-skip — a scorer that throws returns the input completely unchanged", async () => {
+  const result = await rerankResults(
+    "query",
+    rerankHybrid,
+    (id) => `doc ${id}`,
+    50,
+    async () => {
+      throw new Error("simulated model-load failure");
+    },
+  );
+  assert.deepEqual(result, rerankHybrid, "on scorer failure, output must be reference-equal-in-value to the original input");
+});
+
+await testAsync("rerankResults: silent-skip — a scorer returning the wrong number of scores is treated as a failure", async () => {
+  const result = await rerankResults(
+    "query",
+    rerankHybrid,
+    (id) => `doc ${id}`,
+    50,
+    async () => [0.9], // only 1 score for a 3-item window
+  );
+  assert.deepEqual(result, rerankHybrid, "a length-mismatched scorer result must fall back to the unchanged input");
+});
+
+await testAsync("rerankResults: silent-skip — a throwing getDocText also falls back to the unchanged input", async () => {
+  const result = await rerankResults(
+    "query",
+    rerankHybrid,
+    () => {
+      throw new Error("simulated doc-text lookup failure");
+    },
+    50,
+    async () => [0.1, 0.5, 0.9],
+  );
+  assert.deepEqual(result, rerankHybrid);
+});
+
+await testAsync("rerankResults: an empty/whitespace-only query short-circuits without calling the scorer", () => {
+  let scorerCalled = false;
+  return rerankResults(
+    "   ",
+    rerankHybrid,
+    (id) => `doc ${id}`,
+    50,
+    async () => {
+      scorerCalled = true;
+      return [0.1, 0.5, 0.9];
+    },
+  ).then((result) => {
+    assert.equal(scorerCalled, false, "scoreFn must not be invoked for a blank query");
+    assert.deepEqual(result, rerankHybrid);
+  });
+});
+
+await testAsync("rerankResults: fewer than 2 results short-circuits without calling the scorer", () => {
+  let scorerCalled = false;
+  return rerankResults(
+    "query",
+    [{ id: "only", score: 1 }],
+    (id) => `doc ${id}`,
+    50,
+    async () => {
+      scorerCalled = true;
+      return [0.5];
+    },
+  ).then((result) => {
+    assert.equal(scorerCalled, false, "scoreFn must not be invoked when there's nothing meaningful to reorder");
+    assert.deepEqual(result, [{ id: "only", score: 1 }]);
+  });
 });
 
 // ---- summary ---------------------------------------------------------------

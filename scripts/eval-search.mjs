@@ -15,7 +15,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
-import { buildKeywordIndex, expandSemanticQueries, keywordSearch, multiVectorSearch, runHybridPipeline } from "./lib/search-core.mjs";
+import {
+  buildKeywordIndex,
+  buildRerankDocText,
+  expandSemanticQueries,
+  keywordSearch,
+  multiVectorSearch,
+  RERANK_MODEL,
+  RERANK_WINDOW,
+  rerankResults,
+  runHybridPipeline,
+  warmupReranker,
+} from "./lib/search-core.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const BOOKMARKS_PATH = join(root, "public/data/all-bookmarks.json");
@@ -34,6 +45,11 @@ const [bookmarksPayload, index, goldenQueries] = await Promise.all([
 
 const posts = normalizeBookmarkPayload(bookmarksPayload);
 const postIds = new Set(posts.map((p) => p.id));
+const postsById = new Map(posts.map((p) => [p.id, p]));
+function getRerankDocText(id) {
+  const post = postsById.get(id);
+  return post ? buildRerankDocText(post) : "";
+}
 
 const VALID_PRECISIONS = new Set(["exact", "broad"]);
 const VALID_CLASSES = new Set(["en-topic", "hu-topic", "handle", "article-title", "phrase", "paraphrase"]);
@@ -91,6 +107,20 @@ console.log(`loading embedding model (${index.model})…`);
 const extractor = await pipeline("feature-extraction", index.model);
 const prefix = index.prefix_scheme === "e5" ? "query: " : "";
 
+// Task 11 (T3.2): warm the cross-encoder once, up front, same as the embedding model above
+// — otherwise the first golden query alone would pay the ~23 MB download + load latency.
+console.log("loading cross-encoder reranker (Xenova/ms-marco-MiniLM-L-6-v2)…");
+await warmupReranker();
+
+// NOTE (Task 11 gate honesty): this harness reranks against the RAW golden query text —
+// there is no offline LLM-rewrite step here (fetchQueryRewrites/lib/expand-client.ts is a
+// live network call gated behind a passkey, not something this harness invokes). In
+// production, a broad hu-topic query that gets an LLM English rewrite reranks against that
+// EN string (see components/bookmarks-app.tsx's search effect); here every hu-topic query
+// reranks the EN cross-encoder against the raw Hungarian text instead. So hu-topic numbers
+// in this scorecard are a lower bound on production quality, not a faithful measurement of
+// what ships for real hu-topic searches with a live rewrite service.
+
 async function embedQueries(queries) {
   const embeddings = [];
   for (const q of queries) {
@@ -109,7 +139,8 @@ async function runQuery(query, precision) {
   const expandedQueries = expandSemanticQueries(query, precision);
   const embeddings = await embedQueries(expandedQueries);
   const pooledVectorResults = multiVectorSearch(index, embeddings);
-  return runHybridPipeline(keywordResults, pooledVectorResults, precision, index);
+  const hybridResults = runHybridPipeline(keywordResults, pooledVectorResults, precision, index);
+  return rerankResults(query, hybridResults, getRerankDocText, RERANK_WINDOW);
 }
 
 // ---- metrics: binary relevance, Recall@10 / MRR@10 / nDCG@10 ----
@@ -222,6 +253,7 @@ console.log(
 const baseline = {
   generated_at: new Date().toISOString(),
   model: index.model,
+  rerank_model: RERANK_MODEL,
   index_count: index.count,
   archive_count: posts.length,
   query_count: goldenQueries.length,

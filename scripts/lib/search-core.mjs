@@ -7,6 +7,7 @@
 // lib/bookmark-search.ts.
 
 import lunr from "lunr";
+import { AutoModelForSequenceClassification, AutoTokenizer } from "@huggingface/transformers";
 
 export const HYBRID_WEIGHTS = {
   exact: { keyword: 0.6, vector: 0.4 },
@@ -291,4 +292,142 @@ function dotProduct(a, b) {
     total += (a[index] ?? 0) * (b[index] ?? 0);
   }
   return total;
+}
+
+// ---- Task 11 (T3.2): cross-encoder rerank — Node port of lib/rerank.ts ----------------
+//
+// Node-side loader for the cross-encoder, so scripts/eval-search.mjs's scorecard measures
+// the same shipping behavior as the browser. Uses AutoTokenizer + AutoModelForSequence-
+// Classification directly (not `pipeline("text-classification", ...)`, which does not
+// forward `text_pair` — see the full API probe notes in lib/rerank.ts). `dtype: "q8"` is
+// passed explicitly on this side too: this package's DEFAULT_DEVICE_DTYPE_MAPPING only
+// defaults to "q8" on the "wasm" device, so Node (which does not select "wasm") would
+// otherwise silently download the full ~90 MB fp32 onnx file instead of the ~23 MB
+// quantized one the brief specifies, and score with a different model precision than the
+// browser mirror.
+
+export const RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2";
+export const RERANK_WINDOW = 50;
+
+const CE_BLEND_WEIGHT = 0.6;
+const HYBRID_BLEND_WEIGHT = 0.4;
+const ARTICLE_EXCERPT_CHARS = 300;
+const DOC_TEXT_CHAR_CAP = 1000;
+
+let rerankerPromise = null;
+
+// Retry-on-failure contract (mirrors lib/rerank.ts's loadReranker / the existing
+// extractorPromise pattern in components/bookmarks-app.tsx): a rejected promise must not
+// stay memoized, or one transient load failure would permanently disable rerank for the
+// rest of this process.
+async function loadReranker() {
+  rerankerPromise ??= (async () => {
+    const [tokenizer, model] = await Promise.all([
+      AutoTokenizer.from_pretrained(RERANK_MODEL),
+      AutoModelForSequenceClassification.from_pretrained(RERANK_MODEL, { dtype: "q8" }),
+    ]);
+    return { tokenizer, model };
+  })();
+  try {
+    return await rerankerPromise;
+  } catch (err) {
+    rerankerPromise = null;
+    throw err;
+  }
+}
+
+/** Idle/pre-loop warmup — loads (and memoizes) the cross-encoder without scoring anything. */
+export async function warmupReranker() {
+  try {
+    await loadReranker();
+  } catch {
+    // Silent — rerankResults' own try/catch is the real gate; see lib/rerank.ts's
+    // warmupReranker doc comment for why a failed warmup is not retried here.
+  }
+}
+
+function sigmoid(logit) {
+  return 1 / (1 + Math.exp(-logit));
+}
+
+/**
+ * Default scorer: the real cross-encoder. Exposed separately (mirrors lib/rerank.ts's
+ * `scoreWithCrossEncoder`) so scripts/test-search-core.mjs can inject a stub `scoreFn` into
+ * `rerankResults` and exercise the blend math without loading the real model.
+ */
+export async function scoreWithCrossEncoder(query, docTexts) {
+  const { tokenizer, model } = await loadReranker();
+  const inputs = tokenizer(
+    docTexts.map(() => query),
+    { text_pair: docTexts, padding: true, truncation: true },
+  );
+  const output = await model(inputs);
+  return Array.from(output.logits.data).map(sigmoid);
+}
+
+/**
+ * Min-max normalize a score array into [0, 1]. Ties (max === min, including the
+ * single-element and all-equal cases) collapse to a neutral 0.5 for every entry — see
+ * lib/rerank.ts's minMaxNormalize doc comment for the rationale. Verbatim mirror.
+ */
+export function minMaxNormalize(values) {
+  if (!values.length) return values;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (max - min < 1e-9) return values.map(() => 0.5);
+  return values.map((v) => (v - min) / (max - min));
+}
+
+/**
+ * Doc text fed to the cross-encoder: post text + articleTitle + first
+ * ARTICLE_EXCERPT_CHARS chars of articleText + quoted tweet text, whitespace-collapsed and
+ * capped at DOC_TEXT_CHAR_CAP chars. Verbatim mirror of lib/rerank.ts's buildRerankDocText.
+ */
+export function buildRerankDocText(post) {
+  const parts = [
+    post.text,
+    post.articleTitle,
+    post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,
+    post.quotedTweet?.text,
+  ].filter(Boolean);
+  const collapsed = parts.join(" ").replace(/\s+/g, " ").trim();
+  return collapsed.slice(0, DOC_TEXT_CHAR_CAP);
+}
+
+/**
+ * Cross-encoder rerank of the top `limit` hybrid results. Verbatim mirror of
+ * lib/rerank.ts's rerankResults: min-max normalizes BOTH the cross-encoder scores and the
+ * incoming hybrid scores over the window, blends CE_BLEND_WEIGHT*ce + HYBRID_BLEND_WEIGHT*
+ * hybrid, re-sorts the window, appends the untouched tail. Silent-skip on any failure
+ * (model load, tokenization, inference, or a scoreFn length mismatch) — returns `results`
+ * unchanged, logs once via console.debug, never throws.
+ */
+export async function rerankResults(query, results, getDocText, limit = RERANK_WINDOW, scoreFn = scoreWithCrossEncoder) {
+  const trimmedQuery = (query ?? "").trim();
+  if (!trimmedQuery || results.length < 2) return results;
+
+  const window = results.slice(0, limit);
+  const tail = results.slice(limit);
+
+  try {
+    const docTexts = window.map((r) => getDocText(r.id));
+    const ceScoresRaw = await scoreFn(trimmedQuery, docTexts);
+    if (!Array.isArray(ceScoresRaw) || ceScoresRaw.length !== window.length) {
+      throw new Error(
+        `rerank: scoreFn returned ${Array.isArray(ceScoresRaw) ? ceScoresRaw.length : typeof ceScoresRaw} scores for a window of ${window.length}`,
+      );
+    }
+
+    const ceNorm = minMaxNormalize(ceScoresRaw);
+    const hybridNorm = minMaxNormalize(window.map((r) => r.score));
+
+    const blended = window
+      .map((r, i) => ({ id: r.id, score: CE_BLEND_WEIGHT * ceNorm[i] + HYBRID_BLEND_WEIGHT * hybridNorm[i] }))
+      .sort((a, b) => b.score - a.score);
+
+    return [...blended, ...tail];
+  } catch (err) {
+    console.debug("[rerank] skipped:", err?.message ?? err);
+    return results;
+  }
 }

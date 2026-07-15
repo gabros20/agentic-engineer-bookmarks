@@ -1,21 +1,22 @@
 {
-  "generated_at": "2026-07-15T14:10:31.390Z",
+  "generated_at": "2026-07-15T15:26:30.829Z",
   "model": "Xenova/multilingual-e5-small",
+  "rerank_model": "Xenova/ms-marco-MiniLM-L-6-v2",
   "index_count": 5370,
   "archive_count": 5370,
   "query_count": 32,
   "overall": {
     "n": 32,
-    "recall10": 0.6458,
-    "mrr10": 0.4361,
-    "ndcg10": 0.4718
+    "recall10": 0.6042,
+    "mrr10": 0.4676,
+    "ndcg10": 0.486
   },
   "by_class": {
     "article-title": {
       "n": 4,
       "recall10": 1,
-      "mrr10": 0.6125,
-      "ndcg10": 0.7044
+      "mrr10": 0.7083,
+      "ndcg10": 0.7827
     },
     "en-topic": {
       "n": 8,
@@ -25,27 +26,27 @@
     },
     "handle": {
       "n": 4,
-      "recall10": 0.6667,
-      "mrr10": 0.2083,
-      "ndcg10": 0.3269
+      "recall10": 0.5833,
+      "mrr10": 0.1924,
+      "ndcg10": 0.2847
     },
     "hu-topic": {
       "n": 5,
       "recall10": 0.2,
-      "mrr10": 0.0333,
-      "ndcg10": 0.0712
+      "mrr10": 0.0222,
+      "ndcg10": 0.0602
     },
     "paraphrase": {
       "n": 4,
-      "recall10": 0.5,
-      "mrr10": 0.2778,
-      "ndcg10": 0.3253
+      "recall10": 0.25,
+      "mrr10": 0.25,
+      "ndcg10": 0.25
     },
     "phrase": {
       "n": 7,
       "recall10": 1,
-      "mrr10": 0.699,
-      "ndcg10": 0.7707
+      "mrr10": 0.8214,
+      "ndcg10": 0.8659
     }
   },
   "broad_tail": {
@@ -140,8 +141,8 @@
       "class": "hu-topic",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.16666666666666666,
-      "ndcg10": 0.3562071871080222,
+      "mrr10": 0.1111111111111111,
+      "ndcg10": 0.3010299956639812,
       "resultCount": 13
     },
     {
@@ -176,8 +177,8 @@
       "class": "handle",
       "precision": "exact",
       "recall10": 0.6666666666666666,
-      "mrr10": 0.25,
-      "ndcg10": 0.35853358850813305,
+      "mrr10": 0.2,
+      "ndcg10": 0.3379680345449381,
       "resultCount": 34
     },
     {
@@ -193,9 +194,9 @@
       "query": "rauchg",
       "class": "handle",
       "precision": "exact",
-      "recall10": 1,
-      "mrr10": 0.125,
-      "ndcg10": 0.42495990177520937,
+      "recall10": 0.6666666666666666,
+      "mrr10": 0.1111111111111111,
+      "ndcg10": 0.2769189462922768,
       "resultCount": 31
     },
     {
@@ -212,8 +213,8 @@
       "class": "article-title",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 1,
-      "ndcg10": 1,
+      "mrr10": 0.5,
+      "ndcg10": 0.6309297535714575,
       "resultCount": 48
     },
     {
@@ -221,8 +222,8 @@
       "class": "article-title",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.2,
-      "ndcg10": 0.38685280723454163,
+      "mrr10": 0.3333333333333333,
+      "ndcg10": 0.5,
       "resultCount": 45
     },
     {
@@ -239,8 +240,8 @@
       "class": "article-title",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.25,
-      "ndcg10": 0.43067655807339306,
+      "mrr10": 1,
+      "ndcg10": 1,
       "resultCount": 59
     },
     {
@@ -275,8 +276,8 @@
       "class": "phrase",
       "precision": "exact",
       "recall10": 1,
-      "mrr10": 0.14285714285714285,
-      "ndcg10": 0.3333333333333333,
+      "mrr10": 0.25,
+      "ndcg10": 0.43067655807339306,
       "resultCount": 40
     },
     {
@@ -284,8 +285,8 @@
       "class": "phrase",
       "precision": "exact",
       "recall10": 1,
-      "mrr10": 0.25,
-      "ndcg10": 0.43067655807339306,
+      "mrr10": 1,
+      "ndcg10": 1,
       "resultCount": 35
     },
     {
@@ -328,9 +329,9 @@
       "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
       "class": "paraphrase",
       "precision": "broad",
-      "recall10": 1,
-      "mrr10": 0.1111111111111111,
-      "ndcg10": 0.3010299956639812,
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
       "resultCount": 40
     },
     {
