@@ -31,6 +31,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
+import { queryPrefix } from "./lib/embed.mjs";
 import {
   applyAbsoluteVectorFloor,
   applyRelativeFloor,
@@ -81,7 +82,7 @@ const keywordIndex = buildKeywordIndex(posts);
 
 console.log(`loading embedding model (${index.model})…`);
 const extractor = await pipeline("feature-extraction", index.model);
-const prefix = index.prefix_scheme === "e5" ? "query: " : "";
+const prefix = queryPrefix(index);
 
 async function embedQueries(queries) {
   const embeddings = [];

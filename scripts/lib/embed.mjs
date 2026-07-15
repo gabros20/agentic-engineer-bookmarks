@@ -8,6 +8,19 @@ export const EMBED_MODEL = "Xenova/multilingual-e5-small";
 export const PREFIX_SCHEME = "e5";
 
 /**
+ * e5 asymmetric QUERY-side prefix for a given (loaded) search index, or an index-shaped
+ * object: "" for a v1 (MiniLM, no `prefix_scheme`) index, "query: " for an "e5" index.
+ * Single source for the ternary that used to be copy-pasted at every query-embedding call
+ * site (components/bookmarks-app.tsx's embedQueries, scripts/eval-search.mjs,
+ * scripts/calibrate-floors.mjs, scripts/bookmark-search.mjs) — Task 14 single-sourcing.
+ * Mirrors PREFIX_SCHEME's document-side "passage: " (see passageText below): documents
+ * always get "passage: ", queries only get "query: " when the loaded index says e5.
+ */
+export function queryPrefix(indexLike) {
+  return indexLike?.prefix_scheme === "e5" ? "query: " : "";
+}
+
+/**
  * Registrable domains for a post's URLs (dedupe-preserving-order, `www.` stripped,
  * internal x.com/twitter.com links dropped — tweet permalinks and i/article/... links
  * carry no semantic value for the embedder). Malformed URLs are silently dropped rather

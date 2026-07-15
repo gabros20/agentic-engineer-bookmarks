@@ -38,6 +38,7 @@ import {
 import { buildRerankDocText, RERANK_WINDOW, rerankResults, warmupReranker } from "@/lib/rerank";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
+import { queryPrefix } from "@/scripts/lib/embed";
 import type { ProgressInfo } from "@huggingface/transformers";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
@@ -186,6 +187,8 @@ function formatOperatorDate(date: Date) {
 // Prefix threading is keyed off the loaded index's `prefix_scheme` field, never off the
 // model name — an old (v1 MiniLM) index has no `prefix_scheme` and gets zero prefix, so the
 // client stays byte-identical against it. Only a new "e5" index gets "query: " prepended.
+// queryPrefix is the single source for this ternary (Task 14) — also used by
+// scripts/eval-search.mjs, scripts/calibrate-floors.mjs, and scripts/bookmark-search.mjs.
 async function embedQueries(queries: string[], index: SearchIndexPayload) {
   const { pipeline } = await import("@huggingface/transformers");
   extractorPromise ??= pipeline("feature-extraction", index.model, { progress_callback: handleModelProgress });
@@ -193,7 +196,7 @@ async function embedQueries(queries: string[], index: SearchIndexPayload) {
     text: string,
     options: { pooling: "mean"; normalize: boolean },
   ) => Promise<{ data: Iterable<number> }>;
-  const prefix = index.prefix_scheme === "e5" ? "query: " : "";
+  const prefix = queryPrefix(index);
   const embeddings: number[][] = [];
 
   for (const query of queries) {

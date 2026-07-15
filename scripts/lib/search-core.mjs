@@ -4,10 +4,21 @@
 // search, hybrid merge, relative floor, and the runHybridPipeline wiring function) so
 // scripts/eval-search.mjs can run the exact production pipeline over the real data in
 // plain Node, without a browser/React runtime. Constants below are copied VERBATIM from
-// lib/bookmark-search.ts.
+// lib/bookmark-search.ts EXCEPT searchText, which is imported from ./embed.mjs (the single
+// canonical home — Task 14) rather than copied a third time.
 
 import lunr from "lunr";
 import { AutoModelForSequenceClassification, AutoTokenizer } from "@huggingface/transformers";
+import { searchText } from "./embed.mjs";
+
+// Task 14 single-sourcing: searchText used to be a byte-for-byte copy of
+// lib/bookmark-search.ts's version here; that TS copy now itself re-exports
+// scripts/lib/embed.mjs's searchText (the canonical home — see that file and
+// lib/bookmark-search.ts's doc comment), so this file imports the same function directly
+// instead of carrying a third copy. Not called by anything else in this file (buildKeywordIndex
+// below builds its lunr fields inline, not through searchText) — re-exported purely so any
+// existing importer of `search-core.mjs`'s searchText keeps working unchanged.
+export { searchText };
 
 export const HYBRID_WEIGHTS = {
   exact: { keyword: 0.6, vector: 0.4 },
@@ -30,22 +41,6 @@ export const QUERY_EXPANSIONS = {
   tool: ["tools", "cli", "mcp", "extension", "workflow", "automation"],
   tools: ["tool", "cli", "mcp", "extensions", "workflow", "automation"],
 };
-
-export function searchText(post) {
-  return [
-    post.text,
-    post.articleTitle,
-    post.articleText,
-    post.author.name,
-    post.author.screenName,
-    ...(post.urls ?? []),
-    post.quotedTweet?.text,
-    post.quotedTweet?.author?.name,
-    post.quotedTweet?.author?.screenName,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 // Cap the article body fed into lunr: article bodies are median ~1.7k WORDS, and lunr
 // indexes at build time in the browser on ~5,370 posts per page load — indexing full

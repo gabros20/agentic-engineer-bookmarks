@@ -1,6 +1,18 @@
 import lunr from "lunr";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 
+// Task 14 single-sourcing: searchText used to be re-declared here, drifted from
+// scripts/lib/embed.mjs's copy (this one joined raw post.urls with "\n"; embed.mjs's
+// collapses whitespace and reduces urls to registrable domains — Task 5). embed.mjs is the
+// canonical home (it's also the text the embedder actually indexes against), so this is now
+// a straight re-export via the typed wrapper (scripts/lib/embed.d.ts — see that file for why
+// the extension-less specifier). Behavior change, scoped to this module's callers: any
+// caller of lib/bookmark-search.ts's `searchText` (currently none inside this app — it's
+// exported for the keyword-only fallback path/external use) now sees post.urls as domains,
+// not raw URLs, matching what actually gets embedded/what scripts/bookmark-search.mjs (the
+// CLI, also rebuilt on embed.mjs in Task 14) produces. Acceptable and noted per the brief.
+export { searchText } from "@/scripts/lib/embed";
+
 export type SearchIndexPayload = {
   ok: boolean;
   schema_version: string;
@@ -47,22 +59,6 @@ const QUERY_EXPANSIONS: Record<string, string[]> = {
   tool: ["tools", "cli", "mcp", "extension", "workflow", "automation"],
   tools: ["tool", "cli", "mcp", "extensions", "workflow", "automation"],
 };
-
-export function searchText(post: BookmarkPost) {
-  return [
-    post.text,
-    post.articleTitle,
-    post.articleText,
-    post.author.name,
-    post.author.screenName,
-    ...(post.urls ?? []),
-    post.quotedTweet?.text,
-    post.quotedTweet?.author?.name,
-    post.quotedTweet?.author?.screenName,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 // Cap the article body fed into lunr: article bodies are median ~1.7k WORDS, and lunr
 // indexes at build time in the browser on ~5,370 posts per page load — indexing full
