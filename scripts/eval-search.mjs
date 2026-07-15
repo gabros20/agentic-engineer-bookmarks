@@ -15,17 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "@huggingface/transformers";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
-import {
-  applyAbsoluteVectorFloor,
-  applyRelativeFloor,
-  BROAD_MERGED_RELATIVE_FLOOR,
-  BROAD_VECTOR_COSINE_FLOOR,
-  buildKeywordIndex,
-  expandSemanticQueries,
-  keywordSearch,
-  mergeHybridResults,
-  multiVectorSearch,
-} from "./lib/search-core.mjs";
+import { buildKeywordIndex, expandSemanticQueries, keywordSearch, multiVectorSearch, runHybridPipeline } from "./lib/search-core.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const BOOKMARKS_PATH = join(root, "public/data/all-bookmarks.json");
@@ -34,8 +24,6 @@ const QUERIES_PATH = join(root, "scripts/eval-queries.json");
 const BASELINE_PATH = join(root, "scripts/eval-baseline.json");
 
 const TOP_K = 10;
-const VECTOR_SLICE = 900; // matches components/bookmarks-app.tsx:256
-const EXACT_FLOOR = 0.5; // matches components/bookmarks-app.tsx:258
 
 console.log("loading data…");
 const [bookmarksPayload, index, goldenQueries] = await Promise.all([
@@ -112,27 +100,16 @@ async function embedQueries(queries) {
   return embeddings;
 }
 
-// ---- run the pipeline per golden query, exactly as components/bookmarks-app.tsx does ----
-
-// Broad-mode relevance floors (T1.3): only active against the v2 e5 index — see
-// BROAD_VECTOR_COSINE_FLOOR / BROAD_MERGED_RELATIVE_FLOOR in scripts/lib/search-core.mjs.
-// Pipeline order for broad mode: pooled vector results -> absolute floor -> slice(0,900)
-// -> RRF merge -> relative floor. Exact mode is untouched (keeps its 0.5 relative floor).
-const FLOORS_ACTIVE = index.prefix_scheme === "e5";
+// ---- run the pipeline per golden query, via the shared runHybridPipeline (same function,
+// same name, as lib/bookmark-search.ts / components/bookmarks-app.tsx use — see
+// review-task6-quality-r1 F2) ----
 
 async function runQuery(query, precision) {
   const keywordResults = keywordSearch(keywordIndex, query);
   const expandedQueries = expandSemanticQueries(query, precision);
   const embeddings = await embedQueries(expandedQueries);
   const pooledVectorResults = multiVectorSearch(index, embeddings);
-  const vectorResults = (
-    precision === "broad" && FLOORS_ACTIVE
-      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
-      : pooledVectorResults
-  ).slice(0, VECTOR_SLICE);
-  const merged = mergeHybridResults(keywordResults, vectorResults, precision);
-  if (precision === "exact") return applyRelativeFloor(merged, EXACT_FLOOR);
-  return FLOORS_ACTIVE ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR) : merged;
+  return runHybridPipeline(keywordResults, pooledVectorResults, precision, index);
 }
 
 // ---- metrics: binary relevance, Recall@10 / MRR@10 / nDCG@10 ----

@@ -25,15 +25,11 @@ import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
 import type { UIMessage } from "ai";
 import {
-  applyAbsoluteVectorFloor,
-  applyRelativeFloor,
-  BROAD_MERGED_RELATIVE_FLOOR,
-  BROAD_VECTOR_COSINE_FLOOR,
   buildKeywordIndex,
   expandSemanticQueries,
   keywordSearch,
-  mergeHybridResults,
   multiVectorSearch,
+  runHybridPipeline,
   type SearchIndexPayload,
   type SearchPrecision,
 } from "@/lib/bookmark-search";
@@ -92,29 +88,6 @@ async function embedQueries(queries: string[], index: SearchIndexPayload) {
   }
 
   return embeddings;
-}
-
-// Shared by the main search effect and runChatSearch so both wiring sites stay in
-// lockstep (same order of operations as scripts/eval-search.mjs). Broad-mode floors
-// (T1.3) are gated the same way prefix threading is — off `prefix_scheme === "e5"`, so a
-// v1 (MiniLM) index sees unchanged, unfloored behavior. Order for broad mode: pooled
-// vector results -> absolute floor -> slice(0,900) -> RRF merge -> relative floor. Exact
-// mode is untouched — it keeps its existing hardcoded 0.5 relative floor.
-function runHybridPipeline(
-  keywordResults: { id: string; score: number }[],
-  pooledVectorResults: { id: string; score: number }[],
-  precision: SearchPrecision,
-  index: SearchIndexPayload,
-) {
-  const floorsActive = index.prefix_scheme === "e5";
-  const vectorResults = (
-    precision === "broad" && floorsActive
-      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
-      : pooledVectorResults
-  ).slice(0, 900);
-  const merged = mergeHybridResults(keywordResults, vectorResults, precision);
-  if (precision === "exact") return applyRelativeFloor(merged, 0.5);
-  return floorsActive ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR) : merged;
 }
 
 export function BookmarksApp() {

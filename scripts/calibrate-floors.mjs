@@ -8,9 +8,19 @@
 //
 // For each grid cell (absolute cosine floor x relative merged floor) it replays the
 // broad-mode pipeline over the precomputed data — absolute floor -> slice(0,900) -> RRF
-// merge -> relative floor — exactly matching the order wired into
-// components/bookmarks-app.tsx and scripts/eval-search.mjs. Exact-mode queries are
-// unaffected by either floor (computed once, reused for every cell).
+// merge -> relative floor (with the BROAD_FLOOR_MIN_KEEP always-keep guard applied to the
+// relative floor, review-task6-quality-r1 F1) — exactly matching the order wired into
+// lib/bookmark-search.ts's runHybridPipeline (components/bookmarks-app.tsx,
+// scripts/eval-search.mjs). Exact-mode queries are unaffected by either floor (computed
+// once, reused for every cell).
+//
+// NOTE: sweeps run before minKeep was introduced (e.g. the recorded
+// .orchestrate/raw/task6-sweep.json that selected BROAD_VECTOR_COSINE_FLOOR=0.82,
+// BROAD_MERGED_RELATIVE_FLOOR=0.5) are still valid for those chosen constants — minKeep
+// only ever ADDS results back into the top ranks that the relative floor would have
+// dropped, so recall@10/mrr@10 for the selected cell can only improve, never regress,
+// versus what that pre-minKeep sweep measured. Re-run this script if you need fresh
+// broad-tail medians/p90s that reflect minKeep.
 //
 // Prints the sweep table, writes the full grid to .orchestrate/raw/task6-sweep.json
 // (not committed — regenerable), and prints the selected cell + rationale per the
@@ -24,6 +34,7 @@ import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import {
   applyAbsoluteVectorFloor,
   applyRelativeFloor,
+  BROAD_FLOOR_MIN_KEEP,
   buildKeywordIndex,
   expandSemanticQueries,
   keywordSearch,
@@ -163,7 +174,7 @@ function runCell(absFloor, relFloor) {
       const afterAbs = absFloor ? applyAbsoluteVectorFloor(entry.pooledVectorResults, absFloor) : entry.pooledVectorResults;
       const vectorResults = afterAbs.slice(0, VECTOR_SLICE);
       const merged = mergeHybridResults(entry.keywordResults, vectorResults, "broad");
-      ranked = relFloor ? applyRelativeFloor(merged, relFloor) : merged;
+      ranked = relFloor ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
       broadResultCounts.push(ranked.length);
     }
     const relevantIds = q.relevant.map((r) => r.id);

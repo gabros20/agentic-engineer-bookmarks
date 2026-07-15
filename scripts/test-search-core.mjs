@@ -440,6 +440,35 @@ test("applyRelativeFloor: filters merged RRF scores to a fraction of the top sco
   );
 });
 
+test("applyRelativeFloor: minKeep guard keeps below-floor results within the first minKeep ranks (review-task6-quality-r1 F1)", () => {
+  const results = [
+    { id: "rank1", score: 1 },
+    { id: "rank2", score: 0.01 }, // far below the 0.5 floor, but rank 2 of a minKeep=3 guard
+    { id: "rank3", score: 0.01 }, // far below the 0.5 floor, but rank 3 of a minKeep=3 guard (last protected rank)
+  ];
+  const floored = applyRelativeFloor(results, 0.5, 3);
+  assert.deepEqual(
+    floored.map((r) => r.id),
+    ["rank1", "rank2", "rank3"],
+    "a below-floor result ranked within the first minKeep positions should survive",
+  );
+});
+
+test("applyRelativeFloor: minKeep guard does not protect rank minKeep+1 — a below-floor result there is still dropped", () => {
+  const results = [
+    { id: "rank1", score: 1 },
+    { id: "rank2", score: 0.01 },
+    { id: "rank3", score: 0.01 },
+    { id: "rank4", score: 0.01 }, // rank 4 = minKeep(3)+1, below floor, outside the guard -> dropped
+  ];
+  const floored = applyRelativeFloor(results, 0.5, 3);
+  assert.deepEqual(
+    floored.map((r) => r.id),
+    ["rank1", "rank2", "rank3"],
+    "a below-floor result at rank minKeep+1 should still be dropped by the floor",
+  );
+});
+
 // ---- summary ---------------------------------------------------------------
 
 console.log(`\n${pass} passed, ${fail} failed`);

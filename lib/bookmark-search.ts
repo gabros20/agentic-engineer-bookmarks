@@ -216,12 +216,17 @@ export function expandSemanticQueries(query: string, precision: SearchPrecision 
   return [...expansions].filter(Boolean).slice(0, 8);
 }
 
-export function applyRelativeFloor(results: SearchResult[], fraction: number) {
+/**
+ * Filter merged RRF results to those scoring >= fraction * topScore. `minKeep` (default 0,
+ * i.e. current/prior behavior) always keeps results ranked before that index regardless of
+ * the floor — see BROAD_FLOOR_MIN_KEEP below for why (review-task6-quality-r1 F1).
+ */
+export function applyRelativeFloor(results: SearchResult[], fraction: number, minKeep = 0) {
   if (!results.length || fraction <= 0) return results;
   const top = results[0].score;
   if (top <= 0) return results;
   const floor = top * fraction;
-  return results.filter((r) => r.score >= floor);
+  return results.filter((r, i) => i < minKeep || r.score >= floor);
 }
 
 // Item embeddings on disk are int8-quantized (scripts/lib/embed.mjs `quantizeToInt8`):
@@ -249,6 +254,16 @@ export const BROAD_VECTOR_COSINE_FLOOR = 0.82;
 export const BROAD_MERGED_RELATIVE_FLOOR = 0.5;
 
 /**
+ * Structural guard against RRF-relative-floor false negatives (review-task6-quality-r1
+ * F1): an item ranking #1 in keyword but absent from the vector list (filtered out by
+ * BROAD_VECTOR_COSINE_FLOOR) can score as low as ~0.35x the top merged RRF score, which is
+ * below BROAD_MERGED_RELATIVE_FLOOR (0.5) — a legitimate top-rank keyword-only hit would
+ * get dropped entirely. Always keeping the first 10 merged ranks regardless of the floor
+ * closes that gap while leaving the floor's tail-shrinking behavior intact elsewhere.
+ */
+export const BROAD_FLOOR_MIN_KEEP = 10;
+
+/**
  * Filter pooled per-id vector results (the output of vectorSearch/multiVectorSearch) to
  * those whose cosine similarity to the query is >= cosineFloor. Scale-aware: item
  * embeddings are int8-quantized, so the raw score is compared against
@@ -259,6 +274,34 @@ export function applyAbsoluteVectorFloor(results: SearchResult[], cosineFloor: n
   if (!cosineFloor || cosineFloor <= 0) return results;
   const floor = cosineFloor * INT8_VECTOR_SCALE;
   return results.filter((r) => r.score >= floor);
+}
+
+/**
+ * Runs the full hybrid pipeline: absolute vector floor (broad mode, e5 index only) ->
+ * slice(0,900) -> RRF merge -> relative floor. Shared by the client (components/
+ * bookmarks-app.tsx, both the main search effect and runChatSearch) and mirrored
+ * verbatim as scripts/lib/search-core.mjs's runHybridPipeline so scripts/eval-search.mjs
+ * runs the identical pipeline (review-task6-quality-r1 F2 — this used to live directly in
+ * bookmarks-app.tsx, breaking the lib/mirror convention). Broad-mode floors (T1.3) are
+ * gated off `prefix_scheme === "e5"`, so a v1 (MiniLM) index sees unchanged, unfloored
+ * behavior. Broad mode's relative floor applies BROAD_FLOOR_MIN_KEEP (review-task6-quality-r1
+ * F1); exact mode keeps its existing hardcoded 0.5 relative floor untouched, no minKeep.
+ */
+export function runHybridPipeline(
+  keywordResults: SearchResult[],
+  pooledVectorResults: SearchResult[],
+  precision: SearchPrecision,
+  index: SearchIndexPayload,
+) {
+  const floorsActive = index.prefix_scheme === "e5";
+  const vectorResults = (
+    precision === "broad" && floorsActive
+      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
+      : pooledVectorResults
+  ).slice(0, 900);
+  const merged = mergeHybridResults(keywordResults, vectorResults, precision);
+  if (precision === "exact") return applyRelativeFloor(merged, 0.5);
+  return floorsActive ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR, BROAD_FLOOR_MIN_KEEP) : merged;
 }
 
 function addReciprocalRanks(scores: Map<string, number>, results: SearchResult[], weight: number) {
