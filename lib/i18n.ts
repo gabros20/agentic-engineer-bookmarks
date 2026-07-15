@@ -27,6 +27,7 @@ export const messages = {
     "search.precision.exact": "Exact",
     "search.precision.broad": "Broad",
     "search.precision.aria": "Search precision",
+    "search.operator.aria.remove": "Remove filter: {label}",
 
     "sort.newest": "Newest",
     "sort.oldest": "Oldest",
@@ -120,6 +121,7 @@ export const messages = {
     "search.precision.exact": "Pontos",
     "search.precision.broad": "Kiterjesztett",
     "search.precision.aria": "Keresési pontosság",
+    "search.operator.aria.remove": "Szűrő eltávolítása: {label}",
 
     "sort.newest": "Legújabb",
     "sort.oldest": "Legrégebbi",

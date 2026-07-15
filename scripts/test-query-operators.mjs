@@ -108,6 +108,58 @@ test("operator keywords are case-insensitive (FROM:/Before:/AFTER:)", () => {
   assert.ok(operators.after instanceof Date);
 });
 
+// ---- from: sanitization against trailing/enclosing punctuation (C1 fix) -----
+
+test("from: with a trailing comma (naturally typed sentence end) yields a clean handle and residual", () => {
+  const { text, operators } = parseQueryOperators("from:simonw, agents");
+  assert.equal(operators.from, "simonw");
+  assert.equal(operators.invalid.length, 0);
+  assert.equal(text, "agents");
+});
+
+test("from: with a leading @ and trailing period yields a clean handle and residual", () => {
+  const { text, operators } = parseQueryOperators("from:@simonw. agents");
+  assert.equal(operators.from, "simonw");
+  assert.equal(operators.invalid.length, 0);
+  assert.equal(text, "agents");
+});
+
+test("from: wrapped in parens is fully consumed — no orphaned paren leaks into residual", () => {
+  const { text, operators } = parseQueryOperators("(from:simonw) agents");
+  assert.equal(operators.from, "simonw");
+  assert.equal(operators.invalid.length, 0);
+  assert.equal(text, "agents", "residual must be exactly 'agents' — no stray '(' or ')'");
+});
+
+test("from: wrapped in parens (operator second) is fully consumed either way round", () => {
+  const { text, operators } = parseQueryOperators("agents (from:simonw)");
+  assert.equal(operators.from, "simonw");
+  assert.equal(text, "agents");
+});
+
+test("from: wrapped in double quotes is fully consumed — no orphaned quote leaks into residual", () => {
+  const { text, operators } = parseQueryOperators('"from:simonw" agents');
+  assert.equal(operators.from, "simonw");
+  assert.equal(operators.invalid.length, 0);
+  assert.equal(text, "agents");
+});
+
+test("from: with an all-punctuation value is invalid (bad-handle), not silently accepted", () => {
+  const { operators } = parseQueryOperators("from:??? agents");
+  assert.equal(operators.from, undefined);
+  assert.equal(operators.invalid.length, 1);
+  assert.equal(operators.invalid[0].reason, "bad-handle");
+  assert.equal(operators.invalid[0].token, "from:???");
+});
+
+test("from: with interior-invalid characters is invalid (bad-handle), not truncated into a fake handle", () => {
+  const { operators } = parseQueryOperators("from:si+mon agents");
+  assert.equal(operators.from, undefined);
+  assert.equal(operators.invalid.length, 1);
+  assert.equal(operators.invalid[0].reason, "bad-handle");
+  assert.equal(operators.invalid[0].token, "from:si+mon");
+});
+
 // ---- chip removal helpers ---------------------------------------------------
 
 test("removeOperatorTokens: strips every occurrence of a kind, keeps other text and other operators", () => {

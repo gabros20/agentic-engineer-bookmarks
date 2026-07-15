@@ -969,26 +969,36 @@ export function BookmarksApp() {
           </div>
         </label>
 
-        {operatorChips.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {operatorChips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={chip.onRemove}
-                title={chip.title}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition ${
-                  chip.invalid
-                    ? "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
-                    : "border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)]"
-                }`}
-              >
-                <span>{chip.label}</span>
-                <XIcon size={10} />
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {operatorChips.length > 0 ? (
+            <motion.div
+              key="operator-chips"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              {operatorChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.onRemove}
+                  title={chip.title}
+                  aria-label={t("search.operator.aria.remove", { label: chip.label })}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition ${
+                    chip.invalid
+                      ? "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
+                      : "border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)]"
+                  }`}
+                >
+                  <span>{chip.label}</span>
+                  <XIcon size={10} />
+                </button>
+              ))}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 sm:gap-2">
           <OptionSelect

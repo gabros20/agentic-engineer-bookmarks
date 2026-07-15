@@ -5,7 +5,7 @@
 // scripts/test-query-operators.mjs can exercise the same logic in plain Node (same
 // lib/*.ts <-> scripts/lib/*.mjs convention as lib/bookmark-search.ts / search-core.mjs).
 
-export type OperatorInvalidReason = "bad-date" | "unknown";
+export type OperatorInvalidReason = "bad-date" | "bad-handle" | "unknown";
 
 export type QueryOperators = {
   from?: string;
@@ -22,10 +22,25 @@ export type ParsedQuery = {
 // Matches `keyword:value` where value is any run of non-whitespace (so `from:@simonw`,
 // `before:2026-04-15`, `after:2026-04` all match; a bare `before:` with nothing after it
 // does NOT match — \S+ requires at least one char — and is left as plain residual text).
-const OPERATOR_TOKEN_RE = /\b(from|before|after):(\S+)/gi;
+//
+// `from:` gets its own alternative with an optional leading "wrapper" capture group
+// (`(`, `"`, `'`, `[`, `{`) so a mention typed as `(from:simonw)` or `"from:simonw"` can be
+// fully consumed — wrapper char included — instead of leaving an orphaned opening
+// paren/quote behind in the residual text once the matching closer gets stripped off the
+// handle value (see the `from` branch below). `before`/`after` are intentionally left on
+// the unchanged, unwrapped alternative — their invalid-date handling is untouched.
+const OPERATOR_TOKEN_RE = /([("'[{])?\bfrom:(\S+)|\b(before|after):(\S+)/gi;
 
 const YYYY_MM_DD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const YYYY_MM_RE = /^\d{4}-\d{2}$/;
+
+// A valid X/Twitter handle shape once `@` and enclosing punctuation are stripped.
+const HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
+
+// Wrapper opener -> its matching closer, used to decide whether a leading wrapper char
+// captured by OPERATOR_TOKEN_RE should be dropped (it was genuinely wrapping just the
+// handle) or kept in the residual text (it wraps something bigger than the handle alone).
+const WRAPPER_CLOSERS: Record<string, string> = { "(": ")", '"': '"', "'": "'", "[": "]", "{": "}" };
 
 /**
  * Parse `YYYY-MM-DD` or `YYYY-MM` into a UTC midnight Date. `YYYY-MM` is treated as the
@@ -65,10 +80,25 @@ function parseOperatorDate(value: string): Date | null {
  * excludes all of April itself, not just the given day. Post date source is
  * `createdAtISO ?? createdAt` (applied by the caller, see components/bookmarks-app.tsx).
  *
- * `from:` strips a leading `@` and lowercases (matched against
- * `post.author.screenName.toLowerCase()`, exact — not substring). Multiple `from:` tokens:
- * LAST one wins (matches the regex's left-to-right match order, so later assignments
- * naturally overwrite earlier ones).
+ * `from:` strips a leading `@`, then trims any run of non-handle characters (anything
+ * outside `[A-Za-z0-9_]`) off both ends of what's left — this is what protects against
+ * trailing/enclosing punctuation a person types naturally (`from:simonw,`, `from:@simonw.`,
+ * `(from:simonw)`, `"from:simonw"`) from becoming part of the stored handle. If the
+ * trimmed remainder matches `/^[A-Za-z0-9_]{1,15}$/` (X/Twitter handle shape) it's a valid
+ * handle, lowercased and matched against `post.author.screenName.toLowerCase()` (exact —
+ * not substring). If nothing valid remains (empty, or still-invalid interior characters
+ * like `from:si+mon`), the whole token is recorded in `operators.invalid` with reason
+ * `"bad-handle"` instead — same invalid-chip path as a bad date, so a `from:` typo is never
+ * silently treated as a working (but unmatchable) filter. Multiple `from:` tokens: LAST
+ * valid-or-invalid one wins (matches the regex's left-to-right match order, so later
+ * assignments naturally overwrite earlier ones).
+ *
+ * Either way, the whole matched token (including any wrapping punctuation captured by
+ * OPERATOR_TOKEN_RE's leading-wrapper group) leaves the residual text — see the `from`
+ * branch below for how a leading `(`/`"`/etc. is dropped only when it's paired with the
+ * matching closer that got trimmed off the tail of the value, so it never leaks into the
+ * text sent to hybrid search/embedding, but a wrapper around a *bigger* phrase than just
+ * the handle is left alone.
  *
  * An unparseable `before:`/`after:` date is recorded in `operators.invalid` (reason
  * `"bad-date"`) and still removed from the residual text either way — an invalid operator
@@ -83,22 +113,40 @@ export function parseQueryOperators(raw: string): ParsedQuery {
   let after: Date | undefined;
 
   const text = raw
-    .replace(OPERATOR_TOKEN_RE, (match, keyword: string, value: string) => {
-      const key = keyword.toLowerCase();
-      if (key === "from") {
-        from = value.replace(/^@/, "").toLowerCase();
-        return " ";
-      }
+    .replace(
+      OPERATOR_TOKEN_RE,
+      (match: string, wrapper: string | undefined, fromValue: string | undefined, dateKeyword: string | undefined, dateValue: string | undefined) => {
+        if (fromValue !== undefined) {
+          const stripped = fromValue.replace(/^@/, "");
+          const core = stripped.replace(/^[^A-Za-z0-9_]+/, "").replace(/[^A-Za-z0-9_]+$/, "");
 
-      const date = parseOperatorDate(value);
-      if (!date) {
-        invalid.push({ token: match, reason: "bad-date" });
+          if (HANDLE_RE.test(core)) {
+            from = core.toLowerCase();
+          } else {
+            invalid.push({ token: match, reason: "bad-handle" });
+          }
+
+          // Drop the leading wrapper char too, but only when it pairs with a closer that
+          // was trimmed off the tail of the value (e.g. "(" + "simonw)" -> both consumed).
+          // Otherwise the wrapper is genuinely user text (wraps more than just the handle)
+          // and must survive in the residual.
+          const closer = wrapper ? WRAPPER_CLOSERS[wrapper] : undefined;
+          const trailingJunk = stripped.match(/[^A-Za-z0-9_]+$/)?.[0] ?? "";
+          const dropWrapper = !wrapper || (closer !== undefined && trailingJunk.includes(closer));
+          return dropWrapper ? " " : `${wrapper} `;
+        }
+
+        const key = (dateKeyword ?? "").toLowerCase();
+        const date = parseOperatorDate(dateValue ?? "");
+        if (!date) {
+          invalid.push({ token: match, reason: "bad-date" });
+          return " ";
+        }
+        if (key === "before") before = date;
+        else after = date;
         return " ";
-      }
-      if (key === "before") before = date;
-      else after = date;
-      return " ";
-    })
+      },
+    )
     .replace(/\s+/g, " ")
     .trim();
 
