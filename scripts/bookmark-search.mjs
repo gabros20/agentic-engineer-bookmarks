@@ -1,32 +1,35 @@
 #!/usr/bin/env node
+// Task 14 rebuild: this CLI used to carry its OWN third copy of the retrieval pipeline
+// (stale MODEL constant pointing at the retired MiniLM model, un-grouped multiVectorSearch
+// that double-counted v2 article-chunk items per bookmark, and `bookmarks.data ?? []`
+// which silently returned zero posts against the current xrelay ArchiveFile shape —
+// `{ tweets: [...] }`, not `{ data: [...] }` — see Task 1's report). It now reuses the same
+// scripts/lib/search-core.mjs + scripts/lib/embed.mjs the eval harness and the app's Node
+// mirror run, so this CLI produces the same ranking the app does (minus rerank, which is
+// opt-in via --rerank since it downloads an extra ~23 MB model). CLI arg/output contract is
+// unchanged — the user's global `bookmark-search` skill shells out to this file.
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import lunr from "lunr";
 import { pipeline } from "@huggingface/transformers";
+import { normalizeBookmarkPayload } from "./lib/archive.mjs";
+import { queryPrefix } from "./lib/embed.mjs";
+import {
+  applyRelativeFloor,
+  buildKeywordIndex,
+  buildRerankDocText,
+  expandSemanticQueries,
+  keywordSearch,
+  multiVectorSearch,
+  RERANK_WINDOW,
+  rerankResults,
+  runHybridPipeline,
+} from "./lib/search-core.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const BOOKMARKS_PATH = join(root, "public/data/all-bookmarks.json");
 const INDEX_PATH = join(root, "public/data/search-index.json");
-const MODEL = "Xenova/all-MiniLM-L6-v2";
-
-const QUERY_EXPANSIONS = {
-  ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],
-  agent: ["agents", "agentic", "automation", "autonomous", "assistant", "workflow", "tool use"],
-  agents: ["agent", "agentic", "automation", "autonomous", "assistants", "workflow", "tool use"],
-  claude: ["claude code", "anthropic", "coding agent", "ai coding assistant"],
-  codex: ["openai codex", "coding agent", "ai coding assistant", "code assistant"],
-  code: ["coding", "programming", "developer", "software engineering", "repo", "repository"],
-  context: ["memory", "knowledge", "prompt", "instructions", "prompt engineering", "rag"],
-  learn: ["learning", "tutorial", "guide", "course", "education", "teach", "study", "explain"],
-  memory: ["context", "knowledge graph", "persistence", "recall", "rag", "notes", "knowledge base"],
-  prompt: ["prompts", "prompting", "prompt engineering", "instructions", "context", "system prompt"],
-  prompts: ["prompt", "prompting", "prompt engineering", "instructions", "context", "system prompt"],
-  search: ["retrieval", "semantic search", "vector search", "hybrid search", "rag", "index"],
-  tool: ["tools", "cli", "mcp", "extension", "workflow", "automation"],
-  tools: ["tool", "cli", "mcp", "extensions", "workflow", "automation"],
-};
 
 const { values } = parseArgs({
   options: {
@@ -38,6 +41,7 @@ const { values } = parseArgs({
     mode: { type: "string", default: "hybrid" },
     strict: { type: "boolean", default: false },
     broad: { type: "boolean", default: false },
+    rerank: { type: "boolean", default: false },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -57,6 +61,7 @@ Options:
       --format   <kind>           compact | json  (default compact)
       --strict                    force strict precision (no query expansion, keyword-weighted, score floor)
       --broad                     force broad precision (disables the auto-strict heuristic for short queries)
+      --rerank                    cross-encoder rerank the hybrid results (downloads an extra ~23 MB model)
   -h, --help
 
 Precision defaults to auto: queries with 1–2 tokens use strict, longer queries use broad. Use --strict / --broad to override.
@@ -79,24 +84,32 @@ const log = (...a) => console.error(...a);
 log(`precision: ${precision}${values.strict || values.broad ? "" : ` (auto from ${tokenCount} token${tokenCount === 1 ? "" : "s"})`}`);
 
 log("loading data…");
-const [bookmarks, index] = await Promise.all([
+const [bookmarksPayload, index] = await Promise.all([
   readFile(BOOKMARKS_PATH, "utf8").then(JSON.parse),
   readFile(INDEX_PATH, "utf8").then(JSON.parse),
 ]);
-const posts = bookmarks.data ?? [];
+// normalizeBookmarkPayload adapts BOTH the current xrelay ArchiveFile shape
+// ({ tweets: [...] }) and the legacy { data: [...] } shape — `bookmarks.data ?? []` used to
+// silently produce zero posts against today's archive (Task 1's report).
+const posts = normalizeBookmarkPayload(bookmarksPayload);
 const postById = new Map(posts.map((p) => [p.id, p]));
 
 let semanticResults = [];
 if (values.mode !== "keyword") {
-  log("loading model…");
-  const extractor = await pipeline("feature-extraction", MODEL);
+  log(`loading model (${index.model})…`);
+  const extractor = await pipeline("feature-extraction", index.model);
   const queries = expandSemanticQueries(values.query, precision);
+  const prefix = queryPrefix(index);
   log(`embedding ${queries.length} query variant(s)…`);
   const embeddings = [];
   for (const q of queries) {
-    const out = await extractor(q, { pooling: "mean", normalize: true });
+    const out = await extractor(`${prefix}${q}`, { pooling: "mean", normalize: true });
     embeddings.push(Array.from(out.data));
   }
+  // search-core's multiVectorSearch max-pools per bookmark id across an item's main vector
+  // AND any article-chunk vectors before ranking — the old local copy of this function
+  // scored every item independently, so a v2 index (chunked articles) double- (or
+  // n-)counted any bookmark with article-chunk vectors.
   semanticResults = multiVectorSearch(index, embeddings);
 }
 
@@ -108,11 +121,29 @@ if (values.mode !== "semantic") {
 }
 
 let ranked;
-if (values.mode === "semantic") ranked = semanticResults;
-else if (values.mode === "keyword") ranked = keywordResults;
-else ranked = mergeHybridResults(keywordResults, semanticResults, precision);
+if (values.mode === "hybrid") {
+  // Same pipeline the app runs: absolute vector floor (broad mode, e5 index only) ->
+  // slice(0,900) -> RRF merge -> relative floor. See scripts/lib/search-core.mjs's
+  // runHybridPipeline doc comment.
+  ranked = runHybridPipeline(keywordResults, semanticResults, precision, index);
+} else {
+  // Debug-only modes (semantic-only / keyword-only): no RRF merge to run, so just apply the
+  // same exact-precision relative floor the pre-Task-14 CLI applied uniformly regardless of
+  // mode. Floors beyond that (the e5-only absolute vector floor, broad's relative floor) are
+  // part of the hybrid hybrid pipeline and don't apply to a single-signal ranking.
+  const single = values.mode === "semantic" ? semanticResults : keywordResults;
+  ranked = precision === "exact" ? applyRelativeFloor(single, 0.5) : single;
+}
 
-if (precision === "exact") ranked = applyRelativeFloor(ranked, 0.5);
+if (values.rerank && ranked.length > 1) {
+  log("reranking (cross-encoder)…");
+  ranked = await rerankResults(
+    values.query,
+    ranked,
+    (id) => buildRerankDocText(postById.get(id) ?? {}),
+    RERANK_WINDOW,
+  );
+}
 
 let filtered = ranked
   .map((r) => ({ ...r, post: postById.get(r.id) }))
@@ -141,94 +172,7 @@ const out = filtered.slice(0, limit).map(({ post, score }) =>
 log(`returning ${out.length} of ${filtered.length} matches`);
 process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 
-// ---- helpers (parallel to lib/bookmark-search.ts) ----
-
-function expandSemanticQueries(query, precision = "broad") {
-  const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
-  if (precision === "exact") return normalized ? [normalized] : [];
-  const terms = lunr.tokenizer(normalized).map((t) => String(t)).filter(Boolean);
-  const expansions = new Set([normalized]);
-  const expandedTerms = terms.flatMap((t) => QUERY_EXPANSIONS[t] ?? []);
-  if (expandedTerms.length) expansions.add(`${normalized} ${expandedTerms.join(" ")}`);
-  for (const term of terms) {
-    const syn = QUERY_EXPANSIONS[term];
-    if (syn?.length) expansions.add(`${term} ${syn.join(" ")}`);
-  }
-  return [...expansions].filter(Boolean).slice(0, 8);
-}
-
-function buildKeywordIndex(posts) {
-  return lunr(function () {
-    this.ref("id");
-    this.field("text", { boost: 4 });
-    this.field("title", { boost: 5 });
-    this.field("author", { boost: 2 });
-    this.field("url");
-    for (const p of posts) {
-      this.add({
-        id: p.id,
-        text: p.text,
-        title: p.articleTitle ?? "",
-        author: `${p.author?.name ?? ""} ${p.author?.screenName ?? ""}`,
-        url: (p.urls ?? []).join(" "),
-      });
-    }
-  });
-}
-
-function keywordSearch(idx, query) {
-  const terms = lunr.tokenizer(query).map((t) => String(t)).filter(Boolean);
-  if (!terms.length) return [];
-  try {
-    return idx
-      .query((b) => {
-        b.term(terms, { boost: 2, presence: lunr.Query.presence.OPTIONAL, wildcard: lunr.Query.wildcard.TRAILING });
-        b.term(terms, { boost: 1, editDistance: 1, presence: lunr.Query.presence.OPTIONAL });
-      })
-      .map((r) => ({ id: r.ref, score: r.score }));
-  } catch {
-    return idx.search(terms.map((t) => `${t}~1`).join(" ")).map((r) => ({ id: r.ref, score: r.score }));
-  }
-}
-
-function multiVectorSearch(index, queryEmbeddings) {
-  if (!queryEmbeddings.length) return [];
-  return index.items
-    .map((item) => {
-      let best = -Infinity;
-      let avg = 0;
-      for (const e of queryEmbeddings) {
-        const s = dot(e, item.embedding);
-        if (s > best) best = s;
-        avg += s;
-      }
-      return { id: item.id, score: best * 0.8 + (avg / queryEmbeddings.length) * 0.2 };
-    })
-    .sort((a, b) => b.score - a.score);
-}
-
-function mergeHybridResults(kw, vec, precision = "broad") {
-  const [kwWeight, vecWeight] = precision === "exact" ? [0.6, 0.4] : [0.35, 0.65];
-  const scores = new Map();
-  const k = 60;
-  for (const [i, r] of kw.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + kwWeight / (k + i + 1));
-  for (const [i, r] of vec.entries()) scores.set(r.id, (scores.get(r.id) ?? 0) + vecWeight / (k + i + 1));
-  return [...scores.entries()].map(([id, score]) => ({ id, score })).sort((a, b) => b.score - a.score);
-}
-
-function applyRelativeFloor(results, fraction) {
-  if (!results.length || fraction <= 0) return results;
-  const top = results[0].score;
-  if (top <= 0) return results;
-  const floor = top * fraction;
-  return results.filter((r) => r.score >= floor);
-}
-
-function dot(a, b) {
-  let t = 0;
-  for (let i = 0; i < a.length; i++) t += (a[i] ?? 0) * (b[i] ?? 0);
-  return t;
-}
+// ---- CLI-only helpers (not part of the shared pipeline — result display/filter/sort) ----
 
 function matchesFilter(post, kind) {
   const media = post.media ?? [];
