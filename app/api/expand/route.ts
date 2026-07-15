@@ -54,7 +54,15 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
-  const { query, language } = parsed.data;
+  // F3: `language` (UI display-locale toggle, not detected query-text language) is
+  // intentionally NOT read out of parsed.data here and NOT put in the prompt. It stays in
+  // expandRequestSchema for API compat (older/other clients may still send it), but it must
+  // never suppress translation for a bilingual user who leaves the UI in "en" while typing a
+  // Hungarian query. SYSTEM_PROMPT's rule 1 ("if the query is not already English") is
+  // content-conditioned on the query text itself, which the model can always see — so
+  // dropping the hint just removes a source of contradictory signal, it doesn't remove the
+  // model's ability to detect language.
+  const { query } = parsed.data;
 
   const openrouter = createOpenRouter();
   const model = openrouter.chat(MODEL);
@@ -63,8 +71,9 @@ export async function POST(request: NextRequest) {
     model,
     schema: expandSchema,
     system: SYSTEM_PROMPT,
-    prompt: `Query language: ${language}\nQuery: ${query}`,
+    prompt: `Query: ${query}`,
     temperature: 0.2,
+    abortSignal: request.signal,
   });
 
   return NextResponse.json(result.object);

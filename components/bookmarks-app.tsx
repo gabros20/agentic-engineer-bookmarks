@@ -197,6 +197,11 @@ async function embedQueries(queries: string[], index: SearchIndexPayload) {
 // match the lowercase-normalized static entries byte-for-byte) and the same cap of 8 that
 // expandSemanticQueries itself enforces, so static (proven) signals are preferred when the
 // combined list would otherwise exceed the cap.
+//
+// F5 note: no unit test added for this in scripts/test-search-core.mjs — that harness only
+// imports plain scripts/lib/*.mjs modules (see its top-of-file imports), and this function
+// lives in this "use client" component file, not an importable plain module. Not
+// restructuring for testability in this fix wave (out of scope per the review).
 function mergeExpansions(staticExpansions: string[], rewrites: string[]) {
   const seen = new Set<string>();
   const merged: string[] = [];
@@ -413,24 +418,45 @@ export function BookmarksApp() {
           : "status.broadWarming",
     );
 
-    // T3.1: broad mode, unlocked users only, get an LLM-rewrite pass merged in before
-    // embedding. fetchQueryRewrites has its own hard non-blocking-failure contract (empty
-    // array on timeout/error/abort — see lib/expand-client.ts), so this branch never adds
-    // unbounded latency or a new failure mode: on empty rewrites the merge is a no-op and
-    // behavior is byte-identical to today's static-only expansion.
-    const expandedQueriesPromise: Promise<string[]> =
+    // F1 fix: fetchQueryRewrites (network, up to REWRITE_TIMEOUT_MS) and embedding the
+    // static expansions (local, transformers.js) used to be serialized — the LLM round trip
+    // gated ALL embedding, not just the incremental rewrites, adding the full LLM latency
+    // (or the full 1500ms timeout on a slow/dead LLM) as pure tax on every broad+unlocked
+    // search. Fix: kick off both concurrently, then embed ONLY the deduped new rewrite
+    // strings once the fetch resolves, and concat the embedding arrays before
+    // multiVectorSearch — max-pooling per id (commit 43f1830) is order-independent, so
+    // concatenation is safe. Worst case goes from `1500ms + embed(static)` to
+    // `max(1500ms, embed(static)) + embed(Δrewrites)`; the REWRITE_TIMEOUT_MS cap already
+    // lives inside fetchQueryRewrites, so no second cap is added here. fetchQueryRewrites
+    // has its own hard non-blocking-failure contract (empty array on timeout/error/abort —
+    // see lib/expand-client.ts), so on empty/late rewrites the merge is a no-op and behavior
+    // is byte-identical to today's static-only expansion.
+    const rewritesPromise: Promise<string[]> =
       precision === "broad" && digestUnlocked
-        ? fetchQueryRewrites(q, lang, rewriteController.signal).then((rewrites) =>
-            mergeExpansions(staticExpansions, rewrites),
-          )
-        : Promise.resolve(staticExpansions);
+        ? fetchQueryRewrites(q, lang, rewriteController.signal)
+        : Promise.resolve<string[]>([]);
+    const staticEmbeddingsPromise = embedQueries(staticExpansions, searchIndex);
 
-    expandedQueriesPromise
-      .then((expandedQueries) =>
-        embedQueries(expandedQueries, searchIndex).then((embeddings) => ({ expandedQueries, embeddings })),
-      )
-      .then(({ expandedQueries, embeddings }) => {
-        if (cancelled) return;
+    Promise.all([staticEmbeddingsPromise, rewritesPromise])
+      .then(([staticEmbeddings, rewrites]) => {
+        if (cancelled) return null;
+        const expandedQueries = mergeExpansions(staticExpansions, rewrites);
+        // staticExpansions is already de-duplicated (expandSemanticQueries returns Set
+        // entries) and capped at 8, so anything in expandedQueries not already present in
+        // staticExpansions is exactly the rewrite delta that survived dedup + the cap.
+        const staticKeys = new Set(staticExpansions.map((s) => s.trim().toLowerCase()));
+        const newExpansions = expandedQueries.filter((candidate) => !staticKeys.has(candidate.trim().toLowerCase()));
+        if (!newExpansions.length) {
+          return { expandedQueries, embeddings: staticEmbeddings };
+        }
+        return embedQueries(newExpansions, searchIndex).then((newEmbeddings) => ({
+          expandedQueries,
+          embeddings: [...staticEmbeddings, ...newEmbeddings],
+        }));
+      })
+      .then((outcome) => {
+        if (cancelled || !outcome) return;
+        const { expandedQueries, embeddings } = outcome;
         const pooledVectorResults = multiVectorSearch(searchIndex, embeddings);
         const finalResults = runHybridPipeline(keywordResults, pooledVectorResults, precision, searchIndex);
         setHybridResults(new Map(finalResults.map((result) => [result.id, result.score])));
