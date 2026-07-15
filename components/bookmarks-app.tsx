@@ -21,6 +21,7 @@ import type {
 import { getDigest, listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
+import { fetchQueryRewrites } from "@/lib/expand-client";
 import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
 import type { UIMessage } from "ai";
@@ -186,6 +187,26 @@ async function embedQueries(queries: string[], index: SearchIndexPayload) {
   }
 
   return embeddings;
+}
+
+// T3.1: merge static QUERY_EXPANSIONS-derived expansions with LLM rewrites from
+// /api/expand. `staticExpansions` already starts with the normalized original query
+// (expandSemanticQueries' first Set entry), so appending rewrites after it and deduping
+// naturally yields [normalized original, ...static expansions, ...LLM rewrites] with no
+// separate "prepend original" step needed. Case-insensitive dedupe (LLM rewrites may not
+// match the lowercase-normalized static entries byte-for-byte) and the same cap of 8 that
+// expandSemanticQueries itself enforces, so static (proven) signals are preferred when the
+// combined list would otherwise exceed the cap.
+function mergeExpansions(staticExpansions: string[], rewrites: string[]) {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const candidate of [...staticExpansions, ...rewrites]) {
+    const key = candidate.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(candidate);
+  }
+  return merged.slice(0, 8);
 }
 
 export function BookmarksApp() {
@@ -374,6 +395,7 @@ export function BookmarksApp() {
     if (!keywordIndex) setKeywordIndex(index);
 
     let cancelled = false;
+    const rewriteController = new AbortController();
     const keywordResults = keywordSearch(index, q);
 
     if (!searchIndex) {
@@ -382,17 +404,32 @@ export function BookmarksApp() {
       return;
     }
 
-    const expandedQueries = expandSemanticQueries(q, precision);
+    const staticExpansions = expandSemanticQueries(q, precision);
     setSearchStatusKey(
       precision === "exact"
         ? "status.exactWarming"
-        : expandedQueries.length > 1
+        : staticExpansions.length > 1
           ? "status.broadExpansionWarming"
           : "status.broadWarming",
     );
 
-    embedQueries(expandedQueries, searchIndex)
-      .then((embeddings) => {
+    // T3.1: broad mode, unlocked users only, get an LLM-rewrite pass merged in before
+    // embedding. fetchQueryRewrites has its own hard non-blocking-failure contract (empty
+    // array on timeout/error/abort — see lib/expand-client.ts), so this branch never adds
+    // unbounded latency or a new failure mode: on empty rewrites the merge is a no-op and
+    // behavior is byte-identical to today's static-only expansion.
+    const expandedQueriesPromise: Promise<string[]> =
+      precision === "broad" && digestUnlocked
+        ? fetchQueryRewrites(q, lang, rewriteController.signal).then((rewrites) =>
+            mergeExpansions(staticExpansions, rewrites),
+          )
+        : Promise.resolve(staticExpansions);
+
+    expandedQueriesPromise
+      .then((expandedQueries) =>
+        embedQueries(expandedQueries, searchIndex).then((embeddings) => ({ expandedQueries, embeddings })),
+      )
+      .then(({ expandedQueries, embeddings }) => {
         if (cancelled) return;
         const pooledVectorResults = multiVectorSearch(searchIndex, embeddings);
         const finalResults = runHybridPipeline(keywordResults, pooledVectorResults, precision, searchIndex);
@@ -413,8 +450,9 @@ export function BookmarksApp() {
 
     return () => {
       cancelled = true;
+      rewriteController.abort();
     };
-  }, [debouncedQuery, keywordIndex, posts, precision, searchIndex]);
+  }, [debouncedQuery, keywordIndex, posts, precision, searchIndex, digestUnlocked, lang]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
