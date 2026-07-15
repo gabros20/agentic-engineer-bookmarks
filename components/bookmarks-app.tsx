@@ -2,7 +2,7 @@
 
 import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
@@ -35,12 +35,110 @@ import {
 } from "@/lib/bookmark-search";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
+import type { ProgressInfo } from "@huggingface/transformers";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
 const PAGE_SIZE = 240;
 
 let extractorPromise: Promise<unknown> | null = null;
+
+// Module-level model-download tracking, decoupled from any single component instance so
+// idle warmup (warmupEmbedder) and on-demand calls (embedQueries) both observe/update the
+// same state regardless of which one wins the `extractorPromise ??=` race below. Read via
+// useSyncExternalStore in the component — re-renders are driven by the throttled
+// setModelDownloadState() calls in handleModelProgress, not by raw progress ticks
+// (Transformers.js can fire many "progress" events per second reading a large file).
+type ModelDownloadState = { status: "idle" | "downloading" | "ready" | "failed"; pct: number };
+
+// Stable reference (not reallocated) so useSyncExternalStore's server/idle snapshot never
+// appears to "change" identity between calls.
+const IDLE_MODEL_DOWNLOAD_STATE: ModelDownloadState = { status: "idle", pct: 0 };
+let modelDownloadState: ModelDownloadState = IDLE_MODEL_DOWNLOAD_STATE;
+const modelDownloadListeners = new Set<() => void>();
+
+function setModelDownloadState(next: ModelDownloadState) {
+  modelDownloadState = next;
+  for (const listener of modelDownloadListeners) listener();
+}
+
+function subscribeModelDownloadState(listener: () => void) {
+  modelDownloadListeners.add(listener);
+  return () => {
+    modelDownloadListeners.delete(listener);
+  };
+}
+
+function getModelDownloadStateSnapshot() {
+  return modelDownloadState;
+}
+
+// The model download only ever happens client-side, so both the server render and the
+// pre-hydration client render see "idle".
+function getModelDownloadServerSnapshot() {
+  return IDLE_MODEL_DOWNLOAD_STATE;
+}
+
+// Throttle: notify subscribers (i.e. trigger a re-render) on real progress, not on every
+// tick. Always emit immediately on the very first tick (idle -> downloading, so the UI can
+// leave "warming up" right away) and on completion (>=100%); otherwise gate to >=500ms or a
+// >=5-point step since the last emitted value, per the brief's throttling requirement.
+let lastProgressNotifyAt = 0;
+let lastProgressNotifyPct = -1;
+
+// Transformers.js wraps any progress_callback passed to pipeline() in a
+// DefaultProgressCallback that, alongside the raw per-file "progress" events, also
+// synthesizes a "progress_total" event aggregating loaded/total bytes across every file the
+// model needs (tokenizer.json, config.json, the quantized onnx weights, ...) — confirmed by
+// reading node_modules/@huggingface/transformers/src/utils/core.js. That aggregate is a
+// better fit than hand-picking "the main model file" (the brief's original framing): it's
+// already correct for single- or multi-file models and doesn't require guessing a filename.
+function handleModelProgress(info: ProgressInfo) {
+  if (info.status === "progress_total") {
+    const pct = Math.max(0, Math.min(100, Math.round(info.progress)));
+    const now = Date.now();
+    const isFirstTick = modelDownloadState.status !== "downloading";
+    const dueByTime = now - lastProgressNotifyAt >= 500;
+    const dueByStep = Math.abs(pct - lastProgressNotifyPct) >= 5;
+    if (!isFirstTick && pct < 100 && !dueByTime && !dueByStep) return;
+    lastProgressNotifyAt = now;
+    lastProgressNotifyPct = pct;
+    setModelDownloadState({ status: "downloading", pct });
+  } else if (info.status === "ready") {
+    setModelDownloadState({ status: "ready", pct: 100 });
+  }
+}
+
+// Idle-time warmup of the embedding pipeline: idempotent (reuses extractorPromise, same as
+// embedQueries) and always wires handleModelProgress so download tracking works no matter
+// which call site (warmup or a real on-demand embedQueries call) wins the `??=` race. Never
+// throws — warmup failure must never break anything. On failure it resets extractorPromise
+// so the NEXT call gets a fresh attempt instead of permanently re-throwing this same
+// rejected promise; the lazy embedQueries path is what actually retries.
+async function warmupEmbedder(model: string) {
+  try {
+    const { pipeline } = await import("@huggingface/transformers");
+    extractorPromise ??= pipeline("feature-extraction", model, { progress_callback: handleModelProgress });
+    await extractorPromise;
+  } catch {
+    extractorPromise = null;
+    setModelDownloadState({ status: "failed", pct: 0 });
+  }
+}
+
+// Schedules work for an idle browser slot, falling back to a fixed delay where
+// requestIdleCallback is unavailable (Safari). Browser-API access stays inside this helper
+// so callers only ever invoke it from effects — SSR-safe, since React effects never run
+// during server rendering even in a "use client" component.
+function scheduleIdle(callback: () => void) {
+  if (typeof window === "undefined") return { cancel: () => {} };
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(() => callback());
+    return { cancel: () => window.cancelIdleCallback(id) };
+  }
+  const id = window.setTimeout(callback, 1500);
+  return { cancel: () => window.clearTimeout(id) };
+}
 
 const formatter = new Intl.NumberFormat("en");
 
@@ -74,7 +172,7 @@ function byDate(post: BookmarkPost) {
 // client stays byte-identical against it. Only a new "e5" index gets "query: " prepended.
 async function embedQueries(queries: string[], index: SearchIndexPayload) {
   const { pipeline } = await import("@huggingface/transformers");
-  extractorPromise ??= pipeline("feature-extraction", index.model);
+  extractorPromise ??= pipeline("feature-extraction", index.model, { progress_callback: handleModelProgress });
   const extractor = (await extractorPromise) as (
     text: string,
     options: { pooling: "mean"; normalize: boolean },
@@ -225,18 +323,58 @@ export function BookmarksApp() {
   }, [query, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
-  const keywordIndex = useMemo(() => (posts.length ? buildKeywordIndex(posts) : null), [posts]);
+  const [keywordIndex, setKeywordIndex] = useState<ReturnType<typeof buildKeywordIndex> | null>(null);
+  const modelDownloadState = useSyncExternalStore(
+    subscribeModelDownloadState,
+    getModelDownloadStateSnapshot,
+    getModelDownloadServerSnapshot,
+  );
+
+  // Build the lunr keyword index (~0.8-1.0s main-thread on ~5,370 posts, T1.4 carry-over
+  // from Task 7's review) off the interaction-critical path: idle-scheduled once posts
+  // arrive. If the user types a query before this fires, the search effect below builds it
+  // synchronously on demand instead (see comment there) — this effect is then a no-op.
+  useEffect(() => {
+    if (!posts.length || keywordIndex) return;
+    const handle = scheduleIdle(() => {
+      setKeywordIndex((current) => current ?? buildKeywordIndex(posts));
+    });
+    return () => handle.cancel();
+  }, [posts, keywordIndex]);
+
+  // Idle-warm the embedding pipeline as soon as the search index arrives, so the ~112 MB
+  // multilingual-e5-small download usually finishes before the user's first semantic
+  // search. Runs after the keyword-index effect above is scheduled (searchIndex tends to
+  // arrive at the same time as or after `posts`, since both are parallel worker fetches and
+  // the search index payload is the larger of the two) but the two are independent: nothing
+  // here waits on the keyword build, and warmup's own idle-callback work is just kicking off
+  // an async fetch, not CPU-bound, so the two idle callbacks don't meaningfully contend even
+  // if scheduled back-to-back.
+  useEffect(() => {
+    if (!searchIndex) return;
+    const handle = scheduleIdle(() => {
+      void warmupEmbedder(searchIndex.model);
+    });
+    return () => handle.cancel();
+  }, [searchIndex]);
 
   useEffect(() => {
     const q = debouncedQuery.trim();
-    if (!q || !keywordIndex) {
+    if (!q || !posts.length) {
       setHybridResults(null);
       setSearchStatusKey(searchIndex ? "status.semanticReady" : "status.keyword");
       return;
     }
 
+    // Early typing before the idle-scheduled build above ran: build synchronously right
+    // here, exactly like the old unconditional useMemo did, so a query typed at t=0 still
+    // works today (no regression). Net effect: page load never pays the ~1s build on the
+    // interaction path; typing early still pays what it pays today.
+    const index = keywordIndex ?? buildKeywordIndex(posts);
+    if (!keywordIndex) setKeywordIndex(index);
+
     let cancelled = false;
-    const keywordResults = keywordSearch(keywordIndex, q);
+    const keywordResults = keywordSearch(index, q);
 
     if (!searchIndex) {
       setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
@@ -276,7 +414,7 @@ export function BookmarksApp() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, keywordIndex, precision, searchIndex]);
+  }, [debouncedQuery, keywordIndex, posts, precision, searchIndex]);
 
   const visiblePosts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -306,6 +444,21 @@ export function BookmarksApp() {
 
   const displayedPosts = visiblePosts.slice(0, visibleLimit);
 
+  // Status precedence while a query is active: downloading (with pct) takes over the
+  // existing "warming up" keys, which in turn take over once the hybrid results land. Kept
+  // as a derived render value (not folded into searchStatusKey itself) so download-progress
+  // ticks never re-trigger the search effect above — only this cheap string computation.
+  // When no query is typed, searchStatusKey is never one of the *Warming keys, so the
+  // download never surfaces here — it runs silently, per the brief.
+  const isModelWarmingStatus =
+    searchStatusKey === "status.exactWarming" ||
+    searchStatusKey === "status.broadExpansionWarming" ||
+    searchStatusKey === "status.broadWarming";
+  const statusText =
+    isModelWarmingStatus && modelDownloadState.status === "downloading"
+      ? t("status.modelDownloading", { pct: modelDownloadState.pct })
+      : t(searchStatusKey);
+
   // Chat context snapshot taken whenever the chat opens.
   const chatContext = useMemo<ChatContextSnapshot>(() => {
     const q = query.trim();
@@ -321,8 +474,12 @@ export function BookmarksApp() {
   // search_bookmarks tool executor — runs the same hybrid search the live UI uses.
   async function runChatSearch(input: SearchBookmarksInput): Promise<SearchBookmarksResult> {
     const q = input.query.trim();
-    if (!q || !keywordIndex || posts.length === 0) return { count: 0, results: [] };
-    const kw = keywordSearch(keywordIndex, q);
+    if (!q || posts.length === 0) return { count: 0, results: [] };
+    // Same on-demand fallback as the main search effect: the idle-scheduled build may not
+    // have run yet (e.g. chat opened immediately via ⌘K on a cold load).
+    const index = keywordIndex ?? buildKeywordIndex(posts);
+    if (!keywordIndex) setKeywordIndex(index);
+    const kw = keywordSearch(index, q);
     let ranked: { id: string; score: number }[];
     if (searchIndex) {
       const queries = expandSemanticQueries(q, input.precision);
@@ -723,7 +880,7 @@ export function BookmarksApp() {
           : t("status.summary", {
               shown: number(displayedPosts.length),
               total: number(visiblePosts.length),
-              status: t(searchStatusKey),
+              status: statusText,
             })}
       </p>
 
