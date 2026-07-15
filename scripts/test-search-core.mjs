@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { chunkArticle, embedItemsForPost, searchText } from "./lib/embed.mjs";
-import { mergeHybridResults, multiVectorSearch, vectorSearch } from "./lib/search-core.mjs";
+import { buildKeywordIndex, keywordSearch, mergeHybridResults, multiVectorSearch, vectorSearch } from "./lib/search-core.mjs";
 
 let pass = 0;
 let fail = 0;
@@ -327,6 +327,69 @@ test("mergeHybridResults: RRF output has exactly one entry per id (no double-cou
   const ids = merged.map((r) => r.id);
   assert.equal(ids.length, new Set(ids).size, "no id should appear twice in the merged ranking");
   assert.equal(merged.length, 2, "id a's 3 underlying vectors must not inflate its RRF weight");
+});
+
+// ---- buildKeywordIndex: article + quoted field parity (Task 7) -----------
+
+test("buildKeywordIndex: a phrase only present in articleText is findable via the `article` field", () => {
+  const posts = [
+    {
+      id: "art1",
+      text: "unrelated tweet body",
+      author: { name: "a", screenName: "b" },
+      articleTitle: "Some Article",
+      articleText: "This is the lead paragraph. It contains a distinctive phrase xylophone quokka marmalade in it.",
+    },
+    { id: "art2", text: "a completely different post about something else", author: { name: "c", screenName: "d" } },
+  ];
+  const index = buildKeywordIndex(posts);
+  const results = keywordSearch(index, "xylophone quokka marmalade");
+  assert.ok(
+    results.some((r) => r.id === "art1"),
+    "post with the phrase in articleText should be retrievable by keyword search",
+  );
+});
+
+test("buildKeywordIndex: articleText is truncated to the first ARTICLE_INDEX_CHAR_LIMIT (2000) chars", () => {
+  const farPastLimit = "z".repeat(2000) + " needle beyond the twothousand char cutoff marker";
+  const posts = [
+    {
+      id: "trunc1",
+      text: "unrelated",
+      author: { name: "a", screenName: "b" },
+      articleTitle: "T",
+      articleText: farPastLimit,
+    },
+  ];
+  const index = buildKeywordIndex(posts);
+  const results = keywordSearch(index, "twothousand");
+  assert.equal(results.length, 0, "text past the 2000-char truncation boundary should not be indexed");
+});
+
+test("buildKeywordIndex: a phrase only present in quotedTweet.text is findable via the `quoted` field", () => {
+  const posts = [
+    {
+      id: "q1",
+      text: "unrelated tweet body",
+      author: { name: "a", screenName: "b" },
+      quotedTweet: {
+        text: "a quoted phrase about kumquat basilisk trampoline",
+        author: { name: "Quoter Name", screenName: "quoterhandle" },
+      },
+    },
+    { id: "q2", text: "a completely different post about something else", author: { name: "c", screenName: "d" } },
+  ];
+  const index = buildKeywordIndex(posts);
+  const results = keywordSearch(index, "kumquat basilisk trampoline");
+  assert.ok(
+    results.some((r) => r.id === "q1"),
+    "post with the phrase in quotedTweet.text should be retrievable by keyword search",
+  );
+});
+
+test("buildKeywordIndex: posts without articleText/quotedTweet build without throwing (nullish guards)", () => {
+  const posts = [{ id: "bare1", text: "just a plain tweet", author: { name: "a", screenName: "b" } }];
+  assert.doesNotThrow(() => buildKeywordIndex(posts));
 });
 
 // ---- summary ---------------------------------------------------------------

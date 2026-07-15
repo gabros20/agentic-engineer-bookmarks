@@ -222,6 +222,22 @@
     ]
   },
   {
+    "query": "YOLO11 ships knowing 80 objects",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2073720633360322877", "note": "articleText body (\"I Built an Object Detection AI for $47. Now 6 Businesses Pay Me $11,000/month.\"): \"YOLO11 ships knowing 80 objects: person, car, bicycle, truck, dog, bottle. Point it at any image and it boxes them.\" — phrase occurs ONLY in the article body, within the first 2,000 chars (grep-verified: `grep -oi 'YOLO11 ships knowing 80 objects' public/data/all-bookmarks.json` -> 1 hit, 0 hits in any tweet `text`, 0 hits in any other article, 0 hits in any `quoted.text`); keyword-index parity target for the new `article` field" }
+    ]
+  },
+  {
+    "query": "Brain2Qwerty V1 is officially published",
+    "class": "phrase",
+    "precision": "exact",
+    "relevant": [
+      { "id": "2071568417522369008", "note": "@JarodLevy quoting a thread: \"Brain2Qwerty V1 is officially published in Nature Neuroscience. Today, we're releasing Brain2Qwerty V2.\" — phrase occurs ONLY inside quotedTweet.text (grep-verified: `grep -oi 'Brain2Qwerty V1 is officially published' public/data/all-bookmarks.json` -> 1 hit, 0 hits in any tweet `text`, 0 hits in any article body); keyword-index parity target for the new `quoted` field" }
+    ]
+  },
+  {
     "query": "a shared way for AI apps to plug into your data without custom code for every source",
     "class": "paraphrase",
     "precision": "broad",

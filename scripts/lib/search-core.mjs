@@ -45,6 +45,12 @@ export function searchText(post) {
     .join("\n");
 }
 
+// Cap the article body fed into lunr: article bodies are median ~1.7k WORDS, and lunr
+// indexes at build time in the browser on ~5,370 posts per page load — indexing full
+// bodies would blow up index build time/memory. 2,000 chars keeps that sane while still
+// covering the lead of the article (where distinctive phrasing tends to live).
+const ARTICLE_INDEX_CHAR_LIMIT = 2000;
+
 export function buildKeywordIndex(posts) {
   return lunr(function build() {
     this.ref("id");
@@ -52,6 +58,8 @@ export function buildKeywordIndex(posts) {
     this.field("title", { boost: 5 });
     this.field("author", { boost: 2 });
     this.field("url");
+    this.field("article", { boost: 3 });
+    this.field("quoted", { boost: 2 });
 
     for (const post of posts) {
       this.add({
@@ -60,6 +68,10 @@ export function buildKeywordIndex(posts) {
         title: post.articleTitle ?? "",
         author: `${post.author.name} ${post.author.screenName}`,
         url: (post.urls ?? []).join(" "),
+        article: (post.articleText ?? "").slice(0, ARTICLE_INDEX_CHAR_LIMIT),
+        quoted: [post.quotedTweet?.text, post.quotedTweet?.author?.name, post.quotedTweet?.author?.screenName]
+          .filter(Boolean)
+          .join(" "),
       });
     }
   });

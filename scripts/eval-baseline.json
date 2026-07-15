@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-07-14T16:21:32.428Z",
+  "generated_at": "2026-07-15T13:53:38.768Z",
   "model": "Xenova/multilingual-e5-small",
   "index_count": 5370,
   "archive_count": 5370,
-  "query_count": 30,
+  "query_count": 32,
   "overall": {
-    "n": 30,
-    "recall10": 0.5667,
-    "mrr10": 0.3642,
-    "ndcg10": 0.4014
+    "n": 32,
+    "recall10": 0.6458,
+    "mrr10": 0.4353,
+    "ndcg10": 0.4711
   },
   "by_class": {
     "article-title": {
       "n": 4,
       "recall10": 1,
-      "mrr10": 0.55,
-      "ndcg10": 0.6622
+      "mrr10": 0.6125,
+      "ndcg10": 0.7044
     },
     "en-topic": {
       "n": 8,
@@ -25,9 +25,9 @@
     },
     "handle": {
       "n": 4,
-      "recall10": 0.75,
+      "recall10": 0.6667,
       "mrr10": 0.2083,
-      "ndcg10": 0.3622
+      "ndcg10": 0.3269
     },
     "hu-topic": {
       "n": 5,
@@ -37,21 +37,21 @@
     },
     "paraphrase": {
       "n": 4,
-      "recall10": 0.25,
-      "mrr10": 0.125,
-      "ndcg10": 0.1577
+      "recall10": 0.5,
+      "mrr10": 0.2778,
+      "ndcg10": 0.3253
     },
     "phrase": {
-      "n": 5,
-      "recall10": 0.8,
-      "mrr10": 0.55,
-      "ndcg10": 0.6123
+      "n": 7,
+      "recall10": 1,
+      "mrr10": 0.699,
+      "ndcg10": 0.7707
     }
   },
   "broad_tail": {
     "n": 18,
-    "medianResultCount": 3568,
-    "p90ResultCount": 4971
+    "medianResultCount": 3659,
+    "p90ResultCount": 4997
   },
   "per_query": [
     {
@@ -61,7 +61,7 @@
       "recall10": 0.5,
       "mrr10": 0.5,
       "ndcg10": 0.38685280723454163,
-      "resultCount": 1810
+      "resultCount": 1866
     },
     {
       "query": "vector database",
@@ -70,7 +70,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 0.9197207891481876,
-      "resultCount": 46
+      "resultCount": 47
     },
     {
       "query": "retrieval augmented generation",
@@ -79,7 +79,7 @@
       "recall10": 0.5,
       "mrr10": 1,
       "ndcg10": 0.6131471927654584,
-      "resultCount": 1287
+      "resultCount": 1317
     },
     {
       "query": "LLM fine-tuning techniques",
@@ -88,7 +88,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 1635
+      "resultCount": 1686
     },
     {
       "query": "claude code best practices",
@@ -97,7 +97,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 2371
+      "resultCount": 2453
     },
     {
       "query": "context engineering",
@@ -106,7 +106,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 64
+      "resultCount": 69
     },
     {
       "query": "multi-agent orchestration",
@@ -115,7 +115,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 53
+      "resultCount": 63
     },
     {
       "query": "AI coding agent swarm",
@@ -124,7 +124,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 3527
+      "resultCount": 3599
     },
     {
       "query": "hogyan működik a Model Context Protocol",
@@ -133,7 +133,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 4751
+      "resultCount": 4795
     },
     {
       "query": "mi az a vektor adatbázis",
@@ -142,7 +142,7 @@
       "recall10": 1,
       "mrr10": 0.14285714285714285,
       "ndcg10": 0.3333333333333333,
-      "resultCount": 4833
+      "resultCount": 4881
     },
     {
       "query": "kódellenőrzés AI ügynökökkel",
@@ -151,7 +151,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 2752
+      "resultCount": 2840
     },
     {
       "query": "önjavító AI ügynök rendszer",
@@ -160,7 +160,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 2761
+      "resultCount": 2856
     },
     {
       "query": "több ügynökös orchestration",
@@ -169,15 +169,15 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 946
+      "resultCount": 954
     },
     {
       "query": "akshay_pachaar",
       "class": "handle",
       "precision": "exact",
-      "recall10": 1,
+      "recall10": 0.6666666666666666,
       "mrr10": 0.25,
-      "ndcg10": 0.499800561367962,
+      "ndcg10": 0.35853358850813305,
       "resultCount": 34
     },
     {
@@ -196,7 +196,7 @@
       "recall10": 1,
       "mrr10": 0.125,
       "ndcg10": 0.42495990177520937,
-      "resultCount": 28
+      "resultCount": 31
     },
     {
       "query": "LangChain",
@@ -205,16 +205,16 @@
       "recall10": 0.6666666666666666,
       "mrr10": 0.125,
       "ndcg10": 0.2893079283427616,
-      "resultCount": 43
+      "resultCount": 46
     },
     {
       "query": "How to Create the Right Skill for Your AI Agent",
       "class": "article-title",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.5,
-      "ndcg10": 0.6309297535714575,
-      "resultCount": 4376
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 4435
     },
     {
       "query": "Agentic OS: Turning a Model Into a System",
@@ -223,7 +223,7 @@
       "recall10": 1,
       "mrr10": 0.2,
       "ndcg10": 0.38685280723454163,
-      "resultCount": 4698
+      "resultCount": 4735
     },
     {
       "query": "Obsidian: A Vault That Never Forgets and Never Lets You Repeat Yourself",
@@ -232,16 +232,16 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 4830
+      "resultCount": 4865
     },
     {
       "query": "What the hell is a loop, anyway?",
       "class": "article-title",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.5,
-      "ndcg10": 0.6309297535714575,
-      "resultCount": 4879
+      "mrr10": 0.25,
+      "ndcg10": 0.43067655807339306,
+      "resultCount": 4923
     },
     {
       "query": "stop typing use context7 in every prompt",
@@ -250,7 +250,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 22
+      "resultCount": 23
     },
     {
       "query": "github for prompts just got better",
@@ -259,7 +259,7 @@
       "recall10": 1,
       "mrr10": 0.5,
       "ndcg10": 0.6309297535714575,
-      "resultCount": 42
+      "resultCount": 43
     },
     {
       "query": "a harness that compiles itself",
@@ -268,16 +268,16 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 72
+      "resultCount": 31
     },
     {
       "query": "web scraping will never be the same",
       "class": "phrase",
       "precision": "exact",
-      "recall10": 0,
-      "mrr10": 0,
-      "ndcg10": 0,
-      "resultCount": 39
+      "recall10": 1,
+      "mrr10": 0.14285714285714285,
+      "ndcg10": 0.3333333333333333,
+      "resultCount": 40
     },
     {
       "query": "microvms are the gift that keeps on giving",
@@ -286,7 +286,25 @@
       "recall10": 1,
       "mrr10": 0.25,
       "ndcg10": 0.43067655807339306,
-      "resultCount": 31
+      "resultCount": 35
+    },
+    {
+      "query": "YOLO11 ships knowing 80 objects",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 28
+    },
+    {
+      "query": "Brain2Qwerty V1 is officially published",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 17
     },
     {
       "query": "a shared way for AI apps to plug into your data without custom code for every source",
@@ -295,25 +313,25 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 5059
+      "resultCount": 5087
     },
     {
       "query": "reading a webpage by taking a screenshot instead of parsing the raw html",
       "class": "paraphrase",
       "precision": "broad",
       "recall10": 1,
-      "mrr10": 0.5,
-      "ndcg10": 0.6309297535714575,
-      "resultCount": 4886
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 4931
     },
     {
       "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
       "class": "paraphrase",
       "precision": "broad",
-      "recall10": 0,
-      "mrr10": 0,
-      "ndcg10": 0,
-      "resultCount": 4971
+      "recall10": 1,
+      "mrr10": 0.1111111111111111,
+      "ndcg10": 0.3010299956639812,
+      "resultCount": 4997
     },
     {
       "query": "storing and searching information by meaning using numeric representations instead of exact words",
@@ -322,7 +340,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 3568
+      "resultCount": 3659
     }
   ]
 }
