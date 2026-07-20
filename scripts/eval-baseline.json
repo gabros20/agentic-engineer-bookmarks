@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-07-15T15:33:00.843Z",
+  "generated_at": "2026-07-20T13:31:48.438Z",
   "model": "Xenova/multilingual-e5-small",
   "rerank_model": "Xenova/ms-marco-MiniLM-L-6-v2",
-  "index_count": 5370,
-  "archive_count": 5370,
+  "index_count": 5569,
+  "archive_count": 5569,
   "query_count": 32,
   "overall": {
     "n": 32,
     "recall10": 0.6146,
-    "mrr10": 0.4934,
-    "ndcg10": 0.5014
+    "mrr10": 0.4923,
+    "ndcg10": 0.5003
   },
   "by_class": {
     "article-title": {
@@ -27,8 +27,8 @@
     "handle": {
       "n": 4,
       "recall10": 0.6667,
-      "mrr10": 0.3982,
-      "ndcg10": 0.4077
+      "mrr10": 0.3899,
+      "ndcg10": 0.3993
     },
     "hu-topic": {
       "n": 5,
@@ -51,8 +51,8 @@
   },
   "broad_tail": {
     "n": 18,
-    "medianResultCount": 40,
-    "p90ResultCount": 59
+    "medianResultCount": 42,
+    "p90ResultCount": 62
   },
   "per_query": [
     {
@@ -80,7 +80,7 @@
       "recall10": 0.5,
       "mrr10": 1,
       "ndcg10": 0.6131471927654584,
-      "resultCount": 38
+      "resultCount": 39
     },
     {
       "query": "LLM fine-tuning techniques",
@@ -89,7 +89,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 38
+      "resultCount": 37
     },
     {
       "query": "claude code best practices",
@@ -98,7 +98,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 40
+      "resultCount": 41
     },
     {
       "query": "context engineering",
@@ -116,7 +116,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 63
+      "resultCount": 65
     },
     {
       "query": "AI coding agent swarm",
@@ -161,7 +161,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 37
+      "resultCount": 36
     },
     {
       "query": "több ügynökös orchestration",
@@ -179,7 +179,7 @@
       "recall10": 0.6666666666666666,
       "mrr10": 0.25,
       "ndcg10": 0.35853358850813305,
-      "resultCount": 34
+      "resultCount": 35
     },
     {
       "query": "mattpocockuk",
@@ -188,16 +188,16 @@
       "recall10": 0.3333333333333333,
       "mrr10": 1,
       "ndcg10": 0.46927872602275644,
-      "resultCount": 23
+      "resultCount": 22
     },
     {
       "query": "rauchg",
       "class": "handle",
       "precision": "exact",
       "recall10": 1,
-      "mrr10": 0.2,
-      "ndcg10": 0.5051284895111403,
-      "resultCount": 31
+      "mrr10": 0.16666666666666666,
+      "ndcg10": 0.4716276524567204,
+      "resultCount": 32
     },
     {
       "query": "LangChain",
@@ -215,7 +215,7 @@
       "recall10": 1,
       "mrr10": 0.5,
       "ndcg10": 0.6309297535714575,
-      "resultCount": 48
+      "resultCount": 47
     },
     {
       "query": "Agentic OS: Turning a Model Into a System",
@@ -242,7 +242,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 59
+      "resultCount": 62
     },
     {
       "query": "stop typing use context7 in every prompt",
@@ -260,7 +260,7 @@
       "recall10": 1,
       "mrr10": 0.5,
       "ndcg10": 0.6309297535714575,
-      "resultCount": 43
+      "resultCount": 42
     },
     {
       "query": "a harness that compiles itself",
@@ -278,7 +278,7 @@
       "recall10": 1,
       "mrr10": 0.25,
       "ndcg10": 0.43067655807339306,
-      "resultCount": 40
+      "resultCount": 44
     },
     {
       "query": "microvms are the gift that keeps on giving",
@@ -287,7 +287,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 35
+      "resultCount": 39
     },
     {
       "query": "YOLO11 ships knowing 80 objects",
@@ -296,7 +296,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 28
+      "resultCount": 29
     },
     {
       "query": "Brain2Qwerty V1 is officially published",
@@ -305,7 +305,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 17
+      "resultCount": 16
     },
     {
       "query": "a shared way for AI apps to plug into your data without custom code for every source",
@@ -314,7 +314,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 80
+      "resultCount": 81
     },
     {
       "query": "reading a webpage by taking a screenshot instead of parsing the raw html",
@@ -323,7 +323,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 50
+      "resultCount": 52
     },
     {
       "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
@@ -332,7 +332,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 40
+      "resultCount": 42
     },
     {
       "query": "storing and searching information by meaning using numeric representations instead of exact words",
@@ -341,7 +341,7 @@
       "recall10": 0,
       "mrr10": 0,
       "ndcg10": 0,
-      "resultCount": 48
+      "resultCount": 49
     }
   ]
 }

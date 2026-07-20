@@ -20,15 +20,15 @@ public/data/search-index.json    # int8 multilingual-e5-small embeddings (index 
 
 Current export:
 
-- `5,370` saved posts
-- `186` X Article bookmarks, all `186` with full article text backfilled
-- `4,525` posts with media
-- `2,414` posts with video/GIF media
+- `5,569` saved posts
+- `199` X Article bookmarks, all `199` with full article text backfilled
+- `4,685` posts with media
+- `2,515` posts with video/GIF media
 - Source: X bookmarks fetched through [`xrelay`](https://github.com/gabros20/x-relay) (`x-relay-mcp`)
 
 The archive file is in xrelay's native `ArchiveFile` shape (`{ schema: "x-relay/archive@1", source, generatedAt, count, tweets: [...] }`). The app's data layer (`lib/xrelay-archive.ts`) maps each `ArchiveTweet` to its render shape on load and also accepts the legacy `{ data: [...] }` shape, so it keeps working across formats. X Article bookmarks carry their full body as `articleTitle`/`articleText` (markdown), backfilled via `xrelay` (see [Syncing Fresh Bookmarks](#syncing-fresh-bookmarks)) and searched/embedded alongside the post text.
 
-The search index is schema v2: alongside each post's main embedding, long article bodies are split into ~280-word chunks (title-prefixed, on paragraph boundaries) and embedded separately, so a long article's semantic match isn't diluted into one averaged vector. `count` is the number of bookmarks (`5,370`); `vector_count` is the total number of embedded items including chunks (`6,512`). At query time, per-bookmark scores are max-pooled across a bookmark's main vector and all of its chunks before ranking, so a multi-chunk article still contributes exactly one ranked result, never duplicates.
+The search index is schema v2: alongside each post's main embedding, long article bodies are split into ~280-word chunks (title-prefixed, on paragraph boundaries) and embedded separately, so a long article's semantic match isn't diluted into one averaged vector. `count` is the number of bookmarks (`5,569`); `vector_count` is the total number of embedded items including chunks (`6,785`). At query time, per-bookmark scores are max-pooled across a bookmark's main vector and all of its chunks before ranking, so a multi-chunk article still contributes exactly one ranked result, never duplicates.
 
 The deployed app is static. Favorites, saved digests, saved chats, and language are personal to each browser:
 
