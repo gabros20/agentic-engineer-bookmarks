@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-07-20T13:31:48.438Z",
+  "generated_at": "2026-07-21T15:19:24.779Z",
   "model": "Xenova/multilingual-e5-small",
   "rerank_model": "Xenova/ms-marco-MiniLM-L-6-v2",
-  "index_count": 5569,
-  "archive_count": 5569,
+  "index_count": 5594,
+  "archive_count": 5594,
   "query_count": 32,
   "overall": {
     "n": 32,
@@ -71,7 +71,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 0.9197207891481876,
-      "resultCount": 47
+      "resultCount": 46
     },
     {
       "query": "retrieval augmented generation",
@@ -278,7 +278,7 @@
       "recall10": 1,
       "mrr10": 0.25,
       "ndcg10": 0.43067655807339306,
-      "resultCount": 44
+      "resultCount": 40
     },
     {
       "query": "microvms are the gift that keeps on giving",
@@ -287,7 +287,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 39
+      "resultCount": 40
     },
     {
       "query": "YOLO11 ships knowing 80 objects",
@@ -323,7 +323,7 @@
       "recall10": 1,
       "mrr10": 1,
       "ndcg10": 1,
-      "resultCount": 52
+      "resultCount": 53
     },
     {
       "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
