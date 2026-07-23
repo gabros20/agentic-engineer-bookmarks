@@ -14,7 +14,29 @@ function norm(v: number[]): number {
 }
 
 export default {
-  async fetch(_request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // POST /embed — batch bge-m3 embeddings for the re-embed pipeline (Task 1).
+    // Body: { texts: string[] } → { vectors: number[][] } (1024-dim, L2-normalized, RAW text).
+    if (request.method === "POST" && url.pathname === "/embed") {
+      try {
+        const body = (await request.json()) as { texts?: unknown };
+        const texts = body?.texts;
+        if (!Array.isArray(texts) || !texts.every((t) => typeof t === "string")) {
+          return Response.json({ error: "body must be { texts: string[] }" }, { status: 400 });
+        }
+        // truncate_inputs: bge-m3 otherwise hard-errors ("3030: invalid input") on any text
+        // over its max sequence length; this truncates oversized inputs to the model max
+        // instead (matching the e5/transformers.js pipeline's old silent 512-token truncation).
+        const result = await env.AI.run("@cf/baai/bge-m3", { text: texts, truncate_inputs: true });
+        const vectors: number[][] = result?.data ?? result;
+        return Response.json({ vectors });
+      } catch (err) {
+        return Response.json({ error: String(err) }, { status: 500 });
+      }
+    }
+
     const out: Record<string, unknown> = {};
 
     // --- bge-m3 embeddings ---
