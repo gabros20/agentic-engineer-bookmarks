@@ -3,14 +3,16 @@
 // The e5 sweep (scripts/calibrate-floors.mjs) can't be reused as-is: it asserts
 // prefix_scheme === "e5", and e5's cosine distribution (floor 0.82) is invalid for bge-m3
 // (cosines top ~0.67 per the T0 spike / T2). This script recalibrates the bge broad-mode
-// floors against the SAME golden queries, replicating the Worker's SEMANTIC-ONLY pipeline
-// (keyword side = [], matching worker/src/index.ts) in Node:
+// floors against the SAME golden queries, replicating the Worker's FULL HYBRID pipeline
+// (keyword ⊕ vector, matching worker/src/index.ts after T3b) in Node:
 //
 //   1. embed each golden query's expandSemanticQueries variants via the Worker's gated
 //      /embed route (raw bge-m3 vectors — the exact vectors /search uses),
+//   1b. keywordSearch(lunr index, raw query) -> keyword hits (same lunr-index.json + query
+//       the Worker uses; identical on both sides of the gate),
 //   2. multiVectorSearch(bge index, vectors) -> pooled per-id scores (UNSLICED),
 //   3. for each grid cell replay the broad pipeline: applyAbsoluteVectorFloor -> slice(0,900)
-//      -> mergeHybridResults([], v, "broad") -> applyRelativeFloor(.., BROAD_FLOOR_MIN_KEEP)
+//      -> mergeHybridResults(keyword, v, "broad") -> applyRelativeFloor(.., BROAD_FLOOR_MIN_KEEP)
 //      exactly as lib runHybridPipeline wires it,
 //   4. measure per broad query: broad-tail COUNT, window-recall (relevant present in the
 //      top-RERANK_WINDOW that the reranker actually sees — the true "no recall loss" guard,
@@ -32,17 +34,20 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import lunr from "lunr";
 import {
   applyAbsoluteVectorFloor,
   applyRelativeFloor,
   BROAD_FLOOR_MIN_KEEP,
   expandSemanticQueries,
+  keywordSearch,
   mergeHybridResults,
   multiVectorSearch,
 } from "./lib/search-core.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const INDEX_PATH = join(root, "public/data/search-index-bge.json");
+const LUNR_INDEX_PATH = join(root, "public/data/lunr-index.json");
 const QUERIES_PATH = join(root, "scripts/eval-queries.json");
 const SWEEP_OUT_PATH = join(root, ".orchestrate/raw/task3-bge-sweep.json");
 
@@ -60,15 +65,19 @@ for (let f = 0.3; f <= 0.6601; f += 0.02) ABS_FLOOR_GRID.push(Number(f.toFixed(2
 // Relative grid: none, 0.10..0.50 step 0.05 (applied to merged RRF scores).
 const REL_FLOOR_GRID = [null, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
 
-console.log("loading bge index + golden queries…");
-const [index, goldenQueries] = await Promise.all([
+console.log("loading bge index + lunr index + golden queries…");
+const [index, lunrJson, goldenQueries] = await Promise.all([
   readFile(INDEX_PATH, "utf8").then(JSON.parse),
+  readFile(LUNR_INDEX_PATH, "utf8").then(JSON.parse),
   readFile(QUERIES_PATH, "utf8").then(JSON.parse),
 ]);
 if (index.model !== "@cf/baai/bge-m3") {
   console.error(`FATAL: ${INDEX_PATH} model=${JSON.stringify(index.model)}, expected "@cf/baai/bge-m3".`);
   process.exit(1);
 }
+// Same serialized lunr index the Worker loads (T1 build-lunr-index.mjs). keywordSearch over
+// this is identical on both sides of the gate; here it feeds the hybrid merge in each cell.
+const keywordIndex = lunr.Index.load(lunrJson);
 console.log(`index: ${index.count} bookmarks, ${index.items.length} vectors (model=${index.model})`);
 console.log(`worker /embed: ${WORKER_URL}/embed`);
 
@@ -93,7 +102,8 @@ for (const [i, q] of goldenQueries.entries()) {
   const expandedQueries = expandSemanticQueries(q.query, q.precision);
   const embeddings = await embedTexts(expandedQueries);
   const pooledVectorResults = multiVectorSearch(index, embeddings); // pooled per-id, UNSLICED
-  precomputed.push({ q, pooledVectorResults });
+  const keywordResults = keywordSearch(keywordIndex, q.query); // raw query, matches the Worker
+  precomputed.push({ q, pooledVectorResults, keywordResults });
   console.log(`  [${i + 1}/${goldenQueries.length}] (${q.class}) "${q.query.slice(0, 44)}" -> ${pooledVectorResults.length} pooled hits, ${embeddings.length} variants`);
 }
 
@@ -128,14 +138,14 @@ function percentile(sorted, p) {
   return sorted[Math.max(0, idx)];
 }
 
-// ---- run one grid cell over the broad queries (semantic-only: keyword side = []) ----
+// ---- run one grid cell over the broad queries (full hybrid: keyword ⊕ vector) ----
 function runCell(absFloor, relFloor) {
   const perQuery = [];
   const counts = [];
-  for (const { q, pooledVectorResults } of precomputed) {
+  for (const { q, pooledVectorResults, keywordResults } of precomputed) {
     const afterAbs = absFloor ? applyAbsoluteVectorFloor(pooledVectorResults, absFloor) : pooledVectorResults;
     const vectorResults = afterAbs.slice(0, VECTOR_SLICE);
-    const merged = mergeHybridResults([], vectorResults, "broad");
+    const merged = mergeHybridResults(keywordResults, vectorResults, "broad");
     const ranked = relFloor ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
     counts.push(ranked.length);
     const relevantIds = q.relevant.map((r) => r.id);

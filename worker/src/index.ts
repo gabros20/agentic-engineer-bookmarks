@@ -8,11 +8,16 @@
 //   OPTIONS /search -> CORS preflight
 //   POST /embed  -> batch bge-m3 embeddings (kept from the T0/T1 spike; used by embed-bge.mjs)
 //
-// Default pipeline is semantic (bge-m3) + rerank (bge-reranker-base) ONLY — no keyword/lunr
-// (see task-2-brief "Keyword decision"). T3 measures this against the e5-hybrid baseline.
+// Pipeline is the FULL hybrid: keyword (lunr) ⊕ semantic (bge-m3) merged via the shared
+// runHybridPipeline (RRF, tuned 0.6/0.4 exact / 0.35/0.65 broad) + rerank (bge-reranker-base).
+// T3's semantic-only variant lost the keyword-dependent classes (handle, article-title) vs the
+// e5-hybrid baseline; T3b restores keyword (T1 serialized public/data/lunr-index.json) and
+// re-runs the gate. Ranking math is REUSED from lib/* — never reimplemented here.
 
+import lunr from "lunr";
 import {
   expandSemanticQueries,
+  keywordSearch,
   multiVectorSearch,
   runHybridPipeline,
   type SearchIndexPayload,
@@ -57,7 +62,11 @@ type PackedMeta = {
   vector_count: number;
   items: Array<{ id: string; part?: number }>;
 };
-type LoadedData = { index: SearchIndexPayload; rerankDocs: Record<string, string> };
+type LoadedData = {
+  index: SearchIndexPayload;
+  rerankDocs: Record<string, string>;
+  keywordIndex: lunr.Index;
+};
 
 let dataPromise: Promise<LoadedData> | null = null;
 
@@ -74,10 +83,14 @@ async function fetchAsset(env: Env, name: string): Promise<R2ObjectBody> {
 }
 
 async function loadData(env: Env): Promise<LoadedData> {
-  const [meta, binBuf, rerankDocs] = await Promise.all([
+  const [meta, binBuf, rerankDocs, lunrJson] = await Promise.all([
     fetchAsset(env, "search-index-bge.meta.json").then((a) => a.json<PackedMeta>()),
     fetchAsset(env, "search-index-bge.bin").then((a) => a.arrayBuffer()),
     fetchAsset(env, "rerank-docs.json").then((a) => a.json<Record<string, string>>()),
+    // Serialized lunr keyword index (T1, build-lunr-index.mjs), same field/boost config as
+    // lib buildKeywordIndex. ~13MB parsed lazily on the FIRST request per isolate (NOT at
+    // module top-level), so it stays out of the startup phase — see `wrangler check startup`.
+    fetchAsset(env, "lunr-index.json").then((a) => a.json<object>()),
   ]);
 
   const int8 = new Int8Array(binBuf);
@@ -105,11 +118,14 @@ async function loadData(env: Env): Promise<LoadedData> {
     count: meta.count,
     vector_count: meta.vector_count,
     items,
-    // NO prefix_scheme: bge-m3 is prefix-free (spike-findings). This also keeps
-    // runHybridPipeline's broad-mode floors INACTIVE — see the TODO(T3) at its call site.
+    // NO prefix_scheme: bge-m3 is prefix-free (spike-findings). runHybridPipeline keys its
+    // bge broad-mode floors off model === "@cf/baai/bge-m3" (T3), so they ARE active here.
   };
 
-  return { index, rerankDocs };
+  // Deserialize the lunr index once per isolate (lunr.Index.load takes the parsed JSON object).
+  const keywordIndex = lunr.Index.load(lunrJson);
+
+  return { index, rerankDocs, keywordIndex };
 }
 
 function initData(env: Env): Promise<LoadedData> {
@@ -266,7 +282,7 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
   const limit = typeof body.limit === "number" && body.limit > 0 ? Math.floor(body.limit) : DEFAULT_LIMIT;
 
   try {
-    const { index, rerankDocs } = await initData(env);
+    const { index, rerankDocs, keywordIndex } = await initData(env);
 
     // 1. Static synonym expansions (lib) + LLM rewrites -> the set of query strings to embed.
     //    exact -> [normalized query]; broad -> up to 8 synonym-expanded variants.
@@ -287,16 +303,17 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
     );
     const embeddings: number[][] = emb?.data ?? emb;
 
-    // 3. Vector search + floors — REUSED verbatim from lib/bookmark-search.ts (max-pool group
-    //    per id across query embeddings AND chunk parts, then the shared hybrid pipeline).
-    //    Keyword side is empty ([]) — semantic-only default (see Keyword decision).
-    //    TODO(T3): runHybridPipeline gates its broad-mode absolute+relative floors on
-    //    index.prefix_scheme === "e5"; the bge index has none, so broad floors are currently
-    //    INACTIVE. e5's BROAD_VECTOR_COSINE_FLOOR (0.82) is invalid for bge-m3 (cosines top
-    //    ~0.67 per spike/T1) and would zero out results. T3 recalibrates the bge floors and
-    //    wires them in. Exact mode's model-independent 0.5 relative floor still applies today.
+    // 3. Keyword (lunr) + vector search, merged by the shared hybrid pipeline — REUSED verbatim
+    //    from lib/bookmark-search.ts (max-pool per id across query embeddings AND chunk parts,
+    //    then RRF-merge keyword ⊕ vector with the tuned per-precision weights). Keyword search
+    //    uses the RAW query (operators stripped client-side), mirroring the client (bookmarks-
+    //    app.tsx keywordSearch(index, q)); embed uses the expanded/rewritten variants.
+    //    runHybridPipeline's bge broad-mode floors (BGE_BROAD_VECTOR_COSINE_FLOOR / _MERGED_
+    //    RELATIVE_FLOOR, keyed off model === "@cf/baai/bge-m3", re-swept for the hybrid tail in
+    //    T3b) apply here; exact mode keeps its model-independent 0.5 relative floor.
+    const keywordResults = keywordSearch(keywordIndex, q);
     const pooledVectorResults = multiVectorSearch(index, embeddings);
-    const finalHybrid = runHybridPipeline([], pooledVectorResults, prec, index);
+    const finalHybrid = runHybridPipeline(keywordResults, pooledVectorResults, prec, index);
 
     // 4. Rerank the top RERANK_WINDOW via bge-reranker-base; blend 0.6*ce + 0.4*hybrid.
     //    HU: rerank against rewrites[0] (the EN translation) if present, else the raw query.
