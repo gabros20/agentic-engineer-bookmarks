@@ -113,7 +113,17 @@ async function loadData(env: Env): Promise<LoadedData> {
 }
 
 function initData(env: Env): Promise<LoadedData> {
-  return (dataPromise ??= loadData(env));
+  // `??=` alone would memoize a REJECTED promise forever (a transient R2/dev-server blip on the
+  // first request would 500 every subsequent /search until the isolate is evicted). On failure,
+  // reset dataPromise to null so the NEXT request retries a fresh load; the success path still
+  // caches the one in-flight/resolved promise so concurrent requests share it (see P1 above).
+  if (!dataPromise) {
+    dataPromise = loadData(env).catch((err) => {
+      dataPromise = null;
+      throw err;
+    });
+  }
+  return dataPromise;
 }
 
 // Remove unpaired UTF-16 surrogates (valid emoji pairs preserved). Workers AI hard-errors
@@ -141,6 +151,25 @@ function mergeExpansions(staticExpansions: string[], rewrites: string[]): string
   return merged.slice(0, 8);
 }
 
+// Workers AI intermittently returns transient 3043/3030 "internal server error"s (documented in
+// T1's re-embed run) — the same error class on both the embed (@cf/baai/bge-m3) and rerank
+// (@cf/baai/bge-reranker-base) bindings. Shared bounded retry-with-jitter so both call sites use
+// ONE implementation (no drift). Callers decide what to do on exhaustion (rerank falls back to
+// hybrid order; embed lets the error propagate to the request's generic 500).
+const AI_RETRY_MAX_ATTEMPTS = 3;
+async function retryTransientAI<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= AI_RETRY_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === AI_RETRY_MAX_ATTEMPTS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.random() * 200));
+    }
+  }
+  // Unreachable (loop above always returns or throws on the last attempt), but keeps TS happy.
+  throw new Error("retryTransientAI: exhausted attempts");
+}
+
 // ======================================== Rerank ===========================================
 // One independent scoring pass per request (NO module-level scheduler — lib/rerank.ts's
 // latest-wins coalescer is for a single-user UI and would let concurrent requests supersede
@@ -158,28 +187,22 @@ async function rerankWindow(
   const contexts = window.map((r) => ({ text: stripLoneSurrogates(rerankDocs[r.id] ?? "") }));
   const safeQuery = stripLoneSurrogates(rerankQuery);
 
-  // Workers AI intermittently returns transient 3043/3030 "internal server error"s
-  // (documented in T1's re-embed run). A 50-context rerank is < 1 neuron and fast, so retry
-  // with jitter before giving up. On persistent failure fall back to the hybrid order
-  // (silent-skip contract, mirrors lib/rerank.ts) rather than erroring the whole request.
-  const MAX_ATTEMPTS = 3;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const rr = await env.AI.run("@cf/baai/bge-reranker-base", { query: safeQuery, contexts });
-      // response: [{ id: <original context index>, score: 0..1 }] sorted desc (spike-findings).
-      const resp: Array<{ id: number; score: number }> = rr?.response ?? [];
-      const ceScores = new Array(window.length).fill(0);
-      for (const { id, score } of resp) {
-        if (Number.isInteger(id) && id >= 0 && id < ceScores.length) ceScores[id] = score;
-      }
-      const blended = blendRerankScores(window, ceScores);
-      return [...blended, ...tail];
-    } catch {
-      if (attempt === MAX_ATTEMPTS) return results;
-      await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.random() * 200));
+  // A 50-context rerank is < 1 neuron and fast, so retry with jitter before giving up. On
+  // persistent failure fall back to the hybrid order (silent-skip contract, mirrors
+  // lib/rerank.ts) rather than erroring the whole request.
+  try {
+    const rr = await retryTransientAI(() => env.AI.run("@cf/baai/bge-reranker-base", { query: safeQuery, contexts }));
+    // response: [{ id: <original context index>, score: 0..1 }] sorted desc (spike-findings).
+    const resp: Array<{ id: number; score: number }> = rr?.response ?? [];
+    const ceScores = new Array(window.length).fill(0);
+    for (const { id, score } of resp) {
+      if (Number.isInteger(id) && id >= 0 && id < ceScores.length) ceScores[id] = score;
     }
+    const blended = blendRerankScores(window, ceScores);
+    return [...blended, ...tail];
+  } catch {
+    return results;
   }
-  return results;
 }
 
 // ========================================= CORS ============================================
@@ -252,11 +275,16 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
     if (!expandedQueries.length) return json({ results: [] }, 200, cors);
 
     // 2. Embed all query variants — RAW text, no prefix (bge-m3), truncate oversized inputs.
-    //    Strip lone surrogates so odd query text can't hard-error the embed call.
-    const emb = await env.AI.run("@cf/baai/bge-m3", {
-      text: expandedQueries.map(stripLoneSurrogates),
-      truncate_inputs: true,
-    });
+    //    Strip lone surrogates so odd query text can't hard-error the embed call. Same transient
+    //    3030/3043 error class as the reranker (I2), so retry with the same shared helper —
+    //    unlike rerank there's no fallback to degrade to, so exhaustion propagates to the
+    //    request's catch block below.
+    const emb = await retryTransientAI(() =>
+      env.AI.run("@cf/baai/bge-m3", {
+        text: expandedQueries.map(stripLoneSurrogates),
+        truncate_inputs: true,
+      }),
+    );
     const embeddings: number[][] = emb?.data ?? emb;
 
     // 3. Vector search + floors — REUSED verbatim from lib/bookmark-search.ts (max-pool group
@@ -279,7 +307,10 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
     const results = reranked.slice(0, limit).map((r) => ({ id: r.id, score: r.score }));
     return json({ results, phase: "reranked" }, 200, cors);
   } catch (err) {
-    return json({ error: String(err) }, 500, cors);
+    // /search is public; don't echo internal detail (R2 keys, DATA_BASE_URL, bin-size mismatches)
+    // to the client. Log server-side (Workers logs) and return a generic message instead.
+    console.error("search failed:", err);
+    return json({ error: "search failed" }, 500, cors);
   }
 }
 
@@ -313,7 +344,8 @@ export default {
         const vectors: number[][] = result?.data ?? result;
         return Response.json({ vectors });
       } catch (err) {
-        return Response.json({ error: String(err) }, { status: 500 });
+        console.error("embed failed:", err);
+        return Response.json({ error: "embed failed" }, { status: 500 });
       }
     }
 
