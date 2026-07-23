@@ -2,7 +2,7 @@
 
 A Next.js app for browsing a personal archive of saved X bookmarks.
 
-The app renders a static JSON export as searchable cards with local hybrid (keyword + semantic) search, sorting/filtering, starring, an AI Digest that summarizes search results, and a ⌘K AI chat that can search the archive — all bilingual (English / Magyar). Fresh bookmarks are pulled and appended incrementally with the [`xrelay`](https://github.com/gabros20/x-relay) CLI.
+The app renders a static JSON export as searchable cards with hybrid (keyword + semantic) search served by a Cloudflare Worker, sorting/filtering, starring, an AI Digest that summarizes search results, and a ⌘K AI chat that can search the archive — all bilingual (English / Magyar). Fresh bookmarks are pulled and appended incrementally with the [`xrelay`](https://github.com/gabros20/x-relay) CLI.
 
 ## Live App
 
@@ -41,7 +41,7 @@ localStorage["agentic-engineer-bookmarks:lang"]
 
 ## Features
 
-- Hybrid search: local semantic embeddings (Transformers.js, `multilingual-e5-small`) fused with keyword matching (Lunr), plus a browser-side cross-encoder rerank pass (`ms-marco-MiniLM-L-6-v2`) over the top results
+- Hybrid search: a Cloudflare Worker (Workers AI, free tier) fuses `bge-m3` semantic embeddings with Lunr keyword matching, then reranks the top results with a `bge-reranker-base` cross-encoder pass — the client ships no ML and just renders the ranked results (see [Search architecture](#search-architecture))
 - Exact / Broad precision toggle, with a **Relevance** sort option that reflects the live hybrid/rerank ranking (auto-selected when you start typing a search, restoring your previous sort when you clear it)
 - Query operators typed straight into the search box: `from:handle`, `before:YYYY-MM[-DD]`, `after:YYYY-MM[-DD]` — parsed out as removable chips and applied as hard filters alongside the text search
 - Relevance floors drop low-confidence broad-mode matches instead of padding results out to a fixed count, so a narrow query returns a short, high-precision list rather than a long tail of noise
@@ -55,14 +55,20 @@ localStorage["agentic-engineer-bookmarks:lang"]
 - JSON parsed off the main thread in a Web Worker with skeleton loading
 - Responsive, Anthropic-styled card layout
 
-AI features (Digest, chat, query expansion) are gated behind a passkey stored as a `DIGEST_UNLOCK_SECRET` cookie; the OpenRouter key (`OPENROUTER_API_KEY`) is server-side only. Search itself (hybrid, operators, rerank) needs no passkey — it's fully local/browser-side.
+AI features (Digest, chat, query expansion) are gated behind a passkey stored as a `DIGEST_UNLOCK_SECRET` cookie; the OpenRouter key (`OPENROUTER_API_KEY`) is server-side only. Search itself (hybrid, operators, rerank) needs no passkey — it runs server-side on a public Cloudflare Worker, not in the browser.
 
-The semantic model (`multilingual-e5-small`, ~112 MB quantized) and the cross-encoder reranker (~23 MB quantized) each download once per browser on first use and are cached by the browser thereafter; both warm up idly in the background after the page loads, and search degrades gracefully to keyword-only while they're not yet ready.
+The client downloads no model and does no embedding or reranking — every keystroke sends the query to the Worker over the network, which returns ranked results. If the Worker is unreachable, search degrades gracefully to a plain client-side substring match over the already-loaded posts.
+
+## Search architecture
+
+Client → Cloudflare Worker → Vercel-hosted data: the browser sends each query to the Worker's `/search` endpoint; the Worker runs the hybrid pipeline (Lunr keyword ⊕ `bge-m3` semantic ⊕ `bge-reranker-base` rerank, via Workers AI) over index data it fetches from the static JSON in `public/data/` on Vercel and caches per isolate; it returns a ranked `{id, score}` list that the client renders — no ML, embeddings, or index ever ship to the browser.
+
+Because the Worker caches that data per isolate, a bookmark sync (`npm run sync`) only updates what's live once the Worker is redeployed with the refreshed data — see [Syncing Fresh Bookmarks](#syncing-fresh-bookmarks).
 
 ## Stack
 
 - Next.js `16` (App Router) · React `19` · Tailwind CSS `4`
-- Transformers.js browser embeddings (`Xenova/multilingual-e5-small`, asymmetric `query:`/`passage:` prefixing) · cross-encoder rerank (`Xenova/ms-marco-MiniLM-L-6-v2`) · Lunr keyword search
+- Search: a Cloudflare Worker (Workers AI) running `bge-m3` semantic embeddings, `bge-reranker-base` cross-encoder rerank, and Lunr keyword search — no ML on the client
 - AI SDK v6 + `@ai-sdk/react` + AI Elements · OpenRouter (`@openrouter/ai-sdk-provider`)
 - `motion` animations · Lucide icons · Vercel hosting
 
@@ -139,6 +145,6 @@ vercel --prod   # manual production deploy
 ## Notes
 
 - The bookmark JSON is committed into the private repository (the data files are several MB; a large push may need `git config http.postBuffer 524288000`).
-- Semantic search is static and Vercel-compatible — query embeddings run in the browser, so no database is required at runtime.
+- Search runs server-side on a Cloudflare Worker that embeds/reranks with Workers AI and fetches its index data from the static JSON hosted on Vercel — still no database required at runtime.
 - Favorites, digests, and chats are intentionally not synced across devices.
-- The runtime server API exists only for the AI Digest, chat, and query-expansion endpoints — all three are passkey-gated and stateless (no database).
+- The Vercel runtime server API exists only for the AI Digest, chat, and query-expansion endpoints — all three are passkey-gated and stateless (no database). Search itself is served separately by the Cloudflare Worker's `/search` endpoint (ungated, public) — see [Search architecture](#search-architecture).

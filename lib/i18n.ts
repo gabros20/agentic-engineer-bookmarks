@@ -18,7 +18,7 @@ const STORAGE_KEY = "agentic-engineer-bookmarks:lang";
 export const messages = {
   en: {
     "app.title": "X Bookmarks",
-    "app.subtitle": "{n} saved posts searchable locally",
+    "app.subtitle": "{n} saved posts · AI-powered search",
     "app.starred": "starred",
     "app.saved": "saved",
     "app.aria.savedDigests": "Saved digests",
@@ -108,7 +108,7 @@ export const messages = {
   },
   hu: {
     "app.title": "X Könyvjelzők",
-    "app.subtitle": "{n} mentett poszt, helyileg kereshető",
+    "app.subtitle": "{n} mentett poszt · AI-alapú keresés",
     "app.starred": "csillagozott",
     "app.saved": "mentett",
     "app.aria.savedDigests": "Mentett összegzések",
