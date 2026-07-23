@@ -5,7 +5,10 @@ import { digestRequestSchema, digestSchema } from "@/lib/digest-schema";
 import { buildDigestUserPrompt, getDigestSystemPrompt } from "@/lib/digest-prompt";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// The digest now clusters ~50 Worker-reranked sources (up from ~30) with gemini-3.6-flash, so a
+// single generation can run longer than the old 60s ceiling. Vercel Fluid Compute allows up to
+// 300s; 120s gives comfortable headroom for a large streamed digest without an open-ended cap.
+export const maxDuration = 120;
 
 // T1 (digest engine upgrade): gemini-3.6-flash — stronger synthesis + reliable
 // structured output/HU output than the previous nano tier, still cheap, for a deeper
