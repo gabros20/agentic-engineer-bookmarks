@@ -42,15 +42,17 @@
 //   Passing `dtype: "q8"` explicitly forces the quantized file everywhere, so the browser
 //   and the Node eval mirror (scripts/lib/search-core.mjs) score with the identical model.
 
-export const RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2";
-export const RERANK_WINDOW = 50;
+// Pure blend/normalize math lives in lib/rerank-core.ts so the Cloudflare search Worker can
+// reuse it without dragging in the `@huggingface/transformers` dynamic import below (T2).
+// Re-exported here so existing importers of lib/rerank keep working unchanged.
+import { RERANK_WINDOW, RerankCandidate, blendRerankScores, minMaxNormalize } from "@/lib/rerank-core";
+export { RERANK_WINDOW, minMaxNormalize };
+export type { RerankCandidate };
 
-const CE_BLEND_WEIGHT = 0.6;
-const HYBRID_BLEND_WEIGHT = 0.4;
+export const RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2";
+
 const ARTICLE_EXCERPT_CHARS = 300;
 const DOC_TEXT_CHAR_CAP = 1000;
-
-export type RerankCandidate = { id: string; score: number };
 
 // Minimal call-signature types for the two loaded objects, matching the existing codebase
 // convention (see embedQueries's `extractor` cast in components/bookmarks-app.tsx) rather
@@ -122,21 +124,6 @@ export async function scoreWithCrossEncoder(query: string, docTexts: string[]): 
   );
   const output = await model(inputs);
   return Array.from(output.logits.data).map((logit) => sigmoid(logit as number));
-}
-
-/**
- * Min-max normalize a score array into [0, 1]. Ties (max === min — including the
- * single-element and all-equal cases) collapse every entry to a neutral 0.5 rather than
- * arbitrarily boosting or zeroing them: with one side of the blend constant, ordering is
- * decided entirely by the other (still-differentiated) side. [Minor, reversible,
- * non-user-visible edge-case choice — noted here per the report contract, not escalated.]
- */
-export function minMaxNormalize(values: number[]): number[] {
-  if (!values.length) return values;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (max - min < 1e-9) return values.map(() => 0.5);
-  return values.map((v) => (v - min) / (max - min));
 }
 
 /**
@@ -215,12 +202,7 @@ async function performRerank(
       );
     }
 
-    const ceNorm = minMaxNormalize(ceScoresRaw);
-    const hybridNorm = minMaxNormalize(window.map((r) => r.score));
-
-    const blended = window
-      .map((r, i) => ({ id: r.id, score: CE_BLEND_WEIGHT * ceNorm[i] + HYBRID_BLEND_WEIGHT * hybridNorm[i] }))
-      .sort((a, b) => b.score - a.score);
+    const blended = blendRerankScores(window, ceScoresRaw);
 
     return [...blended, ...tail];
   } catch (err) {

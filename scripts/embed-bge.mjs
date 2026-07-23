@@ -127,7 +127,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function embedRequest(texts) {
   const res = await fetch(EMBED_URL, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      // The worker /embed route is gated behind EMBED_SECRET (must match worker/.dev.vars).
+      ...(process.env.EMBED_SECRET ? { "X-Embed-Secret": process.env.EMBED_SECRET } : {}),
+    },
     body: JSON.stringify({ texts }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);

@@ -3,5 +3,30 @@
   "name": "bookmark-search-spike",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
-  "ai": { "binding": "AI" }
+  "ai": { "binding": "AI" },
+
+  // Resolve the `@/*` specifiers used inside the shared lib/*.ts sources when they are
+  // bundled into the Worker (esbuild does not read tsconfig `paths`). One entry per reachable
+  // `@/` value-import; type-only imports (e.g. @/lib/bookmark-types) are erased but aliased
+  // too for safety. Keeps one set of lib sources serving both the Next app and the Worker.
+  "alias": {
+    "@/lib/bookmark-search": "../lib/bookmark-search.ts",
+    "@/lib/rerank-core": "../lib/rerank-core.ts",
+    "@/lib/bookmark-types": "../lib/bookmark-types.ts",
+    "@/scripts/lib/embed": "../scripts/lib/embed.mjs"
+  },
+
+  // DEV data source: a static server exposing public/data (see worker/.dev.vars).
+  // `cd public && python3 -m http.server 8080` then the Worker fetches
+  // http://localhost:8080/data/{search-index-bge.bin,search-index-bge.meta.json,rerank-docs.json}.
+  "vars": {
+    "DATA_BASE_URL": "http://localhost:8080/data"
+  }
+
+  // TODO(T5): after R2 is enabled in the dashboard, add the bucket binding below and upload
+  // the packed index + rerank docs. loadData() prefers SEARCH_DATA over DATA_BASE_URL, so this
+  // is the only prod swap needed (no code change):
+  // "r2_buckets": [
+  //   { "binding": "SEARCH_DATA", "bucket_name": "bookmark-search-data" }
+  // ]
 }

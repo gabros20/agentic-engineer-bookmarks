@@ -15,6 +15,14 @@ import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 const ARTICLE_EXCERPT_CHARS = 300;
 const DOC_TEXT_CHAR_CAP = 1000;
 
+// A few posts carry unpaired UTF-16 surrogates in the source archive (malformed data — same
+// class T1 hit in embed-bge.mjs). Workers AI hard-errors ("3030"/"3043") on any input with a
+// lone surrogate, so the reranker batch dies deterministically whenever such a doc lands in a
+// window. Strip only unpaired surrogates (valid emoji pairs preserved). Mirrors embed-bge.mjs.
+function stripLoneSurrogates(text) {
+  return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+}
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourcePath = join(root, "public/data/all-bookmarks.json");
 const outputPath = join(root, "public/data/rerank-docs.json");
@@ -32,7 +40,10 @@ function buildRerankDocText(post) {
     post.quotedTweet?.text,
   ].filter((part) => Boolean(part));
   const collapsed = parts.join(" ").replace(/\s+/g, " ").trim();
-  return collapsed.slice(0, DOC_TEXT_CHAR_CAP);
+  // Strip AFTER the slice: slicing at DOC_TEXT_CHAR_CAP can bisect a valid emoji surrogate
+  // pair, creating a fresh lone surrogate at the boundary (this is why stripping only the
+  // pre-slice text still left malformed docs).
+  return stripLoneSurrogates(collapsed.slice(0, DOC_TEXT_CHAR_CAP));
 }
 
 const payload = JSON.parse(await readFile(sourcePath, "utf8"));

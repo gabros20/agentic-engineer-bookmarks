@@ -1,0 +1,21 @@
+{
+  // baseUrl + paths let wrangler/esbuild resolve the `@/*` specifiers used INSIDE the shared
+  // lib/*.ts files (e.g. lib/bookmark-search.ts -> `@/scripts/lib/embed`) when they are
+  // bundled into the Worker. `@/*` maps to the repo root (one level up), matching the app's
+  // root tsconfig alias so one set of lib sources serves both the Next app and the Worker.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "webworker"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
