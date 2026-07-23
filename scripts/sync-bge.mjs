@@ -38,7 +38,10 @@ const workerDir = join(root, "worker");
 const rawLogDir = join(root, ".orchestrate/raw");
 const wranglerLogPath = join(rawLogDir, "sync-bge-wrangler.log");
 
-const WRANGLER_PORT = Number(process.env.SYNC_BGE_WRANGLER_PORT ?? 8787);
+// Default to 8799 (not 8787) so this script's own throwaway `wrangler dev` never collides with
+// a worker you're running manually on the conventional 8787 (wrangler hard-fails "Address in
+// use" on collision — it does not auto-pick another port). Override with SYNC_BGE_WRANGLER_PORT.
+const WRANGLER_PORT = Number(process.env.SYNC_BGE_WRANGLER_PORT ?? 8799);
 const WRANGLER_READY_TIMEOUT_MS = 60_000;
 const WRANGLER_SHUTDOWN_GRACE_MS = 5_000;
 

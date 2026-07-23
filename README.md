@@ -122,7 +122,9 @@ node scripts/sync-bge.mjs
   3. If something is pending, it starts a local `wrangler dev` in `worker/` (Workers AI runs remotely even under `wrangler dev`, so this is required for real inference), waits for it to report ready, runs the incremental embed against its gated `POST /embed` route (`EMBED_SECRET` from `worker/.dev.vars`), then tears `wrangler dev` back down — including on error or Ctrl-C, so a failed sync never leaves an orphaned process.
   4. Either way, it rebuilds `lunr-index.json` (`build-lunr-index.mjs`) and `rerank-docs.json` (`build-rerank-docs.mjs`) from the current archive, and repacks `search-index-bge.bin`/`.meta.json` (`pack-bge-index.mjs`) from `search-index-bge.json` — keeping the three Worker-served artifacts aligned with the corpus.
 
-  If the `wrangler dev` automation ever proves too brittle in some environment, the manual two-step fallback still works: `cd worker && npx wrangler dev --port 8787` in one terminal, then `node scripts/embed-bge.mjs` (+ `build-lunr-index.mjs` / `build-rerank-docs.mjs` / `pack-bge-index.mjs`) in another.
+  The script runs its throwaway `wrangler dev` on port **8799** by default (override with `SYNC_BGE_WRANGLER_PORT`) so it won't collide with a worker you may already be running on the conventional 8787.
+
+  If the `wrangler dev` automation ever proves too brittle in some environment, the manual two-step fallback still works: in one terminal `cd worker && npx wrangler dev --port 8787`; in another, `export EMBED_SECRET="$(grep -E '^EMBED_SECRET' worker/.dev.vars | cut -d= -f2- | tr -d '\"')"` (the `/embed` route is gated on it — skip this and you'll get confusing 403 retry-storms, not a clear error), then `EMBED_URL=http://localhost:8787/embed node scripts/embed-bge.mjs` followed by `node scripts/build-lunr-index.mjs` / `build-rerank-docs.mjs` / `pack-bge-index.mjs`.
 
 Then commit and push (Vercel redeploys on push to `main`):
 
