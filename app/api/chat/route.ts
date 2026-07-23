@@ -8,7 +8,7 @@ import { getBookmarkInputSchema, searchBookmarksInputSchema } from "@/lib/chat-t
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = "openai/gpt-5.4-nano";
+const MODEL = "google/gemini-3.6-flash";
 
 const requestSchema = z.object({
   messages: z.array(z.unknown()),
@@ -85,11 +85,10 @@ export async function POST(request: NextRequest) {
     },
     stopWhen: stepCountIs(10),
     temperature: 0.2,
-    providerOptions: {
-      openrouter: {
-        reasoning: { effort: "medium" },
-      },
-    },
+    // T1 mirror: gpt-5.4-nano's `providerOptions.openrouter.reasoning.effort` was an
+    // OpenAI-style reasoning-effort knob; Gemini doesn't use that field (it has its own
+    // thinking-budget mechanism), so it's dropped rather than adapted, same call T1 made for
+    // /api/digest (see .orchestrate/task-1-report.md) — no providerOptions needed here either.
   });
 
   return result.toUIMessageStreamResponse();

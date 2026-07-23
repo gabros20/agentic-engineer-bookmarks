@@ -435,7 +435,12 @@ export function BookmarksApp() {
     if (!q || posts.length === 0) return { count: 0, results: [] };
     let ranked: { id: string; score: number }[];
     try {
-      ranked = await searchViaWorker({ query: q, precision: input.precision });
+      // Task 3: pass the tool's requested limit through so the Worker's rerank/slice budget
+      // matches what we actually need (its own DEFAULT_LIMIT of 240 was already generous
+      // enough that this wasn't strictly required for correctness, but requesting exactly
+      // input.limit keeps the round trip lean and makes the contract explicit instead of
+      // relying on an incidental Worker default).
+      ranked = await searchViaWorker({ query: q, precision: input.precision, limit: input.limit });
     } catch (err) {
       if (process.env.NODE_ENV !== "production") {
         console.debug("[chat-search] worker search failed, falling back to substring filter:", err);
