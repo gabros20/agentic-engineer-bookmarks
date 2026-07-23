@@ -8,7 +8,7 @@ import { getBookmarkInputSchema, searchBookmarksInputSchema } from "@/lib/chat-t
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = "openai/gpt-5.4-nano";
+const MODEL = "google/gemini-3.6-flash";
 
 const requestSchema = z.object({
   messages: z.array(z.unknown()),
@@ -85,6 +85,10 @@ export async function POST(request: NextRequest) {
     },
     stopWhen: stepCountIs(10),
     temperature: 0.2,
+    // reasoning.effort is OpenRouter's own unified, provider-agnostic reasoning-effort field
+    // (not OpenAI-specific) — OpenRouter maps it directly onto Gemini's native thinkingLevel
+    // API ("low"/"medium"/"high"), so it applies cleanly to gemini-3.6-flash here. Capped at
+    // "medium" to keep this interactive Cmd-K route from reasoning uncapped on latency/cost.
     providerOptions: {
       openrouter: {
         reasoning: { effort: "medium" },

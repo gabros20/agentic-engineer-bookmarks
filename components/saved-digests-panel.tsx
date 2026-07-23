@@ -86,6 +86,9 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
                 {items.map((item, i) => {
                   const themeLabel = item.themes.length === 1 ? t("saved.themes", { n: 1 }) : t("saved.themesPlural", { n: item.themes.length });
                   const sourceLabel = item.sourceCount === 1 ? t("digest.sources", { n: 1 }) : t("digest.sourcesPlural", { n: item.sourceCount });
+                  // `tldr` is absent on OLD saved entries (pre-T2, themes+overall only) — fall
+                  // back to `overall`, which every saved entry has always had.
+                  const preview = item.tldr || item.overall;
                   return (
                     <motion.li
                       key={item.query}
@@ -105,8 +108,8 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
                         <div className="mt-1 text-[12px] text-[color:var(--color-muted)]">
                           {themeLabel} · {sourceLabel} · {formatAge(item.createdAt, t)}
                         </div>
-                        {item.overall ? (
-                          <p className="mt-1.5 line-clamp-2 text-[13px] leading-[1.55] text-[color:var(--color-body)]">{item.overall}</p>
+                        {preview ? (
+                          <p className="mt-1.5 line-clamp-2 text-[13px] leading-[1.55] text-[color:var(--color-body)]">{preview}</p>
                         ) : null}
                       </button>
                       <button

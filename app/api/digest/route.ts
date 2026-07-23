@@ -5,12 +5,17 @@ import { digestRequestSchema, digestSchema } from "@/lib/digest-schema";
 import { buildDigestUserPrompt, getDigestSystemPrompt } from "@/lib/digest-prompt";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// The digest now clusters ~50 Worker-reranked sources (up from ~30) with gemini-3.6-flash, so a
+// single generation can run longer than the old 60s ceiling. Vercel Fluid Compute allows up to
+// 300s; 120s gives comfortable headroom for a large streamed digest without an open-ended cap.
+export const maxDuration = 120;
 
-// gpt-4.1-nano is fast (~5-7s for 30 sources), cheap, follows the
-// language instruction reliably for both EN and HU, and produces
-// well-clustered themes via OpenRouter tool calling.
-const MODEL = "openai/gpt-5.4-nano";
+// T1 (digest engine upgrade): gemini-3.6-flash — stronger synthesis + reliable
+// structured output/HU output than the previous nano tier, still cheap, for a deeper
+// (~50-source) input. Verified live via streamObject through OpenRouter (see
+// .orchestrate/task-1-report.md); no providerOptions needed — this route never set
+// OpenAI-style `reasoning.effort`, so there's nothing Gemini-specific to adapt here.
+const MODEL = "google/gemini-3.6-flash";
 
 export async function POST(request: NextRequest) {
   const expected = process.env.DIGEST_UNLOCK_SECRET;

@@ -2,10 +2,19 @@ import type { Digest } from "@/lib/digest-schema";
 
 const STORAGE_KEY = "agentic-engineer-bookmarks:digests";
 
+// T2 (digest UI upgrade): `tldr`/`readFirst`/`deeperReads` are OPTIONAL on this type
+// specifically so OLD saved entries (persisted before this change, JSON with only
+// `themes`+`overall`) still satisfy it and deserialize/render without a migration step —
+// `read()` just JSON.parses localStorage and casts, so a missing key becomes `undefined`
+// at runtime, which is exactly what these optional fields expect. Do not make them
+// required without writing a migration for existing localStorage entries.
 export type SavedDigest = {
   query: string;
   themes: Digest["themes"];
   overall: string;
+  tldr?: string;
+  readFirst?: Digest["readFirst"];
+  deeperReads?: Digest["deeperReads"];
   sourceCount: number;
   createdAt: string;
 };

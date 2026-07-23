@@ -13,7 +13,12 @@ export const searchBookmarksInputSchema = z.object({
     .describe(
       "exact = no synonym expansion, keyword-weighted, narrow; broad = synonym expansion, semantic-weighted, wide. Use exact for short literal queries (handles, exact terms), broad for vibes/topics.",
     ),
-  limit: z.number().min(1).max(60).default(20).describe("Maximum results"),
+  limit: z
+    .number()
+    .min(1)
+    .max(60)
+    .default(35)
+    .describe("Maximum results to return (default 35, max 60). Raise it for broad/enumerative questions."),
   filter: z
     .enum(["all", "article", "media", "text"])
     .default("all")
