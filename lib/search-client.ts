@@ -16,6 +16,13 @@ import type { SearchPrecision } from "@/lib/bookmark-search";
 // `wrangler dev` on :8787. Trailing slash trimmed so `${endpoint}/search` is always clean.
 const SEARCH_ENDPOINT = (process.env.NEXT_PUBLIC_SEARCH_ENDPOINT ?? "http://localhost:8787").replace(/\/+$/, "");
 
+// Hard ceiling on a single /search round trip. Without it, a connected-but-silent Worker
+// (hung isolate, network black hole) would leave the UI stuck in "searching…" forever, since
+// only a query change or unmount aborts the in-flight fetch. On timeout the request aborts
+// and surfaces as an error, so the caller degrades to the substring fallback like any other
+// failure. Generous enough for a cold-isolate first request (model + ~22MB data load).
+const SEARCH_TIMEOUT_MS = 12000;
+
 export type RankedResult = { id: string; score: number };
 
 export type SearchRequest = {
@@ -36,11 +43,17 @@ export type SearchRequest = {
  */
 export async function searchViaWorker(request: SearchRequest): Promise<RankedResult[]> {
   const { query, precision, rewrites, limit, signal } = request;
+  // Combine the caller's cancellation signal (query change / unmount) with a timeout, so a
+  // hung request can never wedge the UI in "searching…". AbortSignal.any is supported in all
+  // browsers this app targets (Next 16 / modern evergreen); the timeout signal is GC'd with
+  // the request.
+  const timeout = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
+  const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const response = await fetch(`${SEARCH_ENDPOINT}/search`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ query, precision, rewrites, limit }),
-    signal,
+    signal: combinedSignal,
   });
   if (!response.ok) throw new Error(`search request failed: ${response.status}`);
 
