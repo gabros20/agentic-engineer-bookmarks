@@ -85,10 +85,15 @@ export async function POST(request: NextRequest) {
     },
     stopWhen: stepCountIs(10),
     temperature: 0.2,
-    // T1 mirror: gpt-5.4-nano's `providerOptions.openrouter.reasoning.effort` was an
-    // OpenAI-style reasoning-effort knob; Gemini doesn't use that field (it has its own
-    // thinking-budget mechanism), so it's dropped rather than adapted, same call T1 made for
-    // /api/digest (see .orchestrate/task-1-report.md) — no providerOptions needed here either.
+    // reasoning.effort is OpenRouter's own unified, provider-agnostic reasoning-effort field
+    // (not OpenAI-specific) — OpenRouter maps it directly onto Gemini's native thinkingLevel
+    // API ("low"/"medium"/"high"), so it applies cleanly to gemini-3.6-flash here. Capped at
+    // "medium" to keep this interactive Cmd-K route from reasoning uncapped on latency/cost.
+    providerOptions: {
+      openrouter: {
+        reasoning: { effort: "medium" },
+      },
+    },
   });
 
   return result.toUIMessageStreamResponse();

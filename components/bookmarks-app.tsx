@@ -435,12 +435,14 @@ export function BookmarksApp() {
     if (!q || posts.length === 0) return { count: 0, results: [] };
     let ranked: { id: string; score: number }[];
     try {
-      // Task 3: pass the tool's requested limit through so the Worker's rerank/slice budget
-      // matches what we actually need (its own DEFAULT_LIMIT of 240 was already generous
-      // enough that this wasn't strictly required for correctness, but requesting exactly
-      // input.limit keeps the round trip lean and makes the contract explicit instead of
-      // relying on an incidental Worker default).
-      ranked = await searchViaWorker({ query: q, precision: input.precision, limit: input.limit });
+      // Do NOT pass input.limit through here: the content-type filter (article/media/text)
+      // below runs client-side, AFTER this call, and slices to input.limit only at the end.
+      // If we ask the Worker for only input.limit raw candidates, a filtered request (e.g.
+      // filter:"article") has to draw from a much smaller pre-filter pool and can come back
+      // starved. Let the Worker return its own generous default (DEFAULT_LIMIT = 240) so the
+      // filter still has real headroom; the final `pool.slice(0, input.limit)` below still
+      // caps the response to what the tool asked for.
+      ranked = await searchViaWorker({ query: q, precision: input.precision });
     } catch (err) {
       if (process.env.NODE_ENV !== "production") {
         console.debug("[chat-search] worker search failed, falling back to substring filter:", err);
