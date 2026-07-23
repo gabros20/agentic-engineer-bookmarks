@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "bookmark-search-spike",
+  "name": "bookmark-search",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
   "ai": { "binding": "AI" },
@@ -16,17 +16,15 @@
     "@/scripts/lib/embed": "../scripts/lib/embed.mjs"
   },
 
-  // DEV data source: a static server exposing public/data (see worker/.dev.vars).
-  // `cd public && python3 -m http.server 8080` then the Worker fetches
-  // http://localhost:8080/data/{search-index-bge.bin,search-index-bge.meta.json,rerank-docs.json}.
+  // PROD data source: the deployed Worker fetches the packed index + rerank docs + lunr index
+  // from the Vercel static CDN (the files live in public/data/, served at /data). No R2 needed
+  // for v1 — R2 is a future hardening option (loadData() prefers a SEARCH_DATA R2 binding over
+  // DATA_BASE_URL if one is ever added). ALLOWED_ORIGINS pins CORS to the prod app origin.
+  // DEV overrides DATA_BASE_URL to a local static server (http://localhost:8080/data) via
+  // worker/.dev.vars (`cd public && python3 -m http.server 8080`), which wrangler dev reads in
+  // preference to these vars.
   "vars": {
-    "DATA_BASE_URL": "http://localhost:8080/data"
+    "DATA_BASE_URL": "https://agentic-engineer-bookmarks.vercel.app/data",
+    "ALLOWED_ORIGINS": "https://agentic-engineer-bookmarks.vercel.app"
   }
-
-  // TODO(T5): after R2 is enabled in the dashboard, add the bucket binding below and upload
-  // the packed index + rerank docs. loadData() prefers SEARCH_DATA over DATA_BASE_URL, so this
-  // is the only prod swap needed (no code change):
-  // "r2_buckets": [
-  //   { "binding": "SEARCH_DATA", "bucket_name": "bookmark-search-data" }
-  // ]
 }
