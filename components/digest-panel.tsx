@@ -74,11 +74,33 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
           })),
       }));
 
+    const sanitizedReadFirst: Digest["readFirst"] = (object?.readFirst ?? [])
+      .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      .map((r) => ({
+        bookmarkId: r.bookmarkId ?? "",
+        author: r.author ?? "",
+        why: r.why ?? "",
+        url: r.url ?? "",
+      }));
+
+    const sanitizedDeeperReads: NonNullable<Digest["deeperReads"]> = (object?.deeperReads ?? [])
+      .filter((d): d is NonNullable<typeof d> => Boolean(d))
+      .map((d) => ({
+        bookmarkId: d.bookmarkId ?? "",
+        articleTitle: d.articleTitle ?? "",
+        author: d.author ?? "",
+        why: d.why ?? "",
+        url: d.url ?? "",
+      }));
+
     savedForRef.current = key;
     saveDigest({
       query,
+      tldr: object?.tldr,
       themes: sanitizedThemes,
       overall,
+      readFirst: sanitizedReadFirst,
+      deeperReads: sanitizedDeeperReads.length ? sanitizedDeeperReads : undefined,
       sourceCount: sources?.length ?? 0,
       createdAt: new Date().toISOString(),
     });
@@ -96,8 +118,29 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   }, [onClose, stop]);
 
   const display = useMemo(() => {
-    if (cached) return { themes: cached.themes, overall: cached.overall, mode: "cached" as const };
-    return { themes: object?.themes ?? [], overall: object?.overall ?? "", mode: "live" as const };
+    // Old saved entries (pre-T2) only ever had `themes`+`overall` in localStorage — `tldr`/
+    // `readFirst`/`deeperReads` are `undefined` on them at runtime, so default to
+    // absent/empty here rather than assume presence. That's the whole back-compat story:
+    // no migration, just optional fields the render guards below already treat as "no
+    // section".
+    if (cached) {
+      return {
+        tldr: cached.tldr,
+        overall: cached.overall,
+        themes: cached.themes,
+        readFirst: cached.readFirst ?? [],
+        deeperReads: cached.deeperReads ?? [],
+        mode: "cached" as const,
+      };
+    }
+    return {
+      tldr: object?.tldr,
+      overall: object?.overall ?? "",
+      themes: object?.themes ?? [],
+      readFirst: object?.readFirst ?? [],
+      deeperReads: object?.deeperReads ?? [],
+      mode: "live" as const,
+    };
   }, [cached, object]);
 
   const canRegenerate = Boolean(sources?.length);
@@ -191,6 +234,23 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
           ) : null}
 
           <AnimatePresence>
+            {/* New field — absent on OLD saved digests (pre-T2, themes+overall only). */}
+            {display.tldr ? (
+              <motion.div
+                key="tldr"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                className="mb-3 rounded-lg border border-[color:var(--color-primary)]/25 bg-[color:var(--color-surface-card)] p-3"
+              >
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-primary)]">{t("digest.tldr")}</div>
+                <p className="text-[15px] leading-[1.6] text-[color:var(--color-ink)]">{display.tldr}</p>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
             {display.overall ? (
               <motion.div
                 key="overall"
@@ -218,6 +278,10 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
                 />
               ))}
             </div>
+          ) : null}
+
+          {display.themes.length > 0 ? (
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">{t("digest.themes")}</h3>
           ) : null}
 
           <ul className="space-y-4">
@@ -254,6 +318,66 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
               </motion.li>
             ))}
           </ul>
+
+          {/* New sections — absent (no heading, no crash) on OLD saved digests, whose
+              `readFirst`/`deeperReads` default to `[]` in `display` above. Per-item `?.url`
+              guards below mirror the theme-source guard for streaming-partial safety. */}
+          {display.readFirst.some((item) => item?.url) ? (
+            <div className="mt-6">
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">{t("digest.readFirst")}</h3>
+              <ul className="space-y-1">
+                {display.readFirst.map((item, i) =>
+                  item?.url ? (
+                    <motion.li
+                      key={i}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 32, delay: i * 0.03 }}
+                    >
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-md border border-transparent p-3 transition hover:border-[color:var(--color-hairline)] hover:bg-[color:var(--color-surface-card)] sm:p-2"
+                      >
+                        <div className="text-[12px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-primary)]">{item.author || "Source"}</div>
+                        <div className="mt-0.5 text-[14px] leading-[1.55] text-[color:var(--color-ink)]">{item.why || "…"}</div>
+                      </a>
+                    </motion.li>
+                  ) : null,
+                )}
+              </ul>
+            </div>
+          ) : null}
+
+          {display.deeperReads.some((item) => item?.url) ? (
+            <div className="mt-6">
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">{t("digest.deeperReads")}</h3>
+              <ul className="space-y-1">
+                {display.deeperReads.map((item, i) =>
+                  item?.url ? (
+                    <motion.li
+                      key={i}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 32, delay: i * 0.03 }}
+                    >
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-md border border-transparent p-3 transition hover:border-[color:var(--color-hairline)] hover:bg-[color:var(--color-surface-card)] sm:p-2"
+                      >
+                        <div className="text-[14px] font-medium leading-snug text-[color:var(--color-ink)]">{item.articleTitle || "…"}</div>
+                        <div className="mt-0.5 text-[12px] font-semibold uppercase tracking-[1px] text-[color:var(--color-primary)]">{item.author || "Source"}</div>
+                        <div className="mt-0.5 text-[13px] leading-[1.5] text-[color:var(--color-body)]">{item.why || "…"}</div>
+                      </a>
+                    </motion.li>
+                  ) : null,
+                )}
+              </ul>
+            </div>
+          ) : null}
 
           {!isLoading && display.themes.length === 0 && !error ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("digest.empty")}</p>

@@ -860,7 +860,7 @@ export function BookmarksApp() {
                 className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-70"
               >
                 <Sparkles size={16} className={digestSourcing ? "animate-pulse" : undefined} />
-                <span>{t("action.aiDigest", { n: Math.min(DIGEST_SOURCE_LIMIT, visiblePosts.length) })}</span>
+                <span>{t("action.aiDigest")}</span>
               </motion.button>
               <motion.button
                 type="button"

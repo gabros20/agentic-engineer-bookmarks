@@ -44,7 +44,10 @@ export const messages = {
     "scope.text": "Text only",
 
     "action.clear": "Clear",
-    "action.aiDigest": "Digest top {n} with AI",
+    // T2 review F1 (CTA label fix): was "Digest top {n} with AI" where {n} came from
+    // visiblePosts.length BEFORE the async ~50-source Worker re-query resolved — misstated
+    // the real digest scope. Count-free copy now; no {n} arg passed at the call site.
+    "action.aiDigest": "Digest with AI",
     "action.aiShortlist": "Shortlist with AI",
     "action.scrollTop": "Scroll to top",
     "action.loadMore": "Load {n} more",
@@ -68,6 +71,10 @@ export const messages = {
     "digest.error": "Could not generate digest.",
     "digest.startHere": "Where to start: ",
     "digest.empty": "No digest yet.",
+    "digest.tldr": "TL;DR",
+    "digest.themes": "Themes",
+    "digest.readFirst": "Read first",
+    "digest.deeperReads": "Deeper reads",
 
     "saved.title": "Saved digests",
     "saved.empty": "No saved digests yet. Run an AI Digest from any search and it will be saved here for next time.",
@@ -134,7 +141,7 @@ export const messages = {
     "scope.text": "Csak szöveg",
 
     "action.clear": "Törlés",
-    "action.aiDigest": "Top {n} összegzése AI-val",
+    "action.aiDigest": "Összegzés AI-val",
     "action.aiShortlist": "Rövid lista AI-val",
     "action.scrollTop": "Vissza a tetejére",
     "action.loadMore": "{n} további betöltése",
@@ -158,6 +165,10 @@ export const messages = {
     "digest.error": "Nem sikerült létrehozni az összegzést.",
     "digest.startHere": "Hol kezdd: ",
     "digest.empty": "Még nincs összegzés.",
+    "digest.tldr": "Röviden",
+    "digest.themes": "Témák",
+    "digest.readFirst": "Kezdd ezekkel",
+    "digest.deeperReads": "Hosszabb olvasmányok",
 
     "saved.title": "Mentett összegzések",
     "saved.empty": "Még nincs mentett összegzés. Futtass egy AI Összegzést bármilyen keresésre, és itt jelenik meg legközelebbre.",
