@@ -1,21 +1,49 @@
-// Re-embed the whole corpus with Workers AI @cf/baai/bge-m3 for the server-side
-// (Cloudflare Worker) search — Task 1. Mirrors scripts/build-search-index.mjs's chunk/item
-// structure EXACTLY (same searchText + chunkArticle + quantizeEmbedding from scripts/lib/
-// embed.mjs, same {id, part?} shape, same empty-text fallback), with ONE deliberate
-// difference: bge-m3 takes RAW text — NO e5 "query:"/"passage:" prefixes (see
-// .orchestrate/spike-findings.md). So this builds items without passageText(): the main
-// vector embeds the raw searchText (or the raw post id as the textless fallback), and each
-// article chunk embeds the raw chunk. Output: public/data/search-index-bge.json
-// (1024-dim, int8_normalized, schema_version "3.0", NO prefix_scheme field).
+// Re-embed the corpus with Workers AI @cf/baai/bge-m3 for the server-side (Cloudflare
+// Worker) search — Task 1, made INCREMENTAL for `npm run sync` in Task 3. Mirrors
+// scripts/build-search-index.mjs's chunk/item structure EXACTLY (same searchText +
+// chunkArticle + quantizeEmbedding from scripts/lib/embed.mjs, same {id, part?} shape, same
+// empty-text fallback), with ONE deliberate difference: bge-m3 takes RAW text — NO e5
+// "query:"/"passage:" prefixes (see .orchestrate/spike-findings.md). So this builds items
+// without passageText(): the main vector embeds the raw searchText (or the raw post id as
+// the textless fallback), and each article chunk embeds the raw chunk. Output:
+// public/data/search-index-bge.json (1024-dim, int8_normalized, schema_version "3.0", NO
+// prefix_scheme field).
 //
-// Inference runs through the local spike worker's POST /embed route (Workers AI runs
-// remotely even under `wrangler dev`): start `npx wrangler dev --port 8787` in worker/,
-// wait for "Ready on", then run this. Resumable: re-running only embeds (id,part) pairs
-// absent from an existing output, and progress is flushed atomically every FLUSH_EVERY
-// batches, so an interrupted run picks up where it left off.
+// Inference runs through the worker's POST /embed route (Workers AI runs remotely even
+// under `wrangler dev`): start `npx wrangler dev --port 8787` in worker/, wait for "Ready
+// on", then run this (scripts/sync-bge.mjs automates that dance for `npm run sync`).
+//
+// INCREMENTAL + F1 fix (Task 3): resuming used to key purely on (id,part) presence, so an
+// already-embedded id whose underlying TEXT changed later (e.g. an X Article backfilled
+// with its body *after* the post's main vector was first embedded — searchText(post) now
+// includes the article, but the stored main vector doesn't) stayed silently stale forever.
+// Every on-disk item now also stores a short content `fingerprint` (sha1 of the exact text
+// that was embedded, truncated). On each run, an existing (id,part) is only reused when its
+// stored fingerprint still matches the CURRENT text's fingerprint; a mismatch means the
+// content changed and the vector is re-embedded. Additive field — pack-bge-index.mjs and the
+// worker's packed .bin/.meta never see it (they only read embedding + id/part).
+//
+// Migration note: items written before this change have no `fingerprint` field at all (not
+// a mismatch — no baseline to compare against). Those are trusted as correct-for-their-
+// current-text and stamped with today's fingerprint WITHOUT a re-embed (see the resume loop
+// below) — safe here because the committed search-index-bge.json was built as a full
+// from-scratch rebuild (commit 179fd30) strictly after the last bookmarks/backfill sync
+// (commit b3b8c8e), so no F1 staleness exists in the current corpus. `--full` forces a
+// genuine ground-up rebuild if that assumption is ever in doubt.
+//
+// Flags: `--full` ignores any existing output and re-embeds everything from scratch.
+// `--dry-run` computes what WOULD be (re)embedded — no network calls, no writes — and prints
+// a final JSON summary line `{ pending, new, stale, migrated, total }` for scripting (see
+// scripts/sync-bge.mjs, which uses this to skip starting wrangler dev entirely on a true
+// no-op sync).
+//
+// Resumable regardless: re-running only embeds pending (new + stale) (id,part) pairs, and
+// progress is flushed atomically every FLUSH_EVERY batches, so an interrupted run picks up
+// where it left off.
 
 import { readFile, writeFile, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
@@ -51,6 +79,22 @@ const outputPath = join(root, "public/data/search-index-bge.json");
 const tmpPath = `${outputPath}.tmp`;
 
 const specKey = (id, part) => `${id}::${part ?? "main"}`;
+
+// CLI flags — see header comment.
+const cliArgs = process.argv.slice(2);
+const FULL_REBUILD = cliArgs.includes("--full");
+const DRY_RUN = cliArgs.includes("--dry-run");
+
+/**
+ * Short content fingerprint (F1 fix): a hash of the EXACT text sent to the embedder for a
+ * given (id,part). Truncated sha1 hex — collision risk is irrelevant here (only used to
+ * detect "did this text change", not for security), and 16 hex chars is plenty to make an
+ * accidental collision between two different texts practically impossible for a ~7k-item
+ * corpus.
+ */
+function fingerprint(text) {
+  return createHash("sha1").update(text).digest("hex").slice(0, 16);
+}
 
 /**
  * Strip lone/unpaired UTF-16 surrogate code units. Some archived posts contain broken
@@ -91,13 +135,19 @@ function rawItemsForPost(post) {
   return items;
 }
 
-/** Build the on-disk index object from the canonical spec order + an embeddings map. */
+/**
+ * Build the on-disk index object from the canonical spec order + an embeddings map.
+ * embMap values are `{ embedding, fingerprint }` (see fingerprint() above) — `fingerprint`
+ * is an additive field consumed only by THIS script's own resume logic; pack-bge-index.mjs
+ * and the worker's packed .bin/.meta never read it.
+ */
 function buildIndex(specs, embMap) {
   const items = [];
   for (const spec of specs) {
-    const embedding = embMap.get(specKey(spec.id, spec.part));
-    if (!embedding) continue; // not yet embedded (partial progress)
-    items.push(spec.part !== undefined ? { id: spec.id, part: spec.part, embedding } : { id: spec.id, embedding });
+    const entry = embMap.get(specKey(spec.id, spec.part));
+    if (!entry) continue; // not yet embedded (partial progress)
+    const base = spec.part !== undefined ? { id: spec.id, part: spec.part } : { id: spec.id };
+    items.push({ ...base, embedding: entry.embedding, fingerprint: entry.fingerprint });
   }
   const uniqueIdCount = new Set(items.map((it) => it.id)).size;
   return {
@@ -188,23 +238,66 @@ async function main() {
   const payload = JSON.parse(await readFile(sourcePath, "utf8"));
   const posts = normalizeBookmarkPayload(payload);
 
-  const specs = posts.flatMap(rawItemsForPost);
-  console.log(`Corpus: ${posts.length} posts → ${specs.length} vectors to embed (main + article chunks).`);
+  const specs = posts.flatMap(rawItemsForPost).map((spec) => ({ ...spec, fp: fingerprint(spec.text) }));
+  console.log(`Corpus: ${posts.length} posts → ${specs.length} vectors (main + article chunks).`);
 
-  // Resume: preload embeddings already on disk.
+  // embMap: specKey -> { embedding, fingerprint }. Populated below from whatever of the
+  // corpus is REUSABLE as-is (unchanged fingerprint, or a pre-fingerprint migration item —
+  // see header comment); anything left out is "pending" and gets (re-)embedded.
   const embMap = new Map();
-  if (existsSync(outputPath)) {
+  let migrated = 0;
+  let stale = 0;
+
+  if (FULL_REBUILD) {
+    console.log("Full rebuild requested (--full): ignoring any existing output.");
+  } else if (existsSync(outputPath)) {
     try {
       const prev = JSON.parse(await readFile(outputPath, "utf8"));
+      const prevByKey = new Map();
       for (const item of prev.items ?? []) {
         if (Array.isArray(item.embedding) && item.embedding.length === DIMENSIONS) {
-          embMap.set(specKey(item.id, item.part), item.embedding);
+          prevByKey.set(specKey(item.id, item.part), item);
         }
       }
-      console.log(`Resuming: ${embMap.size} vectors already present in ${outputPath}.`);
+      for (const spec of specs) {
+        const key = specKey(spec.id, spec.part);
+        const prevItem = prevByKey.get(key);
+        if (!prevItem) continue; // never embedded — pending (new)
+        if (prevItem.fingerprint === undefined) {
+          // Pre-fingerprint on-disk item: no stored baseline to compare against. Trust the
+          // existing embedding as current and stamp today's fingerprint onto it without a
+          // network re-embed (see header comment's migration note). `--full` bypasses this.
+          embMap.set(key, { embedding: prevItem.embedding, fingerprint: spec.fp });
+          migrated += 1;
+        } else if (prevItem.fingerprint === spec.fp) {
+          embMap.set(key, { embedding: prevItem.embedding, fingerprint: spec.fp }); // unchanged
+        } else {
+          stale += 1; // F1 case: content changed since this (id,part) was last embedded
+        }
+      }
+      const pending = specs.length - embMap.size;
+      console.log(
+        `Resuming: ${embMap.size} reusable (${migrated} migrated w/o re-embed, ${embMap.size - migrated} ` +
+          `fingerprint-unchanged) · ${pending} pending (${stale} changed content, ${pending - stale} new).`,
+      );
     } catch (err) {
       console.warn(`Could not read existing output (${err}); starting fresh.`);
     }
+  }
+
+  if (DRY_RUN) {
+    const pending = specs.length - embMap.size;
+    console.log(`Dry run: no network calls, no writes.`);
+    console.log(
+      JSON.stringify({
+        pending,
+        new: pending - stale,
+        stale,
+        migrated,
+        total: specs.length,
+      }),
+    );
+    return;
   }
 
   // One pass over the still-pending specs. Greedy char-budget batching (see MAX_BATCH_CHARS).
@@ -232,7 +325,7 @@ async function main() {
       const batch = batches[b];
       const vectors = await embedBatch(batch.map((s) => s.text));
       batch.forEach((spec, j) => {
-        embMap.set(specKey(spec.id, spec.part), quantizeEmbedding(vectors[j]));
+        embMap.set(specKey(spec.id, spec.part), { embedding: quantizeEmbedding(vectors[j]), fingerprint: spec.fp });
       });
       done += batch.length;
       if ((b + 1) % FLUSH_EVERY === 0 || b === batches.length - 1) {

@@ -1,19 +1,21 @@
 // Precompute the per-doc rerank "passage" text for the server-side (Cloudflare Worker)
 // search — Task 1. The Worker reranks with @cf/baai/bge-reranker-base over a hybrid window;
-// each candidate needs the same doc text the browser cross-encoder used. buildRerankDocText
-// below MIRRORS lib/rerank.ts's buildRerankDocText EXACTLY (authorship prefix + text +
-// articleTitle + first ARTICLE_EXCERPT_CHARS of articleText + quoted text, whitespace-
-// collapsed, capped at DOC_TEXT_CHAR_CAP). Output: public/data/rerank-docs.json as
-// { [id]: docText } for every post.
+// each candidate needs the same doc text the browser cross-encoder used. The base text
+// comes from scripts/lib/search-core.mjs's buildRerankDocText (Task 3, F2 drift fix) — the
+// existing Node port of lib/rerank.ts's buildRerankDocText (already used by
+// scripts/eval-search.mjs and asserted against the TS source by the drift guard in
+// scripts/test-search-core.mjs) — IMPORTED here rather than hand-copied a second time, so
+// there is exactly ONE .mjs copy of the authorship-prefix + parts + collapse + cap logic.
+// One deliberate addition on top: a post-slice surrogate strip (see stripLoneSurrogates
+// below) that lib/rerank.ts's browser copy doesn't need (local WASM tokenization tolerates
+// lone surrogates) but the Worker's remote Workers AI call does not. Output:
+// public/data/rerank-docs.json as { [id]: docText } for every post.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
-
-// Mirrors of lib/rerank.ts constants.
-const ARTICLE_EXCERPT_CHARS = 300;
-const DOC_TEXT_CHAR_CAP = 1000;
+import { buildRerankDocText as buildRerankDocTextCore } from "./lib/search-core.mjs";
 
 // A few posts carry unpaired UTF-16 surrogates in the source archive (malformed data — same
 // class T1 hit in embed-bge.mjs). Workers AI hard-errors ("3030"/"3043") on any input with a
@@ -27,23 +29,16 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const sourcePath = join(root, "public/data/all-bookmarks.json");
 const outputPath = join(root, "public/data/rerank-docs.json");
 
-/** EXACT mirror of buildRerankDocText() in lib/rerank.ts. */
+/**
+ * Worker-specific wrapper: search-core.mjs's buildRerankDocText EXACTLY mirrors
+ * lib/rerank.ts (authorship prefix + text + articleTitle + first ARTICLE_EXCERPT_CHARS of
+ * articleText + quoted text, whitespace-collapsed, capped at DOC_TEXT_CHAR_CAP), then this
+ * strips lone surrogates AFTER the cap: slicing at DOC_TEXT_CHAR_CAP can bisect a valid
+ * emoji surrogate pair, creating a fresh lone surrogate at the boundary (this is why
+ * stripping only the pre-slice text still left malformed docs).
+ */
 function buildRerankDocText(post) {
-  const screenName = post.author?.screenName;
-  const authorName = post.author?.name;
-  const authorPrefix = screenName ? `@${screenName}${authorName ? ` (${authorName})` : ""}: ` : undefined;
-  const parts = [
-    authorPrefix,
-    post.text,
-    post.articleTitle,
-    post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,
-    post.quotedTweet?.text,
-  ].filter((part) => Boolean(part));
-  const collapsed = parts.join(" ").replace(/\s+/g, " ").trim();
-  // Strip AFTER the slice: slicing at DOC_TEXT_CHAR_CAP can bisect a valid emoji surrogate
-  // pair, creating a fresh lone surrogate at the boundary (this is why stripping only the
-  // pre-slice text still left malformed docs).
-  return stripLoneSurrogates(collapsed.slice(0, DOC_TEXT_CHAR_CAP));
+  return stripLoneSurrogates(buildRerankDocTextCore(post));
 }
 
 const payload = JSON.parse(await readFile(sourcePath, "utf8"));

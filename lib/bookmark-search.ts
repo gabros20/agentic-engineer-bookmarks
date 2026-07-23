@@ -43,6 +43,33 @@ const HYBRID_WEIGHTS: Record<SearchPrecision, { keyword: number; vector: number 
   broad: { keyword: 0.35, vector: 0.65 },
 };
 
+/**
+ * Task 2 (handle recall recovery): RRF weight override for bare single-token exact queries
+ * (e.g. "rauchg", "mattpocockuk") on the bge-m3 index ONLY (gated in runHybridPipeline by
+ * `isBge && bareHandle`, exact precision). A prior experiment (skip rerank for handles)
+ * FAILED — the reranker measurably HELPS handle once a relevant post reaches its window; the
+ * regression is upstream, in the pre-rerank hybrid merge not surfacing exact-author keyword
+ * hits into the top ranks / RERANK_WINDOW. This pushes the merge fully keyword-driven for that
+ * narrow case only. Multi-token exact queries and broad mode are untouched (they keep
+ * HYBRID_WEIGHTS), and the e5 path never sees this (gated off `isBge` in runHybridPipeline) —
+ * additive/defaulted, so e5 stays byte-identical.
+ *
+ * Sweep against the live Worker (eval-bge.mjs, .orchestrate/task-2-report.md), handle
+ * recall@10/mrr@10/ndcg@10, every other class byte-identical at every step (the golden set has
+ * no non-handle single-token exact query, so this weight structurally cannot move them):
+ *   0.60/0.40 (baseline, HYBRID_WEIGHTS.exact) -> 0.25 / 0.0875 / 0.1184
+ *   0.85/0.15 (selected)                       -> 0.75 / 0.2257 / 0.3691
+ *   1.00/0.00                                  -> 0.8333 / 0.3819 / 0.4859
+ * 1.00/0.00 scored higher on handle, but this weight fires for ANY single-token EXACT query,
+ * and Exact is the app's DEFAULT precision — so at vector weight 0 a common one-word TOPIC
+ * query (e.g. "agents") would go fully keyword-only, structurally excluding semantic-only
+ * matches from even reaching the reranker (unmeasured by the handle-only golden set). 0.85/0.15
+ * keeps a real semantic signal for that case while handle recall@10 0.75 still beats the prior
+ * e5 baseline's 0.6667 — a deliberate trade of ~0.08 handle recall for not gutting single-word
+ * topic search. (The eval-baseline-bge.json numbers reflect 0.85/0.15.)
+ */
+const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 0.85, vector: 0.15 };
+
 const QUERY_EXPANSIONS: Record<string, string[]> = {
   ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],
   agent: ["agents", "agentic", "automation", "autonomous", "assistant", "workflow", "tool use"],
@@ -179,8 +206,9 @@ export function mergeHybridResults(
   keywordResults: SearchResult[],
   vectorResults: SearchResult[],
   precision: SearchPrecision = "broad",
+  weightsOverride?: { keyword: number; vector: number },
 ) {
-  const { keyword, vector } = HYBRID_WEIGHTS[precision];
+  const { keyword, vector } = weightsOverride ?? HYBRID_WEIGHTS[precision];
   const scores = new Map<string, number>();
   addReciprocalRanks(scores, keywordResults, keyword);
   addReciprocalRanks(scores, vectorResults, vector);
@@ -321,12 +349,21 @@ export function applyAbsoluteVectorFloor(results: SearchResult[], cosineFloor: n
  * Broad mode's relative floor applies BROAD_FLOOR_MIN_KEEP (model-independent structural rank
  * guard, review-task6-quality-r1 F1); exact mode keeps its hardcoded 0.5 relative floor
  * untouched for every model, no minKeep.
+ *
+ * `opts.bareHandle` (Task 2, default false/absent): when true AND the loaded index is bge-m3
+ * AND precision is "exact", the merge uses BGE_HANDLE_HYBRID_WEIGHTS instead of
+ * HYBRID_WEIGHTS.exact — see that constant's doc comment. Callers compute the bare-single-
+ * token-query signal themselves (worker/src/index.ts, scripts/lib/search-core.mjs's mirror);
+ * this function never inspects the raw query string. Absent/false is a no-op — identical to
+ * pre-Task-2 behavior — so the e5 path (which never sets it) stays byte-identical, and the bge
+ * path is unaffected unless a caller explicitly opts in.
  */
 export function runHybridPipeline(
   keywordResults: SearchResult[],
   pooledVectorResults: SearchResult[],
   precision: SearchPrecision,
   index: SearchIndexPayload,
+  opts: { bareHandle?: boolean } = {},
 ) {
   const isE5 = index.prefix_scheme === "e5";
   const isBge = index.model === "@cf/baai/bge-m3";
@@ -338,7 +375,13 @@ export function runHybridPipeline(
       ? applyAbsoluteVectorFloor(pooledVectorResults, absFloor)
       : pooledVectorResults
   ).slice(0, 900);
-  const merged = mergeHybridResults(keywordResults, vectorResults, precision);
+  const useHandleWeights = isBge && precision === "exact" && Boolean(opts.bareHandle);
+  const merged = mergeHybridResults(
+    keywordResults,
+    vectorResults,
+    precision,
+    useHandleWeights ? BGE_HANDLE_HYBRID_WEIGHTS : undefined,
+  );
   if (precision === "exact") return applyRelativeFloor(merged, 0.5);
   return floorsActive ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
 }

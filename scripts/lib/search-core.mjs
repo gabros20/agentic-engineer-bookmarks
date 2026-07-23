@@ -25,6 +25,13 @@ export const HYBRID_WEIGHTS = {
   broad: { keyword: 0.35, vector: 0.65 },
 };
 
+/**
+ * Task 2 (handle recall recovery): verbatim mirror of lib/bookmark-search.ts's
+ * BGE_HANDLE_HYBRID_WEIGHTS. See that file's doc comment for rationale — RRF weight override
+ * for bare single-token exact queries on the bge-m3 index only.
+ */
+export const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 0.85, vector: 0.15 };
+
 export const QUERY_EXPANSIONS = {
   ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],
   agent: ["agents", "agentic", "automation", "autonomous", "assistant", "workflow", "tool use"],
@@ -157,8 +164,8 @@ export function multiVectorSearch(index, queryEmbeddings) {
   return results.sort((a, b) => b.score - a.score);
 }
 
-export function mergeHybridResults(keywordResults, vectorResults, precision = "broad") {
-  const { keyword, vector } = HYBRID_WEIGHTS[precision];
+export function mergeHybridResults(keywordResults, vectorResults, precision = "broad", weightsOverride) {
+  const { keyword, vector } = weightsOverride ?? HYBRID_WEIGHTS[precision];
   const scores = new Map();
   addReciprocalRanks(scores, keywordResults, keyword);
   addReciprocalRanks(scores, vectorResults, vector);
@@ -268,8 +275,14 @@ export function applyAbsoluteVectorFloor(results, cosineFloor) {
  * harness runs the identical pipeline as the client (review-task6-quality-r1 F2). Broad
  * mode's relative floor applies BROAD_FLOOR_MIN_KEEP (review-task6-quality-r1 F1); exact
  * mode keeps its existing hardcoded 0.5 relative floor untouched, no minKeep.
+ *
+ * `opts.bareHandle` (Task 2, verbatim mirror of lib/bookmark-search.ts): default false/absent
+ * is a no-op (byte-identical to pre-Task-2 behavior); true only takes effect when the loaded
+ * index is bge-m3 AND precision is "exact", swapping in BGE_HANDLE_HYBRID_WEIGHTS for the
+ * merge. Not called with this flag from anywhere in this file today (eval-search.mjs's e5 call
+ * site below never sets it) — kept in sync so this mirror doesn't drift from lib.
  */
-export function runHybridPipeline(keywordResults, pooledVectorResults, precision, index) {
+export function runHybridPipeline(keywordResults, pooledVectorResults, precision, index, opts = {}) {
   // Model-specific broad floors (verbatim mirror of lib/bookmark-search.ts): e5 uses its 0.82
   // absolute floor; the bge-m3 index (keyed off model, not prefix_scheme) uses the T3-calibrated
   // BGE constants; any other index stays unfloored. Relative floor is model-independent (0.5).
@@ -283,7 +296,13 @@ export function runHybridPipeline(keywordResults, pooledVectorResults, precision
       ? applyAbsoluteVectorFloor(pooledVectorResults, absFloor)
       : pooledVectorResults
   ).slice(0, 900);
-  const merged = mergeHybridResults(keywordResults, vectorResults, precision);
+  const useHandleWeights = isBge && precision === "exact" && Boolean(opts.bareHandle);
+  const merged = mergeHybridResults(
+    keywordResults,
+    vectorResults,
+    precision,
+    useHandleWeights ? BGE_HANDLE_HYBRID_WEIGHTS : undefined,
+  );
   if (precision === "exact") return applyRelativeFloor(merged, 0.5);
   return floorsActive ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
 }

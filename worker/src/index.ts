@@ -313,7 +313,13 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
     //    T3b) apply here; exact mode keeps its model-independent 0.5 relative floor.
     const keywordResults = keywordSearch(keywordIndex, q);
     const pooledVectorResults = multiVectorSearch(index, embeddings);
-    const finalHybrid = runHybridPipeline(keywordResults, pooledVectorResults, prec, index);
+    // Task 2 (handle recall recovery): a bare single-token exact query (e.g. "rauchg",
+    // "mattpocockuk") is the one class that regressed vs the old e5-hybrid baseline. Signal it
+    // to runHybridPipeline so the bge-only, exact-only merge weighting can push exact-author
+    // keyword hits into the top ranks / rerank window (see BGE_HANDLE_HYBRID_WEIGHTS in lib).
+    // No-op for every other query shape (broad, multi-token exact) and for the e5 path.
+    const bareHandle = prec === "exact" && q.split(/\s+/).filter(Boolean).length === 1;
+    const finalHybrid = runHybridPipeline(keywordResults, pooledVectorResults, prec, index, { bareHandle });
 
     // 4. Rerank the top RERANK_WINDOW via bge-reranker-base; blend 0.6*ce + 0.4*hybrid.
     //    HU: rerank against rewrites[0] (the EN translation) if present, else the raw query.

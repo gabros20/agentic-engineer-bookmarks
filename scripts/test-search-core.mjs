@@ -11,8 +11,16 @@
 //  7. applyAbsoluteVectorFloor / applyRelativeFloor: broad-mode floor math (Task 6)
 //  8. rerankResults / minMaxNormalize / buildRerankDocText: cross-encoder blend math via a
 //     stubbed scorer (Task 11, T3.2) — the real ~23 MB model is never loaded in this file.
+//  9. F2 drift guard (Task 3): the field/boost/char-cap config in lib/bookmark-search.ts and
+//     lib/rerank.ts (the TS source of truth) still matches scripts/lib/search-core.mjs (the
+//     Node port build-lunr-index.mjs / build-rerank-docs.mjs / eval-search.mjs all import),
+//     and the two Worker-data builders still import from search-core.mjs instead of hand-
+//     copying a third parallel implementation.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chunkArticle, embedItemsForPost, searchText } from "./lib/embed.mjs";
 import {
   applyAbsoluteVectorFloor,
@@ -776,6 +784,126 @@ await testAsync("rerankResults coalescing: a third call replaces a still-parked 
   assert.equal(scorer2Called, false, "call 2's scorer must never run — it was superseded while still parked");
   assert.deepEqual(result2, results2, "the superseded parked call resolves with its own input order, unchanged");
   assert.deepEqual(result3.map((r) => r.id), ["z2", "z1"], "call 3 (the latest parked task) gets its own real scoring pass");
+});
+
+// ---- F2 drift guard (Task 3): builders must still match lib/*.ts source -------------
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+
+function readSrc(relPath) {
+  return readFileSync(join(repoRoot, relPath), "utf8");
+}
+
+/**
+ * Extract `this.field("name", { boost: N })` / bare `this.field("name");` declarations from
+ * a buildKeywordIndex-shaped `lunr(function build() { ... for (const post of posts) ...})`
+ * body. Returns `{ [fieldName]: boost | null }` (null = no boost option, i.e. default 1).
+ */
+function extractFieldBoosts(source) {
+  const bodyMatch = source.match(/function build\(\)\s*\{([\s\S]*?)for \(const post of posts\)/);
+  if (!bodyMatch) {
+    throw new Error("extractFieldBoosts: could not locate buildKeywordIndex's lunr `build()` field declarations");
+  }
+  const boosts = {};
+  const re = /this\.field\("([a-z]+)"(?:,\s*\{\s*boost:\s*(\d+)\s*\})?\)/g;
+  let m;
+  while ((m = re.exec(bodyMatch[1]))) {
+    boosts[m[1]] = m[2] !== undefined ? Number(m[2]) : null;
+  }
+  return boosts;
+}
+
+function extractConst(source, name) {
+  const m = source.match(new RegExp(`const ${name}\\s*=\\s*(\\d+)\\s*;`));
+  if (!m) throw new Error(`extractConst: "${name}" not found in source`);
+  return Number(m[1]);
+}
+
+test("F2 drift guard: buildKeywordIndex field/boost config matches between lib/bookmark-search.ts and search-core.mjs", () => {
+  const tsBoosts = extractFieldBoosts(readSrc("lib/bookmark-search.ts"));
+  const mjsBoosts = extractFieldBoosts(readSrc("scripts/lib/search-core.mjs"));
+  assert.deepEqual(
+    mjsBoosts,
+    tsBoosts,
+    "scripts/lib/search-core.mjs's buildKeywordIndex field/boost config has drifted from lib/bookmark-search.ts (the source of truth the client and the Worker's lunr-index.json must both match) — update search-core.mjs to match",
+  );
+  // Pin the values too, so a coordinated-but-wrong edit of BOTH files still fails loudly.
+  assert.deepEqual(tsBoosts, { text: 4, title: 5, author: 2, url: null, article: 3, quoted: 2 });
+});
+
+test("F2 drift guard: ARTICLE_INDEX_CHAR_LIMIT matches between lib/bookmark-search.ts and search-core.mjs", () => {
+  const tsLimit = extractConst(readSrc("lib/bookmark-search.ts"), "ARTICLE_INDEX_CHAR_LIMIT");
+  const mjsLimit = extractConst(readSrc("scripts/lib/search-core.mjs"), "ARTICLE_INDEX_CHAR_LIMIT");
+  assert.equal(mjsLimit, tsLimit, "search-core.mjs's ARTICLE_INDEX_CHAR_LIMIT has drifted from lib/bookmark-search.ts");
+  assert.equal(tsLimit, 2000);
+});
+
+test("F2 drift guard: rerank doc-text char caps match between lib/rerank.ts and search-core.mjs", () => {
+  const tsSrc = readSrc("lib/rerank.ts");
+  const mjsSrc = readSrc("scripts/lib/search-core.mjs");
+  const tsExcerpt = extractConst(tsSrc, "ARTICLE_EXCERPT_CHARS");
+  const mjsExcerpt = extractConst(mjsSrc, "ARTICLE_EXCERPT_CHARS");
+  const tsCap = extractConst(tsSrc, "DOC_TEXT_CHAR_CAP");
+  const mjsCap = extractConst(mjsSrc, "DOC_TEXT_CHAR_CAP");
+  assert.equal(mjsExcerpt, tsExcerpt, "search-core.mjs's ARTICLE_EXCERPT_CHARS has drifted from lib/rerank.ts");
+  assert.equal(mjsCap, tsCap, "search-core.mjs's DOC_TEXT_CHAR_CAP has drifted from lib/rerank.ts");
+  assert.equal(tsExcerpt, 300);
+  assert.equal(tsCap, 1000);
+});
+
+test("F2 drift guard: build-lunr-index.mjs / build-rerank-docs.mjs import from search-core.mjs instead of hand-copying", () => {
+  const lunrBuilderSrc = readSrc("scripts/build-lunr-index.mjs");
+  const rerankBuilderSrc = readSrc("scripts/build-rerank-docs.mjs");
+
+  assert.match(
+    lunrBuilderSrc,
+    /from\s+["']\.\/lib\/search-core\.mjs["']/,
+    "build-lunr-index.mjs no longer imports from ./lib/search-core.mjs",
+  );
+  assert.doesNotMatch(
+    lunrBuilderSrc,
+    /function\s+buildKeywordIndex\s*\(/,
+    "build-lunr-index.mjs re-declares buildKeywordIndex locally — the exact F2 hand-copy drift risk; import it from ./lib/search-core.mjs instead",
+  );
+
+  assert.match(
+    rerankBuilderSrc,
+    /from\s+["']\.\/lib\/search-core\.mjs["']/,
+    "build-rerank-docs.mjs no longer imports from ./lib/search-core.mjs",
+  );
+  // A thin local wrapper (surrogate-stripping around the imported core fn) is fine and
+  // expected — see that file's doc comment; what F2 actually guards against is the config
+  // itself (the excerpt/cap constants) being hand-copied a second time instead of living
+  // solely in search-core.mjs.
+  assert.doesNotMatch(
+    rerankBuilderSrc,
+    /const\s+(ARTICLE_EXCERPT_CHARS|DOC_TEXT_CHAR_CAP)\s*=/,
+    "build-rerank-docs.mjs re-declares ARTICLE_EXCERPT_CHARS/DOC_TEXT_CHAR_CAP locally — the exact F2 hand-copy drift risk; those constants must live only in ./lib/search-core.mjs",
+  );
+  assert.match(
+    rerankBuilderSrc,
+    /buildRerankDocTextCore/,
+    "build-rerank-docs.mjs no longer delegates to the imported buildRerankDocText from ./lib/search-core.mjs",
+  );
+});
+
+test("F2 drift guard: buildRerankDocText output respects the char caps extracted live from lib/rerank.ts", () => {
+  const excerptChars = extractConst(readSrc("lib/rerank.ts"), "ARTICLE_EXCERPT_CHARS");
+  const capChars = extractConst(readSrc("lib/rerank.ts"), "DOC_TEXT_CHAR_CAP");
+
+  const post = {
+    text: "T".repeat(50),
+    author: { name: "Author Name", screenName: "handle" },
+    articleTitle: "Title",
+    articleText: "A".repeat(excerptChars + 500), // exceeds the excerpt cap
+    quotedTweet: { text: "Q".repeat(50) },
+  };
+  const docText = buildRerankDocText(post);
+  assert.ok(docText.length <= capChars, `doc text (${docText.length} chars) exceeds DOC_TEXT_CHAR_CAP (${capChars})`);
+  assert.ok(
+    !docText.includes("A".repeat(excerptChars + 1)),
+    "articleText should be truncated to ARTICLE_EXCERPT_CHARS before the overall doc-text cap",
+  );
 });
 
 // ---- summary ---------------------------------------------------------------
