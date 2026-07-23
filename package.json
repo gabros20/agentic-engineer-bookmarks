@@ -5,13 +5,16 @@
     "dev": "next dev",
     "build:search": "node scripts/build-search-index.mjs",
     "embed:new": "node scripts/embed-new.mjs",
+    "embed:bge": "node scripts/embed-bge.mjs",
+    "sync:bge": "node scripts/sync-bge.mjs",
     "eval:search": "node scripts/eval-search.mjs",
     "test:search": "node scripts/test-search-core.mjs",
     "test:operators": "node scripts/test-query-operators.mjs",
     "migrate:archive": "node scripts/migrate-to-archive.mjs",
-    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000 && node scripts/backfill-articles.mjs && node scripts/embed-new.mjs",
+    "sync": "xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000 && node scripts/backfill-articles.mjs && node scripts/sync-bge.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "deploy:worker": "cd worker && wrangler deploy"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.195",
