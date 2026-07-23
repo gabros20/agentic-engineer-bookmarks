@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-23T19:14:39.046Z",
+  "generated_at": "2026-07-23T19:47:47.876Z",
   "model": "@cf/baai/bge-m3",
   "rerank_model": "@cf/baai/bge-reranker-base",
   "worker_url": "http://localhost:8787",
@@ -20,9 +20,9 @@
   },
   "overall": {
     "n": 32,
-    "recall10": 0.6979,
-    "mrr10": 0.5564,
-    "ndcg10": 0.58
+    "recall10": 0.6875,
+    "mrr10": 0.5369,
+    "ndcg10": 0.5654
   },
   "by_class": {
     "article-title": {
@@ -39,9 +39,9 @@
     },
     "handle": {
       "n": 4,
-      "recall10": 0.8333,
-      "mrr10": 0.3819,
-      "ndcg10": 0.4859
+      "recall10": 0.75,
+      "mrr10": 0.2257,
+      "ndcg10": 0.3691
     },
     "hu-topic": {
       "n": 5,
@@ -190,8 +190,8 @@
       "class": "handle",
       "precision": "exact",
       "recall10": 1,
-      "mrr10": 0.25,
-      "ndcg10": 0.5508095940041026,
+      "mrr10": 0.16666666666666666,
+      "ndcg10": 0.4716276524567204,
       "resultCount": 52
     },
     {
@@ -199,17 +199,17 @@
       "class": "handle",
       "precision": "exact",
       "recall10": 1,
-      "mrr10": 1,
-      "ndcg10": 0.7920874914199381,
+      "mrr10": 0.5,
+      "ndcg10": 0.5797748398812457,
       "resultCount": 39
     },
     {
       "query": "rauchg",
       "class": "handle",
       "precision": "exact",
-      "recall10": 0.6666666666666666,
-      "mrr10": 0.16666666666666666,
-      "ndcg10": 0.3235866969737877,
+      "recall10": 0.3333333333333333,
+      "mrr10": 0.125,
+      "ndcg10": 0.1480409554829326,
       "resultCount": 34
     },
     {
@@ -219,7 +219,7 @@
       "recall10": 0.6666666666666666,
       "mrr10": 0.1111111111111111,
       "ndcg10": 0.2769189462922768,
-      "resultCount": 62
+      "resultCount": 63
     },
     {
       "query": "How to Create the Right Skill for Your AI Agent",

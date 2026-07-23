@@ -58,14 +58,17 @@ const HYBRID_WEIGHTS: Record<SearchPrecision, { keyword: number; vector: number 
  * recall@10/mrr@10/ndcg@10, every other class byte-identical at every step (the golden set has
  * no non-handle single-token exact query, so this weight structurally cannot move them):
  *   0.60/0.40 (baseline, HYBRID_WEIGHTS.exact) -> 0.25 / 0.0875 / 0.1184
- *   0.85/0.15                                  -> 0.75 / 0.2257 / 0.3691
- *   1.00/0.00 (selected)                       -> 0.8333 / 0.3819 / 0.4859
- * 1.00/0.00 strictly dominated 0.85/0.15 on every handle metric with zero measured downside,
- * so it was kept over a fractional weight. At vector weight 0, a post found ONLY by the vector
- * side still surfaces (RRF still adds it at score 0, stable-sorted behind every keyword hit) —
- * this degrades to vector rank order for the keyword-miss tail rather than dropping results.
+ *   0.85/0.15 (selected)                       -> 0.75 / 0.2257 / 0.3691
+ *   1.00/0.00                                  -> 0.8333 / 0.3819 / 0.4859
+ * 1.00/0.00 scored higher on handle, but this weight fires for ANY single-token EXACT query,
+ * and Exact is the app's DEFAULT precision — so at vector weight 0 a common one-word TOPIC
+ * query (e.g. "agents") would go fully keyword-only, structurally excluding semantic-only
+ * matches from even reaching the reranker (unmeasured by the handle-only golden set). 0.85/0.15
+ * keeps a real semantic signal for that case while handle recall@10 0.75 still beats the prior
+ * e5 baseline's 0.6667 — a deliberate trade of ~0.08 handle recall for not gutting single-word
+ * topic search. (The eval-baseline-bge.json numbers reflect 0.85/0.15.)
  */
-const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 1.0, vector: 0.0 };
+const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 0.85, vector: 0.15 };
 
 const QUERY_EXPANSIONS: Record<string, string[]> = {
   ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],

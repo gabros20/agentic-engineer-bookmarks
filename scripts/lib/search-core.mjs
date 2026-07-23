@@ -30,7 +30,7 @@ export const HYBRID_WEIGHTS = {
  * BGE_HANDLE_HYBRID_WEIGHTS. See that file's doc comment for rationale — RRF weight override
  * for bare single-token exact queries on the bge-m3 index only.
  */
-export const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 1.0, vector: 0.0 };
+export const BGE_HANDLE_HYBRID_WEIGHTS = { keyword: 0.85, vector: 0.15 };
 
 export const QUERY_EXPANSIONS = {
   ai: ["artificial intelligence", "llm", "large language model", "neural network", "machine learning", "model"],
