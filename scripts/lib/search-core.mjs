@@ -228,6 +228,17 @@ export const BROAD_VECTOR_COSINE_FLOOR = 0.82;
 export const BROAD_MERGED_RELATIVE_FLOOR = 0.5;
 
 /**
+ * bge-m3 broad-mode floors (model "@cf/baai/bge-m3", Cloudflare Worker pipeline). Verbatim
+ * mirror of lib/bookmark-search.ts's BGE constants — calibrated by
+ * scripts/calibrate-floors-bge.mjs on 2026-07-23 (bge cosines top ~0.67, so e5's 0.82 is
+ * invalid). Relative floor is model-independent (matches e5's 0.5); the 0.40 absolute floor
+ * is a conservative deep-noise backstop (no-op on the golden set, kept below the ~0.55-0.67
+ * relevant band). See lib/bookmark-search.ts / .orchestrate/task-3-report.md for rationale.
+ */
+export const BGE_BROAD_VECTOR_COSINE_FLOOR = 0.4;
+export const BGE_BROAD_MERGED_RELATIVE_FLOOR = 0.5;
+
+/**
  * Structural guard against RRF-relative-floor false negatives (review-task6-quality-r1
  * F1): an item ranking #1 in keyword but absent from the vector list (filtered out by
  * BROAD_VECTOR_COSINE_FLOOR) can score as low as ~0.35x the top merged RRF score, which is
@@ -259,15 +270,22 @@ export function applyAbsoluteVectorFloor(results, cosineFloor) {
  * mode keeps its existing hardcoded 0.5 relative floor untouched, no minKeep.
  */
 export function runHybridPipeline(keywordResults, pooledVectorResults, precision, index) {
-  const floorsActive = index.prefix_scheme === "e5";
+  // Model-specific broad floors (verbatim mirror of lib/bookmark-search.ts): e5 uses its 0.82
+  // absolute floor; the bge-m3 index (keyed off model, not prefix_scheme) uses the T3-calibrated
+  // BGE constants; any other index stays unfloored. Relative floor is model-independent (0.5).
+  const isE5 = index.prefix_scheme === "e5";
+  const isBge = index.model === "@cf/baai/bge-m3";
+  const floorsActive = isE5 || isBge;
+  const absFloor = isE5 ? BROAD_VECTOR_COSINE_FLOOR : isBge ? BGE_BROAD_VECTOR_COSINE_FLOOR : 0;
+  const relFloor = isE5 ? BROAD_MERGED_RELATIVE_FLOOR : isBge ? BGE_BROAD_MERGED_RELATIVE_FLOOR : 0;
   const vectorResults = (
     precision === "broad" && floorsActive
-      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
+      ? applyAbsoluteVectorFloor(pooledVectorResults, absFloor)
       : pooledVectorResults
   ).slice(0, 900);
   const merged = mergeHybridResults(keywordResults, vectorResults, precision);
   if (precision === "exact") return applyRelativeFloor(merged, 0.5);
-  return floorsActive ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR, BROAD_FLOOR_MIN_KEEP) : merged;
+  return floorsActive ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
 }
 
 function addReciprocalRanks(scores, results, weight) {

@@ -250,6 +250,36 @@ export const BROAD_VECTOR_COSINE_FLOOR = 0.82;
 export const BROAD_MERGED_RELATIVE_FLOOR = 0.5;
 
 /**
+ * Broad-mode relevance floors for the bge-m3 index (model "@cf/baai/bge-m3", the Cloudflare
+ * Worker pipeline — Task 3), calibrated by scripts/calibrate-floors-bge.mjs on 2026-07-23.
+ * bge-m3 cosines top ~0.67 (T0 spike / T2), so e5's 0.82 absolute floor is INVALID here (it
+ * zeros everything) — these are the bge-specific replacements.
+ *
+ * BGE_BROAD_MERGED_RELATIVE_FLOOR (0.5) is the primary tail-shaper and is model-INDEPENDENT
+ * (RRF scores are model-agnostic), so it matches e5's BROAD_MERGED_RELATIVE_FLOOR: it brings
+ * the semantic-only broad result set from the 900-slice cap down to a median of ~62 on the
+ * golden queries — the same order as the e5 baseline's broad tail (median 42 / p90 62).
+ *
+ * BGE_BROAD_VECTOR_COSINE_FLOOR (0.40) is a CONSERVATIVE absolute deep-noise backstop, not the
+ * primary shaper. The sweep showed that at rel=0.5 every absolute floor from `none` up to 0.52
+ * is indistinguishable (tail 62, recall@10 0.4444, window-recall 0.5833 all identical) — so
+ * 0.40 is a no-op on the golden set (ZERO measured recall loss) while still flooring clearly
+ * unrelated content (< 0.40 cosine) for pathological weak-top queries. The sweep's mechanical
+ * "smallest-tail" tie-break selected 0.56 (median 25), but 0.56 sits INSIDE the relevant
+ * cosine band (relevant docs ~0.55-0.67) — too aggressive for an inclusive BROAD search and a
+ * real risk of cutting legitimate 0.50-0.56 paraphrase/topic matches or zeroing weak but valid
+ * queries — so it was deliberately rejected in favor of the conservative end of the
+ * indistinguishable range. See .orchestrate/task-3-report.md for the full sweep grid.
+ *
+ * GATE STATUS (task-3-report.md): the semantic-only bge Worker pipeline FAILED the e5 gate
+ * (handle + article-title classes regress without keyword/lunr). These floors do NOT cause
+ * that regression (they only bound the broad tail; they never reduce recall) and are wired for
+ * correctness, but if keyword is added back the floors should be re-swept for the hybrid tail.
+ */
+export const BGE_BROAD_VECTOR_COSINE_FLOOR = 0.4;
+export const BGE_BROAD_MERGED_RELATIVE_FLOOR = 0.5;
+
+/**
  * Structural guard against RRF-relative-floor false negatives (review-task6-quality-r1
  * F1): an item ranking #1 in keyword but absent from the vector list (filtered out by
  * BROAD_VECTOR_COSINE_FLOOR) can score as low as ~0.35x the top merged RRF score, which is
@@ -273,15 +303,24 @@ export function applyAbsoluteVectorFloor(results: SearchResult[], cosineFloor: n
 }
 
 /**
- * Runs the full hybrid pipeline: absolute vector floor (broad mode, e5 index only) ->
- * slice(0,900) -> RRF merge -> relative floor. Shared by the client (components/
- * bookmarks-app.tsx, both the main search effect and runChatSearch) and mirrored
- * verbatim as scripts/lib/search-core.mjs's runHybridPipeline so scripts/eval-search.mjs
- * runs the identical pipeline (review-task6-quality-r1 F2 — this used to live directly in
- * bookmarks-app.tsx, breaking the lib/mirror convention). Broad-mode floors (T1.3) are
- * gated off `prefix_scheme === "e5"`, so a v1 (MiniLM) index sees unchanged, unfloored
- * behavior. Broad mode's relative floor applies BROAD_FLOOR_MIN_KEEP (review-task6-quality-r1
- * F1); exact mode keeps its existing hardcoded 0.5 relative floor untouched, no minKeep.
+ * Runs the full hybrid pipeline: absolute vector floor (broad mode) -> slice(0,900) -> RRF
+ * merge -> relative floor. Shared by the client (components/bookmarks-app.tsx, both the main
+ * search effect and runChatSearch), the Cloudflare Worker (worker/src/index.ts), and mirrored
+ * verbatim as scripts/lib/search-core.mjs's runHybridPipeline so the eval harnesses run the
+ * identical pipeline (review-task6-quality-r1 F2).
+ *
+ * Broad-mode floors are MODEL-SPECIFIC (cosine distributions differ per embedding model), so
+ * the calibrated constants are selected by the loaded index's model:
+ *   - e5 v2 index (prefix_scheme "e5"): BROAD_VECTOR_COSINE_FLOOR (0.82) + BROAD_MERGED_
+ *     RELATIVE_FLOOR (0.5). UNCHANGED — this path stays byte-identical (the client still uses
+ *     the e5 index until the Cloudflare cutover, T4).
+ *   - bge-m3 index (model "@cf/baai/bge-m3"): BGE_BROAD_VECTOR_COSINE_FLOOR (0.40) + BGE_BROAD_
+ *     MERGED_RELATIVE_FLOOR (0.5), calibrated in T3 (bge cosines top ~0.67, so e5's 0.82 would
+ *     zero everything). Keyed off `model`, NOT prefix_scheme (bge is prefix-free).
+ *   - any other index (v1 MiniLM, etc.): no broad floors — unchanged, unfloored behavior.
+ * Broad mode's relative floor applies BROAD_FLOOR_MIN_KEEP (model-independent structural rank
+ * guard, review-task6-quality-r1 F1); exact mode keeps its hardcoded 0.5 relative floor
+ * untouched for every model, no minKeep.
  */
 export function runHybridPipeline(
   keywordResults: SearchResult[],
@@ -289,15 +328,19 @@ export function runHybridPipeline(
   precision: SearchPrecision,
   index: SearchIndexPayload,
 ) {
-  const floorsActive = index.prefix_scheme === "e5";
+  const isE5 = index.prefix_scheme === "e5";
+  const isBge = index.model === "@cf/baai/bge-m3";
+  const floorsActive = isE5 || isBge;
+  const absFloor = isE5 ? BROAD_VECTOR_COSINE_FLOOR : isBge ? BGE_BROAD_VECTOR_COSINE_FLOOR : 0;
+  const relFloor = isE5 ? BROAD_MERGED_RELATIVE_FLOOR : isBge ? BGE_BROAD_MERGED_RELATIVE_FLOOR : 0;
   const vectorResults = (
     precision === "broad" && floorsActive
-      ? applyAbsoluteVectorFloor(pooledVectorResults, BROAD_VECTOR_COSINE_FLOOR)
+      ? applyAbsoluteVectorFloor(pooledVectorResults, absFloor)
       : pooledVectorResults
   ).slice(0, 900);
   const merged = mergeHybridResults(keywordResults, vectorResults, precision);
   if (precision === "exact") return applyRelativeFloor(merged, 0.5);
-  return floorsActive ? applyRelativeFloor(merged, BROAD_MERGED_RELATIVE_FLOOR, BROAD_FLOOR_MIN_KEEP) : merged;
+  return floorsActive ? applyRelativeFloor(merged, relFloor, BROAD_FLOOR_MIN_KEEP) : merged;
 }
 
 function addReciprocalRanks(scores: Map<string, number>, results: SearchResult[], weight: number) {

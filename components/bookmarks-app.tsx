@@ -2,7 +2,7 @@
 
 import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
@@ -26,123 +26,14 @@ import type { DataWorkerMessage } from "@/lib/data-worker";
 import { useLanguage } from "@/lib/i18n";
 import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@/lib/query-operators";
 import type { UIMessage } from "ai";
-import {
-  buildKeywordIndex,
-  expandSemanticQueries,
-  keywordSearch,
-  multiVectorSearch,
-  runHybridPipeline,
-  type SearchIndexPayload,
-  type SearchPrecision,
-} from "@/lib/bookmark-search";
-import { buildRerankDocText, RERANK_WINDOW, rerankResults, warmupReranker } from "@/lib/rerank";
+import { type SearchPrecision } from "@/lib/bookmark-search";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
-import { queryPrefix } from "@/scripts/lib/embed";
-import type { ProgressInfo } from "@huggingface/transformers";
+import { searchViaWorker } from "@/lib/search-client";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
 const PAGE_SIZE = 240;
-
-let extractorPromise: Promise<unknown> | null = null;
-
-// Module-level model-download tracking, decoupled from any single component instance so
-// idle warmup (warmupEmbedder) and on-demand calls (embedQueries) both observe/update the
-// same state regardless of which one wins the `extractorPromise ??=` race below. Read via
-// useSyncExternalStore in the component — re-renders are driven by the throttled
-// setModelDownloadState() calls in handleModelProgress, not by raw progress ticks
-// (Transformers.js can fire many "progress" events per second reading a large file).
-type ModelDownloadState = { status: "idle" | "downloading" | "ready" | "failed"; pct: number };
-
-// Stable reference (not reallocated) so useSyncExternalStore's server/idle snapshot never
-// appears to "change" identity between calls.
-const IDLE_MODEL_DOWNLOAD_STATE: ModelDownloadState = { status: "idle", pct: 0 };
-let modelDownloadState: ModelDownloadState = IDLE_MODEL_DOWNLOAD_STATE;
-const modelDownloadListeners = new Set<() => void>();
-
-function setModelDownloadState(next: ModelDownloadState) {
-  modelDownloadState = next;
-  for (const listener of modelDownloadListeners) listener();
-}
-
-function subscribeModelDownloadState(listener: () => void) {
-  modelDownloadListeners.add(listener);
-  return () => {
-    modelDownloadListeners.delete(listener);
-  };
-}
-
-function getModelDownloadStateSnapshot() {
-  return modelDownloadState;
-}
-
-// The model download only ever happens client-side, so both the server render and the
-// pre-hydration client render see "idle".
-function getModelDownloadServerSnapshot() {
-  return IDLE_MODEL_DOWNLOAD_STATE;
-}
-
-// Throttle: notify subscribers (i.e. trigger a re-render) on real progress, not on every
-// tick. Always emit immediately on the very first tick (idle -> downloading, so the UI can
-// leave "warming up" right away) and on completion (>=100%); otherwise gate to >=500ms or a
-// >=5-point step since the last emitted value, per the brief's throttling requirement.
-let lastProgressNotifyAt = 0;
-let lastProgressNotifyPct = -1;
-
-// Transformers.js wraps any progress_callback passed to pipeline() in a
-// DefaultProgressCallback that, alongside the raw per-file "progress" events, also
-// synthesizes a "progress_total" event aggregating loaded/total bytes across every file the
-// model needs (tokenizer.json, config.json, the quantized onnx weights, ...) — confirmed by
-// reading node_modules/@huggingface/transformers/src/utils/core.js. That aggregate is a
-// better fit than hand-picking "the main model file" (the brief's original framing): it's
-// already correct for single- or multi-file models and doesn't require guessing a filename.
-function handleModelProgress(info: ProgressInfo) {
-  if (info.status === "progress_total") {
-    const pct = Math.max(0, Math.min(100, Math.round(info.progress)));
-    const now = Date.now();
-    const isFirstTick = modelDownloadState.status !== "downloading";
-    const dueByTime = now - lastProgressNotifyAt >= 500;
-    const dueByStep = Math.abs(pct - lastProgressNotifyPct) >= 5;
-    if (!isFirstTick && pct < 100 && !dueByTime && !dueByStep) return;
-    lastProgressNotifyAt = now;
-    lastProgressNotifyPct = pct;
-    setModelDownloadState({ status: "downloading", pct });
-  } else if (info.status === "ready") {
-    setModelDownloadState({ status: "ready", pct: 100 });
-  }
-}
-
-// Idle-time warmup of the embedding pipeline: idempotent (reuses extractorPromise, same as
-// embedQueries) and always wires handleModelProgress so download tracking works no matter
-// which call site (warmup or a real on-demand embedQueries call) wins the `??=` race. Never
-// throws — warmup failure must never break anything. On failure it resets extractorPromise
-// so the NEXT call gets a fresh attempt instead of permanently re-throwing this same
-// rejected promise; the lazy embedQueries path is what actually retries.
-async function warmupEmbedder(model: string) {
-  try {
-    const { pipeline } = await import("@huggingface/transformers");
-    extractorPromise ??= pipeline("feature-extraction", model, { progress_callback: handleModelProgress });
-    await extractorPromise;
-  } catch {
-    extractorPromise = null;
-    setModelDownloadState({ status: "failed", pct: 0 });
-  }
-}
-
-// Schedules work for an idle browser slot, falling back to a fixed delay where
-// requestIdleCallback is unavailable (Safari). Browser-API access stays inside this helper
-// so callers only ever invoke it from effects — SSR-safe, since React effects never run
-// during server rendering even in a "use client" component.
-function scheduleIdle(callback: () => void) {
-  if (typeof window === "undefined") return { cancel: () => {} };
-  if (typeof window.requestIdleCallback === "function") {
-    const id = window.requestIdleCallback(() => callback());
-    return { cancel: () => window.cancelIdleCallback(id) };
-  }
-  const id = window.setTimeout(callback, 1500);
-  return { cancel: () => window.clearTimeout(id) };
-}
 
 const formatter = new Intl.NumberFormat("en");
 
@@ -184,58 +75,9 @@ function formatOperatorDate(date: Date) {
   return d === 1 ? `${y}-${m}` : `${y}-${m}-${String(d).padStart(2, "0")}`;
 }
 
-// Prefix threading is keyed off the loaded index's `prefix_scheme` field, never off the
-// model name — an old (v1 MiniLM) index has no `prefix_scheme` and gets zero prefix, so the
-// client stays byte-identical against it. Only a new "e5" index gets "query: " prepended.
-// queryPrefix is the single source for this ternary (Task 14) — also used by
-// scripts/eval-search.mjs, scripts/calibrate-floors.mjs, and scripts/bookmark-search.mjs.
-async function embedQueries(queries: string[], index: SearchIndexPayload) {
-  const { pipeline } = await import("@huggingface/transformers");
-  extractorPromise ??= pipeline("feature-extraction", index.model, { progress_callback: handleModelProgress });
-  const extractor = (await extractorPromise) as (
-    text: string,
-    options: { pooling: "mean"; normalize: boolean },
-  ) => Promise<{ data: Iterable<number> }>;
-  const prefix = queryPrefix(index);
-  const embeddings: number[][] = [];
-
-  for (const query of queries) {
-    const output = await extractor(`${prefix}${query}`, { pooling: "mean", normalize: true });
-    embeddings.push(Array.from(output.data));
-  }
-
-  return embeddings;
-}
-
-// T3.1: merge static QUERY_EXPANSIONS-derived expansions with LLM rewrites from
-// /api/expand. `staticExpansions` already starts with the normalized original query
-// (expandSemanticQueries' first Set entry), so appending rewrites after it and deduping
-// naturally yields [normalized original, ...static expansions, ...LLM rewrites] with no
-// separate "prepend original" step needed. Case-insensitive dedupe (LLM rewrites may not
-// match the lowercase-normalized static entries byte-for-byte) and the same cap of 8 that
-// expandSemanticQueries itself enforces, so static (proven) signals are preferred when the
-// combined list would otherwise exceed the cap.
-//
-// F5 note: no unit test added for this in scripts/test-search-core.mjs — that harness only
-// imports plain scripts/lib/*.mjs modules (see its top-of-file imports), and this function
-// lives in this "use client" component file, not an importable plain module. Not
-// restructuring for testability in this fix wave (out of scope per the review).
-function mergeExpansions(staticExpansions: string[], rewrites: string[]) {
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const candidate of [...staticExpansions, ...rewrites]) {
-    const key = candidate.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    merged.push(candidate);
-  }
-  return merged.slice(0, 8);
-}
-
 export function BookmarksApp() {
   const { t, lang } = useLanguage();
   const [payload, setPayload] = useState<unknown>(null);
-  const [searchIndex, setSearchIndex] = useState<SearchIndexPayload | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sort, setSort] = useState("newest");
@@ -245,15 +87,8 @@ export function BookmarksApp() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
   const [searchStatusKey, setSearchStatusKey] = useState<
-    | "status.keyword"
-    | "status.semanticReady"
-    | "status.exactWarming"
-    | "status.broadExpansionWarming"
-    | "status.broadWarming"
-    | "status.exactHybrid"
-    | "status.broadExpansion"
-    | "status.broadHybrid"
-  >("status.keyword");
+    "status.ready" | "status.searching" | "status.results" | "status.offline"
+  >("status.ready");
   const [error, setError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [digestUnlocked, setDigestUnlocked] = useState(false);
@@ -321,10 +156,9 @@ export function BookmarksApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatOpen, digestUnlocked]);
 
-  // Fetch + parse both JSON payloads in a Web Worker so JSON.parse
-  // doesn't freeze the main thread on a 10 MB string. Each result is
-  // posted back independently so cards can render the moment bookmarks
-  // are ready, even before the search index finishes.
+  // Fetch + parse the bookmark JSON in a Web Worker so JSON.parse doesn't freeze the main
+  // thread on a 10 MB string. Rendering-only data — the search index never reaches the
+  // client anymore (T4): the Cloudflare Worker owns vectors, keyword index, and rerank docs.
   useEffect(() => {
     const worker = new Worker(new URL("../lib/data-worker.ts", import.meta.url), {
       type: "module",
@@ -332,11 +166,7 @@ export function BookmarksApp() {
     worker.onmessage = (event: MessageEvent<DataWorkerMessage>) => {
       const msg = event.data;
       if (msg.type === "bookmarks") setPayload(msg.payload);
-      else if (msg.type === "searchIndex") setSearchIndex(msg.payload as SearchIndexPayload);
-      else if (msg.type === "error") {
-        if (msg.which === "bookmarks") setError(msg.message);
-        else setSearchStatusKey("status.keyword");
-      }
+      else if (msg.type === "error") setError(msg.message);
     };
     worker.postMessage("load");
     return () => worker.terminate();
@@ -399,175 +229,61 @@ export function BookmarksApp() {
   }, [query, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
-  // Task 11: id -> post lookup for rerank doc-text assembly (both the search effect below
-  // and runChatSearch need it). Cheap to build once per `posts` identity change (O(n) over
-  // ~5,370 posts) and reused across every query's rerank call.
-  const postsById = useMemo(() => new Map(posts.map((post) => [post.id, post])), [posts]);
-  const [keywordIndex, setKeywordIndex] = useState<ReturnType<typeof buildKeywordIndex> | null>(null);
-  const modelDownloadState = useSyncExternalStore(
-    subscribeModelDownloadState,
-    getModelDownloadStateSnapshot,
-    getModelDownloadServerSnapshot,
-  );
 
-  // Build the lunr keyword index (~0.8-1.0s main-thread on ~5,370 posts, T1.4 carry-over
-  // from Task 7's review) off the interaction-critical path: idle-scheduled once posts
-  // arrive. If the user types a query before this fires, the search effect below builds it
-  // synchronously on demand instead (see comment there) — this effect is then a no-op.
-  useEffect(() => {
-    if (!posts.length || keywordIndex) return;
-    const handle = scheduleIdle(() => {
-      setKeywordIndex((current) => current ?? buildKeywordIndex(posts));
-    });
-    return () => handle.cancel();
-  }, [posts, keywordIndex]);
-
-  // Idle-warm the embedding pipeline as soon as the search index arrives, so the ~112 MB
-  // multilingual-e5-small download usually finishes before the user's first semantic
-  // search. Runs after the keyword-index effect above is scheduled (searchIndex tends to
-  // arrive at the same time as or after `posts`, since both are parallel worker fetches and
-  // the search index payload is the larger of the two) but the two are independent: nothing
-  // here waits on the keyword build, and warmup's own idle-callback work is just kicking off
-  // an async fetch, not CPU-bound, so the two idle callbacks don't meaningfully contend even
-  // if scheduled back-to-back.
-  useEffect(() => {
-    if (!searchIndex) return;
-    const handle = scheduleIdle(() => {
-      // Task 11: reranker warmup rides in after the embedder warmup resolves (success or
-      // failure — warmupEmbedder never rejects) so the two model downloads never contend for
-      // bandwidth/CPU on first load. `void .then(...)` keeps this a fire-and-forget chain,
-      // same as the embedder-only warmup this replaces; warmupReranker itself never throws.
-      void warmupEmbedder(searchIndex.model).then(() => warmupReranker());
-    });
-    return () => handle.cancel();
-  }, [searchIndex]);
-
+  // T4 cutover: the search "engine" is now one debounced network round trip to the
+  // Cloudflare Worker (lib/search-client.ts). No embedding, no keyword index, no rerank on
+  // the client — the Worker runs the full hybrid + rerank pipeline server-side and returns
+  // the SAME ranked-id shape (`{id, score}[]`) this component's hybridResults Map has always
+  // consumed, so everything downstream (operator/scope filters, sorting, rendering) is
+  // untouched. Typing therefore never blocks the main thread: the wait is network-only.
   useEffect(() => {
     const q = debouncedQuery.trim();
     if (!q || !posts.length) {
       setHybridResults(null);
-      setSearchStatusKey(searchIndex ? "status.semanticReady" : "status.keyword");
+      setSearchStatusKey("status.ready");
       return;
     }
-
-    // Early typing before the idle-scheduled build above ran: build synchronously right
-    // here, exactly like the old unconditional useMemo did, so a query typed at t=0 still
-    // works today (no regression). Net effect: page load never pays the ~1s build on the
-    // interaction path; typing early still pays what it pays today.
-    const index = keywordIndex ?? buildKeywordIndex(posts);
-    if (!keywordIndex) setKeywordIndex(index);
 
     let cancelled = false;
-    const rewriteController = new AbortController();
-    const keywordResults = keywordSearch(index, q);
+    const controller = new AbortController();
+    setSearchStatusKey("status.searching");
 
-    if (!searchIndex) {
-      setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
-      setSearchStatusKey("status.keyword");
-      return;
-    }
-
-    const staticExpansions = expandSemanticQueries(q, precision);
-    setSearchStatusKey(
-      precision === "exact"
-        ? "status.exactWarming"
-        : staticExpansions.length > 1
-          ? "status.broadExpansionWarming"
-          : "status.broadWarming",
-    );
-
-    // F1 fix: fetchQueryRewrites (network, up to REWRITE_TIMEOUT_MS) and embedding the
-    // static expansions (local, transformers.js) used to be serialized — the LLM round trip
-    // gated ALL embedding, not just the incremental rewrites, adding the full LLM latency
-    // (or the full 1500ms timeout on a slow/dead LLM) as pure tax on every broad+unlocked
-    // search. Fix: kick off both concurrently, then embed ONLY the deduped new rewrite
-    // strings once the fetch resolves, and concat the embedding arrays before
-    // multiVectorSearch — max-pooling per id (commit 43f1830) is order-independent, so
-    // concatenation is safe. Worst case goes from `1500ms + embed(static)` to
-    // `max(1500ms, embed(static)) + embed(Δrewrites)`; the REWRITE_TIMEOUT_MS cap already
-    // lives inside fetchQueryRewrites, so no second cap is added here. fetchQueryRewrites
-    // has its own hard non-blocking-failure contract (empty array on timeout/error/abort —
-    // see lib/expand-client.ts), so on empty/late rewrites the merge is a no-op and behavior
-    // is byte-identical to today's static-only expansion.
+    // LLM rewrites still fetched client-side (broad + unlocked only, /api/expand) and passed
+    // to the Worker, which merges them with its own static synonym expansions server-side.
+    // fetchQueryRewrites has a hard non-blocking-failure contract ([] on timeout/error/abort
+    // — lib/expand-client.ts), so a slow/dead LLM costs at most REWRITE_TIMEOUT_MS, never a
+    // failed search.
     const rewritesPromise: Promise<string[]> =
       precision === "broad" && digestUnlocked
-        ? fetchQueryRewrites(q, lang, rewriteController.signal)
+        ? fetchQueryRewrites(q, lang, controller.signal)
         : Promise.resolve<string[]>([]);
-    const staticEmbeddingsPromise = embedQueries(staticExpansions, searchIndex);
 
-    Promise.all([staticEmbeddingsPromise, rewritesPromise])
-      .then(([staticEmbeddings, rewrites]) => {
-        if (cancelled) return null;
-        const expandedQueries = mergeExpansions(staticExpansions, rewrites);
-        // staticExpansions is already de-duplicated (expandSemanticQueries returns Set
-        // entries) and capped at 8, so anything in expandedQueries not already present in
-        // staticExpansions is exactly the rewrite delta that survived dedup + the cap.
-        const staticKeys = new Set(staticExpansions.map((s) => s.trim().toLowerCase()));
-        const newExpansions = expandedQueries.filter((candidate) => !staticKeys.has(candidate.trim().toLowerCase()));
-        if (!newExpansions.length) {
-          return { expandedQueries, embeddings: staticEmbeddings, rewrites };
-        }
-        return embedQueries(newExpansions, searchIndex).then((newEmbeddings) => ({
-          expandedQueries,
-          embeddings: [...staticEmbeddings, ...newEmbeddings],
-          rewrites,
-        }));
-      })
-      .then((outcome) => {
-        if (cancelled || !outcome) return;
-        const { expandedQueries, embeddings, rewrites } = outcome;
-        const pooledVectorResults = multiVectorSearch(searchIndex, embeddings);
-        const finalResults = runHybridPipeline(keywordResults, pooledVectorResults, precision, searchIndex);
-        // Phase 1: hybrid results render immediately — unchanged from pre-Task-11 behavior.
-        setHybridResults(new Map(finalResults.map((result) => [result.id, result.score])));
-        setSearchStatusKey(
-          precision === "exact"
-            ? "status.exactHybrid"
-            : expandedQueries.length > 1
-              ? "status.broadExpansion"
-              : "status.broadHybrid",
-        );
-
-        // Phase 2 (Task 11, T3.2): fire the cross-encoder rerank asynchronously, never
-        // awaited here — phase 1 has already rendered. When it resolves (and this effect
-        // hasn't been cancelled by a newer query/cleanup), silently replace hybridResults
-        // with the reordered map; rerankResults itself never throws (silent-skip contract),
-        // so no .catch is needed here beyond the cancelled guard.
-        //
-        // EN cross-encoder + HU queries: rerank against the first LLM rewrite (== the EN
-        // translation, per Task 10's /api/expand contract) when one resolved for this query;
-        // otherwise rerank against the raw query text as-is. `rewrites` here is exactly what
-        // `rewritesPromise` resolved to above (cache hit or fresh fetch, or [] if
-        // broad+locked/timed-out/failed) — no separate cache read needed.
-        const rerankQuery = rewrites[0]?.trim() || q;
-        void rerankResults(
-          rerankQuery,
-          finalResults,
-          (id) => buildRerankDocText(postsById.get(id) ?? {}),
-          RERANK_WINDOW,
-        ).then((reranked) => {
-          if (cancelled) return;
-          setHybridResults(new Map(reranked.map((result) => [result.id, result.score])));
-        });
+    rewritesPromise
+      .then((rewrites) => searchViaWorker({ query: q, precision, rewrites, signal: controller.signal }))
+      .then((results) => {
+        if (cancelled) return;
+        setHybridResults(new Map(results.map((result) => [result.id, result.score])));
+        setSearchStatusKey("status.results");
       })
       .catch((err) => {
-        if (cancelled) return;
-        // Dev-only signal, matching rerank's silent-skip pattern (lib/rerank.ts's
-        // performRerank) — this catch swallows embedding/expansion/network failures on
-        // purpose (falls back to keyword-only results) and must never surface to the UI,
-        // but a fully silent catch made these failures invisible even in dev.
+        // Stale/aborted requests (a newer query superseded this one, or unmount) are not
+        // failures — bail silently before touching state.
+        if (cancelled || controller.signal.aborted) return;
         if (process.env.NODE_ENV !== "production") {
-          console.debug("[search] hybrid pipeline failed, falling back to keyword-only:", err);
+          console.debug("[search] worker search failed, falling back to substring filter:", err);
         }
-        setHybridResults(new Map(keywordResults.map((result) => [result.id, result.score])));
-        setSearchStatusKey("status.keyword");
+        // Offline/error fallback: clear the ranked map so visiblePosts degrades to its
+        // cheap `searchable(post).includes(q)` substring branch over the already-loaded
+        // posts — no lunr rebuild, no ML, search stays usable.
+        setHybridResults(null);
+        setSearchStatusKey("status.offline");
       });
 
     return () => {
       cancelled = true;
-      rewriteController.abort();
+      controller.abort();
     };
-  }, [debouncedQuery, keywordIndex, posts, postsById, precision, searchIndex, digestUnlocked, lang]);
+  }, [debouncedQuery, posts.length, precision, digestUnlocked, lang]);
 
   const visiblePosts = useMemo(() => {
     const { text, operators } = parsedQuery;
@@ -680,20 +396,9 @@ export function BookmarksApp() {
 
   const displayedPosts = visiblePosts.slice(0, visibleLimit);
 
-  // Status precedence while a query is active: downloading (with pct) takes over the
-  // existing "warming up" keys, which in turn take over once the hybrid results land. Kept
-  // as a derived render value (not folded into searchStatusKey itself) so download-progress
-  // ticks never re-trigger the search effect above — only this cheap string computation.
-  // When no query is typed, searchStatusKey is never one of the *Warming keys, so the
-  // download never surfaces here — it runs silently, per the brief.
-  const isModelWarmingStatus =
-    searchStatusKey === "status.exactWarming" ||
-    searchStatusKey === "status.broadExpansionWarming" ||
-    searchStatusKey === "status.broadWarming";
-  const statusText =
-    isModelWarmingStatus && modelDownloadState.status === "downloading"
-      ? t("status.modelDownloading", { pct: modelDownloadState.pct })
-      : t(searchStatusKey);
+  // T4: no model download to report anymore — the status line is just the current search
+  // phase (ready / searching… / results / offline fallback).
+  const statusText = t(searchStatusKey);
 
   // Chat context snapshot taken whenever the chat opens. T4.1: uses displayQuery (residual
   // text + operator suffix) rather than the raw query, so the digest cache lookup key stays
@@ -711,29 +416,23 @@ export function BookmarksApp() {
     };
   }, [lang, displayQuery, precision, visiblePosts, posts.length]);
 
-  // search_bookmarks tool executor — runs the same hybrid search the live UI uses.
+  // search_bookmarks tool executor — same Worker-backed search the live UI uses (ONE
+  // search client, lib/search-client.ts), then maps ranked ids onto the already-loaded
+  // posts. The content-type filter is applied client-side below, exactly as before.
   async function runChatSearch(input: SearchBookmarksInput): Promise<SearchBookmarksResult> {
     const q = input.query.trim();
     if (!q || posts.length === 0) return { count: 0, results: [] };
-    // Same on-demand fallback as the main search effect: the idle-scheduled build may not
-    // have run yet (e.g. chat opened immediately via ⌘K on a cold load).
-    const index = keywordIndex ?? buildKeywordIndex(posts);
-    if (!keywordIndex) setKeywordIndex(index);
-    const kw = keywordSearch(index, q);
     let ranked: { id: string; score: number }[];
-    if (searchIndex) {
-      const queries = expandSemanticQueries(q, input.precision);
-      const embeddings = await embedQueries(queries, searchIndex);
-      const pooledVec = multiVectorSearch(searchIndex, embeddings);
-      const hybridRanked = runHybridPipeline(kw, pooledVec, input.precision, searchIndex);
-      // Task 11, same treatment as the main search effect's phase 2, but a single await
-      // here (chat has no "render now, refine later" phase split) — rerankResults' own
-      // silent-skip contract means no try/catch is needed: on any failure it resolves to
-      // hybridRanked unchanged. Reranks against the raw chat query (runChatSearch has no
-      // LLM-rewrite step of its own to consult, unlike the main search effect).
-      ranked = await rerankResults(q, hybridRanked, (id) => buildRerankDocText(postsById.get(id) ?? {}), RERANK_WINDOW);
-    } else {
-      ranked = kw;
+    try {
+      ranked = await searchViaWorker({ query: q, precision: input.precision });
+    } catch (err) {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[chat-search] worker search failed, falling back to substring filter:", err);
+      }
+      // Same graceful degradation as the main search effect: cheap substring filter over
+      // loaded posts (score 0 keeps the archive's natural order — good enough offline).
+      const ql = q.toLowerCase();
+      ranked = posts.filter((post) => searchable(post).includes(ql)).map((post) => ({ id: post.id, score: 0 }));
     }
     const ids = new Set(ranked.map((r) => r.id));
     const score = new Map(ranked.map((r) => [r.id, r.score]));

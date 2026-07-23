@@ -1,0 +1,362 @@
+{
+  "generated_at": "2026-07-23T16:53:30.253Z",
+  "model": "@cf/baai/bge-m3",
+  "rerank_model": "@cf/baai/bge-reranker-base",
+  "worker_url": "http://localhost:8787",
+  "index_count": 5594,
+  "vector_count": 6840,
+  "query_count": 32,
+  "gate": {
+    "passed": false,
+    "overall_meets_e5": true,
+    "class_regressions": [
+      "handle: recall@10 0.25 vs e5 0.6667 (Δ -0.4167, > 0.1 drop)"
+    ],
+    "compared_to": "scripts/eval-baseline.json",
+    "e5_overall": {
+      "n": 32,
+      "recall10": 0.6146,
+      "mrr10": 0.4923,
+      "ndcg10": 0.5003
+    }
+  },
+  "overall": {
+    "n": 32,
+    "recall10": 0.625,
+    "mrr10": 0.5196,
+    "ndcg10": 0.5341
+  },
+  "by_class": {
+    "article-title": {
+      "n": 4,
+      "recall10": 1,
+      "mrr10": 0.7778,
+      "ndcg10": 0.8253
+    },
+    "en-topic": {
+      "n": 8,
+      "recall10": 0.5625,
+      "mrr10": 0.4792,
+      "ndcg10": 0.4747
+    },
+    "handle": {
+      "n": 4,
+      "recall10": 0.25,
+      "mrr10": 0.0875,
+      "ndcg10": 0.1184
+    },
+    "hu-topic": {
+      "n": 5,
+      "recall10": 0.3,
+      "mrr10": 0.2,
+      "ndcg10": 0.2036
+    },
+    "paraphrase": {
+      "n": 4,
+      "recall10": 0.5,
+      "mrr10": 0.5,
+      "ndcg10": 0.5
+    },
+    "phrase": {
+      "n": 7,
+      "recall10": 1,
+      "mrr10": 0.9048,
+      "ndcg10": 0.9286
+    }
+  },
+  "broad_tail": {
+    "n": 18,
+    "medianResultCount": 45,
+    "p90ResultCount": 67
+  },
+  "per_query": [
+    {
+      "query": "model context protocol",
+      "class": "en-topic",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 0.5,
+      "ndcg10": 0.5714285040141098,
+      "resultCount": 49
+    },
+    {
+      "query": "vector database",
+      "class": "en-topic",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 0.9197207891481876,
+      "resultCount": 44
+    },
+    {
+      "query": "retrieval augmented generation",
+      "class": "en-topic",
+      "precision": "broad",
+      "recall10": 0.5,
+      "mrr10": 0.3333333333333333,
+      "ndcg10": 0.3065735963827292,
+      "resultCount": 38
+    },
+    {
+      "query": "LLM fine-tuning techniques",
+      "class": "en-topic",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 40
+    },
+    {
+      "query": "claude code best practices",
+      "class": "en-topic",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 53
+    },
+    {
+      "query": "context engineering",
+      "class": "en-topic",
+      "precision": "exact",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 70
+    },
+    {
+      "query": "multi-agent orchestration",
+      "class": "en-topic",
+      "precision": "exact",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 61
+    },
+    {
+      "query": "AI coding agent swarm",
+      "class": "en-topic",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 62
+    },
+    {
+      "query": "hogyan működik a Model Context Protocol",
+      "class": "hu-topic",
+      "precision": "broad",
+      "recall10": 0.5,
+      "mrr10": 0.5,
+      "ndcg10": 0.38685280723454163,
+      "resultCount": 31
+    },
+    {
+      "query": "mi az a vektor adatbázis",
+      "class": "hu-topic",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 0.5,
+      "ndcg10": 0.6309297535714575,
+      "resultCount": 39
+    },
+    {
+      "query": "kódellenőrzés AI ügynökökkel",
+      "class": "hu-topic",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 45
+    },
+    {
+      "query": "önjavító AI ügynök rendszer",
+      "class": "hu-topic",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 59
+    },
+    {
+      "query": "több ügynökös orchestration",
+      "class": "hu-topic",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 40
+    },
+    {
+      "query": "akshay_pachaar",
+      "class": "handle",
+      "precision": "exact",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 47
+    },
+    {
+      "query": "mattpocockuk",
+      "class": "handle",
+      "precision": "exact",
+      "recall10": 0.6666666666666666,
+      "mrr10": 0.25,
+      "ndcg10": 0.33775931993299535,
+      "resultCount": 34
+    },
+    {
+      "query": "rauchg",
+      "class": "handle",
+      "precision": "exact",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 31
+    },
+    {
+      "query": "LangChain",
+      "class": "handle",
+      "precision": "exact",
+      "recall10": 0.3333333333333333,
+      "mrr10": 0.1,
+      "ndcg10": 0.13565197343244778,
+      "resultCount": 58
+    },
+    {
+      "query": "How to Create the Right Skill for Your AI Agent",
+      "class": "article-title",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 0.1111111111111111,
+      "ndcg10": 0.3010299956639812,
+      "resultCount": 53
+    },
+    {
+      "query": "Agentic OS: Turning a Model Into a System",
+      "class": "article-title",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 31
+    },
+    {
+      "query": "Obsidian: A Vault That Never Forgets and Never Lets You Repeat Yourself",
+      "class": "article-title",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 30
+    },
+    {
+      "query": "What the hell is a loop, anyway?",
+      "class": "article-title",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 67
+    },
+    {
+      "query": "stop typing use context7 in every prompt",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 25
+    },
+    {
+      "query": "github for prompts just got better",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 57
+    },
+    {
+      "query": "a harness that compiles itself",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 30
+    },
+    {
+      "query": "web scraping will never be the same",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 0.3333333333333333,
+      "ndcg10": 0.5,
+      "resultCount": 47
+    },
+    {
+      "query": "microvms are the gift that keeps on giving",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 24
+    },
+    {
+      "query": "YOLO11 ships knowing 80 objects",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 22
+    },
+    {
+      "query": "Brain2Qwerty V1 is officially published",
+      "class": "phrase",
+      "precision": "exact",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 21
+    },
+    {
+      "query": "a shared way for AI apps to plug into your data without custom code for every source",
+      "class": "paraphrase",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 78
+    },
+    {
+      "query": "reading a webpage by taking a screenshot instead of parsing the raw html",
+      "class": "paraphrase",
+      "precision": "broad",
+      "recall10": 1,
+      "mrr10": 1,
+      "ndcg10": 1,
+      "resultCount": 30
+    },
+    {
+      "query": "a coding tool that rewrites its own internal prompts and tools based on performance feedback",
+      "class": "paraphrase",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 56
+    },
+    {
+      "query": "storing and searching information by meaning using numeric representations instead of exact words",
+      "class": "paraphrase",
+      "precision": "broad",
+      "recall10": 0,
+      "mrr10": 0,
+      "ndcg10": 0,
+      "resultCount": 55
+    }
+  ]
+}
