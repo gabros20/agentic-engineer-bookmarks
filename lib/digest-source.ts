@@ -2,7 +2,10 @@ import type { BookmarkPost } from "@/lib/bookmark-types";
 import type { DigestSource } from "@/lib/digest-schema";
 
 const TEXT_LIMIT = 280;
-const EXCERPT_LIMIT = 500;
+// T1 (digest engine upgrade): 500 -> 700. Richer synthesis (tldr + deeperReads need real
+// article substance) at up to ~50 sources/request; kept modest rather than e.g. 1500+ to
+// avoid materially bloating the prompt (worst case +200 chars * 50 sources = +10KB).
+const EXCERPT_LIMIT = 700;
 
 export function toDigestSource(post: BookmarkPost): DigestSource {
   const screenName = post.author?.screenName ?? "";

@@ -7,10 +7,12 @@ import { buildDigestUserPrompt, getDigestSystemPrompt } from "@/lib/digest-promp
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// gpt-4.1-nano is fast (~5-7s for 30 sources), cheap, follows the
-// language instruction reliably for both EN and HU, and produces
-// well-clustered themes via OpenRouter tool calling.
-const MODEL = "openai/gpt-5.4-nano";
+// T1 (digest engine upgrade): gemini-3.6-flash — stronger synthesis + reliable
+// structured output/HU output than the previous nano tier, still cheap, for a deeper
+// (~50-source) input. Verified live via streamObject through OpenRouter (see
+// .orchestrate/task-1-report.md); no providerOptions needed — this route never set
+// OpenAI-style `reasoning.effort`, so there's nothing Gemini-specific to adapt here.
+const MODEL = "google/gemini-3.6-flash";
 
 export async function POST(request: NextRequest) {
   const expected = process.env.DIGEST_UNLOCK_SECRET;

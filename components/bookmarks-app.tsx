@@ -34,6 +34,9 @@ import { searchViaWorker } from "@/lib/search-client";
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
 const PAGE_SIZE = 240;
+// T1 (digest engine upgrade): the digest CTA re-queries the Worker at this depth (deeper +
+// reranked) instead of clustering the 30/PAGE_SIZE-limited posts currently on screen.
+const DIGEST_SOURCE_LIMIT = 50;
 
 const formatter = new Intl.NumberFormat("en");
 
@@ -102,6 +105,9 @@ export function BookmarksApp() {
   const [savedCount, setSavedCount] = useState(0);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [pendingDigest, setPendingDigest] = useState<{ query: string; sources: DigestSource[] } | null>(null);
+  // T1 (digest engine upgrade): true while the CTA is re-querying the Worker at limit 50
+  // (deeper sourcing) before opening the panel.
+  const [digestSourcing, setDigestSourcing] = useState(false);
 
   // Chat state
   const [chatOpen, setChatOpen] = useState(false);
@@ -229,6 +235,11 @@ export function BookmarksApp() {
   }, [query, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
+
+  // T1 (digest engine upgrade): id -> post lookup used to map the Worker's deep re-query
+  // ranked ids (digest CTA) back onto already-loaded posts, same pattern as runChatSearch's
+  // ids/score maps below.
+  const postsById = useMemo(() => new Map(posts.map((post) => [post.id, post])), [posts]);
 
   // T4 cutover: the search "engine" is now one debounced network round trip to the
   // Cloudflare Worker (lib/search-client.ts). No embedding, no keyword index, no rerank on
@@ -812,9 +823,32 @@ export function BookmarksApp() {
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  const sources = visiblePosts.slice(0, 30).map(toDigestSource);
-                  const payload = { query: displayQuery, sources };
+                disabled={digestSourcing}
+                aria-busy={digestSourcing}
+                onClick={async () => {
+                  const query = displayQuery;
+                  const fallback = visiblePosts.slice(0, DIGEST_SOURCE_LIMIT).map(toDigestSource);
+                  let sources = fallback;
+                  setDigestSourcing(true);
+                  try {
+                    // T1 (digest engine upgrade): re-query the Worker DEEP (limit 50,
+                    // reranked) instead of clustering only the visible/on-screen posts —
+                    // this is the whole point of the upgrade (actually use the search
+                    // engine). Falls back to the visible slice on any failure/empty result.
+                    const ranked = await searchViaWorker({ query, precision, limit: DIGEST_SOURCE_LIMIT });
+                    const deep = ranked
+                      .map((r) => postsById.get(r.id))
+                      .filter((post): post is BookmarkPost => Boolean(post))
+                      .map(toDigestSource);
+                    if (deep.length > 0) sources = deep;
+                  } catch (err) {
+                    if (process.env.NODE_ENV !== "production") {
+                      console.debug("[digest] worker re-query failed, falling back to visible posts:", err);
+                    }
+                  } finally {
+                    setDigestSourcing(false);
+                  }
+                  const payload = { query, sources };
                   if (digestUnlocked) {
                     setDigestPayload(payload);
                     setDigestOpen(true);
@@ -823,10 +857,10 @@ export function BookmarksApp() {
                     setUnlockOpen(true);
                   }
                 }}
-                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-70"
               >
-                <Sparkles size={16} />
-                <span>{t("action.aiDigest", { n: Math.min(30, visiblePosts.length) })}</span>
+                <Sparkles size={16} className={digestSourcing ? "animate-pulse" : undefined} />
+                <span>{t("action.aiDigest", { n: Math.min(DIGEST_SOURCE_LIMIT, visiblePosts.length) })}</span>
               </motion.button>
               <motion.button
                 type="button"
