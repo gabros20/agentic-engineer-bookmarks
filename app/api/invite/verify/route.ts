@@ -55,7 +55,10 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON / Érvénytelen JSON" },
+      { status: 400 },
+    );
   }
 
   const { code, email } = (body ?? {}) as { code?: unknown; email?: unknown };
