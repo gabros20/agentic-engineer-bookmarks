@@ -27,6 +27,12 @@ const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL);
 
 const INVITED = `t2-invited-${Date.now()}@example.com`;
 const NONINV = `t2-noninvited-${Date.now()}@example.com`;
+// Test 7 (maxUses) — temp limited code + three emails against it.
+const TEMP_CODE = `t2-temp-code-${Date.now()}`;
+const TEMP_CODE_ID = crypto.randomUUID();
+const LIM_A = `t2-lim-a-${Date.now()}@example.com`;
+const LIM_B = `t2-lim-b-${Date.now()}@example.com`;
+const LIM_C = `t2-lim-c-${Date.now()}@example.com`;
 
 let pass = 0;
 let fail = 0;
@@ -63,9 +69,19 @@ async function completeMagicLink(url) {
   return res;
 }
 
+async function verifyCode(code, email) {
+  return fetch(`${BASE}/api/invite/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, email }),
+  });
+}
+
 async function cleanup() {
-  await sql`delete from "user" where email in (${INVITED}, ${NONINV})`;
-  await sql`delete from pending_signups where email in (${INVITED}, ${NONINV})`;
+  await sql`delete from "user" where email in (${INVITED}, ${NONINV}, ${LIM_A}, ${LIM_B}, ${LIM_C})`;
+  await sql`delete from pending_signups where email in (${INVITED}, ${NONINV}, ${LIM_A}, ${LIM_B}, ${LIM_C})`;
+  // pending_signups FK cascades on invite_codes delete, but be explicit.
+  await sql`delete from invite_codes where code = ${TEMP_CODE}`;
 }
 
 async function main() {
@@ -135,11 +151,14 @@ async function main() {
   if (url5) {
     const v5 = await completeMagicLink(url5);
     const users = await sql`select id from "user" where email = ${NONINV}`;
-    ok5 = users.length === 0; // THE security assertion: no user, no session
+    // Belt-and-suspenders: assert NO user AND explicitly NO session for the
+    // blocked email (session.userId FKs user, but prove it directly).
+    const sessions = await sql`select s.id from session s join "user" u on u.id = s."userId" where u.email = ${NONINV}`;
+    ok5 = users.length === 0 && sessions.length === 0;
     const loc = v5.headers.get("location") ?? "";
-    detail5 = `verify=${v5.status} user=${users.length} loc=${loc.includes("error") ? "error" : loc ? "redirect" : "none"}`;
+    detail5 = `verify=${v5.status} user=${users.length} session=${sessions.length} loc=${loc.includes("error") ? "error" : loc ? "redirect" : "none"}`;
   }
-  check("5 non-invited sign-up BLOCKED (no user row created)", ok5, detail5);
+  check("5 non-invited sign-up BLOCKED (no user AND no session)", ok5, detail5);
 
   // --- Test 6: returning login needs no code ---
   // INVITED user now exists; no new pending_signup. A fresh magic link must work.
@@ -157,6 +176,61 @@ async function main() {
     detail6 = `verify=${v6.status} sessions=${before6}->${after6} users=${users[0].n}`;
   }
   check("6 returning login needs no code (new session, no error)", ok6, detail6);
+
+  // --- Test 7: maxUses is actually enforced (reserve-point + gate recheck) ---
+  // Create a temp code with maxUses=1 and prove the limit binds two ways:
+  //  7a reserve-point: after one full redemption, a 2nd reserve is rejected.
+  //  7b gate recheck: a reservation made while uses remained is blocked at
+  //     create.before once the code is exhausted mid-flight.
+  await sql`insert into invite_codes (id, code, label, "maxUses", "usedCount", active)
+            values (${TEMP_CODE_ID}, ${TEMP_CODE}, 'temp-maxuses-test', 1, 0, true)`;
+  let ok7 = false;
+  let detail7 = "";
+  try {
+    // 7a — redeem the single use fully, then a second reserve must be rejected.
+    const rA = await verifyCode(TEMP_CODE, LIM_A);
+    const pendA = (await sql`select 1 from pending_signups where email = ${LIM_A}`).length;
+    const reqA = await requestMagicLink(LIM_A);
+    const urlA = readSinkFor(LIM_A);
+    let userACreated = false;
+    let usedAfterA = null;
+    if (urlA) {
+      await completeMagicLink(urlA);
+      userACreated = (await sql`select 1 from "user" where email = ${LIM_A}`).length === 1;
+      usedAfterA = Number(
+        (await sql`select "usedCount" from invite_codes where code = ${TEMP_CODE}`)[0].usedCount,
+      );
+    }
+    const rB = await verifyCode(TEMP_CODE, LIM_B); // exhausted now → must 400
+    const pendB = (await sql`select 1 from pending_signups where email = ${LIM_B}`).length;
+
+    // 7b — reset uses, reserve C, then exhaust mid-flight and attempt signup.
+    await sql`update invite_codes set "usedCount" = 0 where code = ${TEMP_CODE}`;
+    const rC = await verifyCode(TEMP_CODE, LIM_C);
+    const pendC = (await sql`select 1 from pending_signups where email = ${LIM_C}`).length;
+    // Exhaust the code AFTER C reserved but BEFORE C completes sign-up.
+    await sql`update invite_codes set "usedCount" = 1 where code = ${TEMP_CODE}`;
+    const reqC = await requestMagicLink(LIM_C);
+    const urlC = readSinkFor(LIM_C);
+    let userCBlocked = false;
+    let sessionsC = -1;
+    if (urlC) {
+      await completeMagicLink(urlC);
+      userCBlocked = (await sql`select 1 from "user" where email = ${LIM_C}`).length === 0;
+      sessionsC = (await sql`select s.id from session s join "user" u on u.id = s."userId" where u.email = ${LIM_C}`).length;
+    }
+
+    ok7 =
+      rA.status === 200 && pendA === 1 && // A reserved
+      userACreated && usedAfterA === 1 && // A redeemed the one use
+      rB.status === 400 && pendB === 0 && // B rejected at reserve (exhausted)
+      rC.status === 200 && pendC === 1 && // C reserved while uses remained
+      userCBlocked && sessionsC === 0; // C blocked at create.before, no session
+    detail7 = `A(reserve=${rA.status},user=${userACreated},used=${usedAfterA}) B(reserve=${rB.status},pend=${pendB}) C(reserve=${rC.status},blocked=${userCBlocked},session=${sessionsC})`;
+  } catch (e) {
+    detail7 = `threw: ${e.message}`;
+  }
+  check("7 maxUses enforced (reserve-point reject + gate recheck block)", ok7, detail7);
 
   // --- Report ---
   console.log("\n=== T2 verification ===");
