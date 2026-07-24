@@ -11,6 +11,41 @@ truth; the README's "Syncing Fresh Bookmarks" section links here.
 > If you only `git push` after a sync, the *app* shows new data but *search* keeps serving the old
 > corpus until you `npm run deploy:worker`. This is the #1 thing to remember.
 
+## Environment (auth / DB / search-proxy) — set in Vercel BEFORE the build
+
+The app is invite-gated and account-based; search proxies through Vercel to a secret-locked Worker.
+All of these are **server-only** (no `NEXT_PUBLIC_*`) and must exist in the Vercel project **before a
+build** (they're read at build/runtime; `SEARCH_ENDPOINT`/`SEARCH_PROXY_SECRET` gate every search):
+
+| Var | Purpose |
+|---|---|
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres — pooled (runtime) / direct (migrations) |
+| `BETTER_AUTH_SECRET` | session-signing secret |
+| `BETTER_AUTH_URL` | the app's own origin (prod URL in prod) |
+| `RESEND_API_KEY` | sends magic-link emails |
+| `SEARCH_ENDPOINT` | the deployed Worker URL the proxy forwards to |
+| `SEARCH_PROXY_SECRET` | shared secret the proxy sends; the Worker is fail-closed on it (`wrangler secret put SEARCH_PROXY_SECRET` on the Worker side) |
+| `OPENROUTER_API_KEY` | digest / chat / expand |
+| `DIGEST_UNLOCK_SECRET` | now ONLY the seed invite code (the passkey gate is retired) |
+
+Apply DB migrations with `npm run db:migrate` (uses `DATABASE_URL_UNPOOLED`) when the schema changes.
+Issue invite codes with `node scripts/add-invite.mjs <CODE> [label] [maxUses]`.
+
+## Atomic rollout — the locked Worker and the Vercel app go live TOGETHER
+
+Search now flows browser → `/api/search` (session + quota) → Worker (with `SEARCH_PROXY_SECRET`), and the
+Worker **rejects any request without that secret**. So the locked Worker and the app that calls it with
+the secret must land in the **same window** — do them in this order, without a gap:
+
+1. **Set the Vercel env vars above** (all environments as appropriate) — especially `SEARCH_ENDPOINT`
+   + `SEARCH_PROXY_SECRET` — **before** triggering the build.
+2. **Merge to `main`** → Vercel builds + deploys the app + `/api` routes (now calling `/api/search`).
+3. **`npm run deploy:worker`** immediately → deploys the secret-gated Worker.
+
+Why together: deploying the locked Worker **before** the new app ships would 401 the currently-live public
+search; merging the app **before** the Worker is locked leaves `/api/search` forwarding a secret the live
+Worker doesn't yet require (harmless, but the lockdown isn't in effect). Keep the gap as small as possible.
+
 ## Cloudflare auth — per session, no token on disk (by design)
 
 We deliberately do **not** keep a Cloudflare API token in the repo/working tree (no `worker/.env`).

@@ -18,7 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed-invite": "node scripts/seed-invite.mjs"
+    "db:seed-invite": "node scripts/seed-invite.mjs",
+    "add-invite": "node scripts/add-invite.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.195",

@@ -15,16 +15,19 @@ Scope of the work captured here:
 ## 1. Final architecture (quick reference)
 
 ```
-Browser (Vercel static, ML-FREE)          Cloudflare Worker                    Workers AI (GPU)
-────────────────────────────────          ─────────────────────────           ────────────────
-type query ─► lib/search-client.ts ──────► worker/src/index.ts /search         @cf/baai/bge-m3 (embed)
-  (debounced, AbortController+timeout)       keyword (lunr) ⊕ bge-m3 vector ◄──  @cf/baai/bge-reranker-base
-render ranked ids from local posts          + RRF merge + floors + rerank
-                                            data: search-index-bge.bin/.meta,
-AI Digest / ⌘K chat ──► /api/digest,        lunr-index.json, rerank-docs.json
-  /api/chat (Vercel, passkey-gated) ──────► google/gemini-3.6-flash (OpenRouter)
-  digest re-queries the Worker at ~50       ▲ fetched from Vercel /data, cached per isolate
+Browser (Vercel static, ML-FREE)          Vercel /api (session-gated)          Cloudflare Worker / Workers AI
+────────────────────────────────          ───────────────────────────          ─────────────────────────────
+type query ─► lib/search-client.ts ──────► /api/search (session + quota) ──────► worker/src/index.ts /search
+  (debounced, AbortController+timeout)       fail-closed X-Proxy-Secret          keyword (lunr) ⊕ bge-m3 ⊕ rerank
+render ranked ids from local posts                                              data from Vercel /data, per-isolate cache
+                                                                                @cf/baai/bge-m3 + bge-reranker-base
+AI Digest / ⌘K chat ──► /api/digest,        session-gated + per-user daily
+  /api/chat, /api/expand                     quota (lib/api-guard.ts) ──────────► google/gemini-3.6-flash (OpenRouter)
+  digest re-queries the Worker at ~50        digests + chats persist to Neon (user-scoped, cross-device)
 ```
+
+All routes require a Better Auth session (401 otherwise). The Worker is no longer publicly reachable —
+only `/api/search` (holding `SEARCH_PROXY_SECRET`) can call it. See §8 for the auth/DB layer.
 
 - **Client ships zero ML** (no transformers.js/onnx/lunr in the bundle). It sends the query to the Worker and renders `{id,score}`.
 - **Worker** owns the whole hybrid pipeline; reuses the *same* ranking math as the (now-removed) client path via `lib/bookmark-search.ts` + `lib/rerank-core.ts` bundled into the Worker.
@@ -126,8 +129,9 @@ baseline never silently shifts.
 
 ## 6. Gotchas checklist (bit us or nearly did)
 
-- [ ] `NEXT_PUBLIC_*` is build-time inlined → set in Vercel before the build.
-- [ ] A Vercel push does NOT update the Cloudflare Worker → run `npm run deploy:worker` after data/ranking changes.
+- [ ] All secrets are server-only — **no `NEXT_PUBLIC_*`** (Worker URL + `SEARCH_PROXY_SECRET` included). Set the server env vars in Vercel **before the build**.
+- [ ] A Vercel push does NOT update the Cloudflare Worker → run `npm run deploy:worker` after data/ranking changes — and it must go live **together** with the app merge now (secret-gated Worker).
+- [ ] neon-http has **no `db.transaction()`** → use `db.batch([...])` for multi-statement atomicity.
 - [ ] Worker isolates cache data → same redeploy requirement; a load-promise must reset on rejection.
 - [ ] bge-m3 rejects empty/oversized/lone-surrogate input → sanitize at the source.
 - [ ] wrangler OAuth ≠ token; non-interactive commands want `CLOUDFLARE_API_TOKEN` (gitignored `worker/.env`).
@@ -146,5 +150,43 @@ baseline never silently shifts.
 **Known limitations / optional follow-ups:**
 - Data lives on Vercel static + Worker-fetched; **R2 is an optional hardening** (loadData already supports the binding).
 - Handle recall (0.75) is great but the `from:handle` operator is still the exact way to list one author.
-- The digest passkey gate (`DIGEST_UNLOCK_SECRET` cookie) protects the OpenRouter-cost features; search itself is public/ungated.
-- Plan docs for each effort: `docs/{SEARCH-UPGRADE,CLOUDFLARE-SEARCH,FOLLOWUPS,DIGEST-UPGRADE}-PLAN.md`.
+- The whole app is now behind login (see §8); the digest passkey is retired. `DIGEST_UNLOCK_SECRET` survives only as the seed invite code. Per-user daily quotas (search 300 / digest 10 / chat 40) bound the OpenRouter/Workers-AI cost.
+- Plan docs for each effort: `docs/{SEARCH-UPGRADE,CLOUDFLARE-SEARCH,FOLLOWUPS,DIGEST-UPGRADE,AUTH-DB}-PLAN.md`.
+
+---
+
+## 8. Auth + DB layer (invite-gated accounts, sessions, quotas, persistence)
+
+Added after the search/AI stack to make the app **private, invite-only, and account-based**, with
+per-user history that syncs across devices. The search/ranking math above is untouched — this layer wraps
+it in auth + a proxy.
+
+### Stack
+- **Neon Postgres** via **Drizzle ORM** (`lib/db/`), **neon-http** driver. Schema in `lib/db/schema.ts`; migrations in `drizzle/` (`db:generate` / `db:migrate`, the latter using the **unpooled** URL — pgbouncer rejects some DDL).
+- **Better Auth** (`lib/auth.ts`): passwordless **magic link**, **DB-backed sessions** (not JWT), Drizzle adapter.
+- **Resend** (`lib/email.ts`) sends the magic-link email. `MAGIC_LINK_SINK` is a dev/test seam that writes the raw link to a file instead of emailing — hard-disabled in production.
+
+### Verified contracts (bit us or would have)
+| Contract | Finding |
+|---|---|
+| neon-http has **no interactive transactions** | `db.transaction()` isn't available. Better Auth's Drizzle pg adapter reports `transaction: false` and never calls it, so neon-http is safe. The one multi-statement op we own (consume invite) uses **`db.batch([...])`**, which neon-http runs atomically. |
+| Better Auth Drizzle **CLI diff** | Schema is faithful to Better Auth's official pg snapshot (singular table names, exact columns); `@better-auth/cli generate` produces an empty diff. Don't rename/drop those columns. |
+| Atomic per-user quota without a txn | A single `INSERT … ON CONFLICT (userId, day) DO UPDATE SET count = count + 1 RETURNING count` is atomic server-side — sufficient for the daily counters. Day boundary = UTC (deterministic on serverless). |
+| Returning users skip the gate | `databaseHooks.user.create.before` runs only for brand-new emails (Better Auth finds returning users by email first), so a returning user logs in with the link alone. |
+
+### The invite gate (the hard security crux)
+Email = identity; a **redeemed invite code = access**. Flow: `POST /api/invite/verify {code, email}` validates the code and upserts a short-lived `pending_signups` row (a reservation, 15-min TTL, 30s per-email reissue cooldown). Account creation is then blocked in `user.create.before` unless an unexpired `pending_signups` row exists for that email — and re-checked still-redeemable to close the ≤15-min window where a code could be exhausted/deactivated. `user.create.after` consumes the reservation (delete + bump `usedCount`) in one `db.batch`, fail-safe (a failure just leaves the row to expire; the invited user keeps access). `maxUses` counts committed redemptions **plus** outstanding reservations to prevent last-slot overshoot.
+
+**Rate-limiting the guessing** (`/api/invite/verify`): a cheap **per-isolate in-memory** burst limiter in front, plus a **durable per-IP** limiter (`invite_verify_attempts` table) — only failed (invalid/exhausted-code) attempts are recorded; >10 per IP per hour → 429, bounding guessing across isolates. Valid codes write nothing; old rows pruned on write.
+
+### Search proxy + Worker lockdown
+Browser → same-origin **`/api/search`** (`lib/search-client.ts`, still zero ML) → session check + atomic daily quota → forward to the Worker with **`X-Proxy-Secret: SEARCH_PROXY_SECRET`**. The Worker's first statement is a fail-closed secret check, so the billable Workers-AI pipeline can't be hit directly. The Worker URL + secret are server-only (never `NEXT_PUBLIC_*`). Ranking is byte-identical to the pre-proxy path. The proxy's Worker fetch has a 12s `AbortSignal.timeout` so a hung Worker fails fast with a 502 instead of holding the function to `maxDuration`. **These two must deploy together** (see SYNC-AND-DEPLOY's atomic rollout).
+
+### Per-user quotas + shared guard
+`lib/api-guard.ts` single-sources the session gate + quota for search/digest/chat: `requireUser()` → session or 401; `enforceQuota(userId, kind, limit)` → `null` (proceed), a localized-by-client **429** (`search_quota`/`digest_quota`/`chat_quota`), or a clean JSON **500** if the quota upsert itself fails (guarded — never leaks a stack). Limits: **search 300 / digest 10 / chat 40** per UTC day; the increment happens **before** the work so an over-limit request never reaches the Worker/OpenRouter. The UI keys off the `code` to show a localized "daily limit reached" message (search degrades to substring with a distinct notice; digest/chat show it in-panel via a `fetch` interceptor on useObject/useChat).
+
+### Digest + chat persistence (cross-device)
+Digests persist server-side in `/api/digest`'s `streamObject` **`onFinish`** — the response **tees** the stream and drains one branch via `after()`, so persistence completes even if the client disconnects mid-stream (disconnect-safe). One row per `(userId, query)` (`onConflictDoUpdate`) so a regen replaces rather than appends. Chats persist via explicit Save (`/api/chats` upsert, stable id per open conversation). Both are user-scoped (IDOR-safe per-route `WHERE userId`) and read back on load, replacing the old per-device localStorage; a one-shot idempotent localStorage→DB migration seeds pre-existing local history.
+
+### Tables (app-owned, beyond Better Auth's core four)
+`invite_codes`, `pending_signups`, `invite_verify_attempts`, `saved_digests`, `chat_sessions` + `chat_messages`, `ai_usage_daily` (PK `(userId, day)`; `searchCount`/`digestCount`/`chatCount`).

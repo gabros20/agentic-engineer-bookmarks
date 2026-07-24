@@ -1,8 +1,8 @@
 # X Bookmarks
 
-A Next.js app for browsing a personal archive of saved X bookmarks.
+A Next.js app for browsing a personal archive of saved X bookmarks. The app is **private and invite-only** — every page and API route is behind a passwordless magic-link login, and accounts can only be created by redeeming an invite code.
 
-The app renders a static JSON export as searchable cards with hybrid (keyword + semantic) search served by a Cloudflare Worker, sorting/filtering, starring, an AI Digest that summarizes search results, and a ⌘K AI chat that can search the archive — all bilingual (English / Magyar). Fresh bookmarks are pulled and appended incrementally with the [`xrelay`](https://github.com/gabros20/x-relay) CLI.
+The app renders a static JSON export as searchable cards with hybrid (keyword + semantic) search served by a Cloudflare Worker (proxied through an authenticated Vercel route), sorting/filtering, starring, an AI Digest that summarizes search results, and a ⌘K AI chat that can search the archive — all bilingual (English / Magyar). Saved digests and chats persist to a Postgres database and sync across your devices. Fresh bookmarks are pulled and appended incrementally with the [`xrelay`](https://github.com/gabros20/x-relay) CLI.
 
 ## Live App
 
@@ -35,14 +35,14 @@ The archive file is in xrelay's native `ArchiveFile` shape (`{ schema: "x-relay/
 
 The bge search index mirrors the old e5 index's schema v2 chunking: alongside each post's main embedding (raw text, `@cf/baai/bge-m3` — no e5-style prefix), long article bodies are split into ~280-word chunks (title-prefixed, on paragraph boundaries) and embedded separately, so a long article's semantic match isn't diluted into one averaged vector. `count` is the number of bookmarks (`5,594`); `vector_count` is the total number of embedded items including chunks (`6,840`). At query time (inside the Worker), per-bookmark scores are max-pooled across a bookmark's main vector and all of its chunks before ranking, so a multi-chunk article still contributes exactly one ranked result, never duplicates.
 
-The deployed app is static. Favorites, saved digests, saved chats, and language are personal to each browser:
+Saved digests and chats are now **DB-backed and user-scoped** (Neon Postgres) — they are the single source of truth and sync across every device you sign in on. Only favorites and language remain per-browser in `localStorage`:
 
 ```text
 localStorage["agentic-engineer-bookmarks:favorites"]
-localStorage["agentic-engineer-bookmarks:digests"]
-localStorage["agentic-engineer-bookmarks:chats"]
 localStorage["agentic-engineer-bookmarks:lang"]
 ```
+
+(The legacy `…:digests` / `…:chats` localStorage keys are read once, on first load after signing in, to migrate any pre-existing local history into the DB — idempotent and non-destructive — then no longer used.)
 
 ## Features
 
@@ -51,22 +51,23 @@ localStorage["agentic-engineer-bookmarks:lang"]
 - Query operators typed straight into the search box: `from:handle`, `before:YYYY-MM[-DD]`, `after:YYYY-MM[-DD]` — parsed out as removable chips and applied as hard filters alongside the text search
 - Relevance floors drop low-confidence broad-mode matches instead of padding results out to a fixed count, so a narrow query returns a short, high-precision list rather than a long tail of noise
 - Search by post text, author, handle, URL, article title (with full article body for X Article bookmarks), and quoted-post text
-- **LLM query expansion** (`/api/expand`, passkey-gated): broad-precision searches get up to 3 short LLM rewrites — an English translation for non-English queries, a synonym-rich rephrase, and a narrower variant — merged with the static synonym expansions before embedding, so Hungarian-language searches match English-language saved content
+- **LLM query expansion** (`/api/expand`, session-gated): broad-precision searches get up to 3 short LLM rewrites — an English translation for non-English queries, a synonym-rich rephrase, and a narrower variant — merged with the static synonym expansions before embedding, so Hungarian-language searches match English-language saved content
 - Sort by relevance, newest, oldest, most bookmarked, or most liked; filter to starred / article / media / photo / video / text-only
-- **AI Digest** — summarize the top search results into themes via OpenRouter (`gpt-5.4-nano`), cached in `localStorage` and reopenable from a saved list
-- **⌘K AI chat** — ask questions; the agent searches your archive with browser-side tools (AI SDK v6 + AI Elements)
+- **AI Digest** — summarize the top search results into themes via OpenRouter (`google/gemini-3.6-flash`), persisted server-side to the database and reopenable from a saved list on any device
+- **⌘K AI chat** — ask questions; the agent searches your archive with browser-side tools (AI SDK v6 + AI Elements); saved chats are DB-backed and sync cross-device
+- **Per-user daily quotas** on the cost-bearing endpoints (search 300 / digest 10 / chat 40 per day); hitting a cap shows a clear, localized "daily limit reached" message rather than failing silently
 - Bilingual UI and AI output (English / Magyar) with flag switcher
 - Star/unstar with local persistence; open the original post on `x.com`
 - JSON parsed off the main thread in a Web Worker with skeleton loading
 - Responsive, Anthropic-styled card layout
 
-AI features (Digest, chat, query expansion) are gated behind a passkey stored as a `DIGEST_UNLOCK_SECRET` cookie; the OpenRouter key (`OPENROUTER_API_KEY`) is server-side only. Search itself (hybrid, operators, rerank) needs no passkey — it runs server-side on a public Cloudflare Worker, not in the browser.
+The whole app is behind login (Better Auth magic link + Neon Postgres sessions). All server routes — search, Digest, chat, query expansion — require a valid session (401 otherwise); the OpenRouter key (`OPENROUTER_API_KEY`) and the Worker's shared secret are server-side only. The Cloudflare Worker is no longer publicly reachable: browser search goes through the authenticated `/api/search` proxy, which forwards to the Worker with a server-only `SEARCH_PROXY_SECRET` (the Worker is fail-closed on it).
 
-The client downloads no model and does no embedding or reranking — every keystroke sends the query to the Worker over the network, which returns ranked results. If the Worker is unreachable, search degrades gracefully to a plain client-side substring match over the already-loaded posts.
+The client downloads no model and does no embedding or reranking — every keystroke sends the query to `/api/search` over the network, which returns ranked results. If the Worker (or the proxy) is unreachable, or the daily search quota is spent, search degrades gracefully to a plain client-side substring match over the already-loaded posts, with a status notice explaining why.
 
 ## Search architecture
 
-Client → Cloudflare Worker → Vercel-hosted data: the browser sends each query to the Worker's `/search` endpoint; the Worker runs the hybrid pipeline (Lunr keyword ⊕ `bge-m3` semantic ⊕ `bge-reranker-base` rerank, via Workers AI) over index data it fetches from the static JSON in `public/data/` on Vercel and caches per isolate; it returns a ranked `{id, score}` list that the client renders — no ML, embeddings, or index ever ship to the browser.
+Client → `/api/search` (Vercel proxy) → Cloudflare Worker → Vercel-hosted data: the browser sends each query same-origin to `/api/search`, which authenticates the session and checks the per-user daily search quota, then forwards to the Worker's `/search` endpoint with a server-only `SEARCH_PROXY_SECRET` (the Worker rejects any request without it). The Worker runs the hybrid pipeline (Lunr keyword ⊕ `bge-m3` semantic ⊕ `bge-reranker-base` rerank, via Workers AI) over index data it fetches from the static JSON in `public/data/` on Vercel and caches per isolate; it returns a ranked `{id, score}` list that the client renders — no ML, embeddings, index, Worker URL, or secret ever ship to the browser.
 
 Because the Worker caches that data per isolate, a bookmark sync (`npm run sync`) only updates what's live once the Worker is redeployed with the refreshed data — see [Syncing Fresh Bookmarks](#syncing-fresh-bookmarks).
 
@@ -85,12 +86,54 @@ npm run dev          # http://localhost:3000
 npm run build        # production build
 ```
 
-Environment variables (for the AI features) in `.env.local`:
+### Environment variables (`.env.local`)
+
+All are **server-side only** — none are `NEXT_PUBLIC_*`, and no secret is ever exposed to the browser.
 
 ```text
-OPENROUTER_API_KEY=...        # server-side only
-DIGEST_UNLOCK_SECRET=...      # passkey that unlocks AI Digest + chat
+# Database (Neon Postgres)
+DATABASE_URL=postgres://...            # pooled — the app's runtime connection
+DATABASE_URL_UNPOOLED=postgres://...   # direct/unpooled — migrations only (drizzle-kit)
+
+# Auth (Better Auth, passwordless magic link)
+BETTER_AUTH_SECRET=...                 # session-signing secret (generate a random 32+ byte value)
+BETTER_AUTH_URL=http://localhost:3000  # the app's own origin (prod origin in production)
+RESEND_API_KEY=...                     # sends magic-link emails via Resend
+
+# Search proxy → Cloudflare Worker
+SEARCH_ENDPOINT=https://bookmark-search.<you>.workers.dev   # the deployed Worker URL
+SEARCH_PROXY_SECRET=...                # shared secret; also `wrangler secret put SEARCH_PROXY_SECRET` on the Worker
+
+# AI (OpenRouter) + the seed invite code
+OPENROUTER_API_KEY=...                 # digest / chat / expand, via OpenRouter
+DIGEST_UNLOCK_SECRET=...               # historical name; now ONLY the seed invite code (the passkey is retired)
 ```
+
+### Database setup
+
+The schema lives in `lib/db/schema.ts` (Drizzle ORM). Apply migrations to your Neon database:
+
+```bash
+npm run db:migrate      # applies drizzle/*.sql   (needs DATABASE_URL_UNPOOLED)
+# npm run db:generate   # regenerate a migration after editing the schema
+```
+
+### Signing in (and inviting people)
+
+Login is invite-gated: an account can only be created by an email that has first redeemed a valid invite code. The login screen asks for **an invite code + your email**, then emails a magic link.
+
+1. **Seed the owner's code** (idempotent — uses `DIGEST_UNLOCK_SECRET`): `npm run db:seed-invite`
+2. **Issue more invites** for other people:
+
+   ```bash
+   node scripts/add-invite.mjs <CODE> [label] [maxUses]     # or: npm run add-invite -- <CODE> [label] [maxUses]
+   # e.g.  node scripts/add-invite.mjs river-otter-42 "Sam" 1     # single-use code labelled "Sam"
+   #       node scripts/add-invite.mjs team-2026                  # unlimited uses, no label
+   ```
+
+   Share `<CODE>` with the person; they enter it + their email on the login screen to create their account.
+
+**Local magic links without email:** set `MAGIC_LINK_SINK=/tmp/magic.jsonl` when running `npm run dev` and the raw sign-in URL is appended to that file instead of being emailed (dev/test only — hard-disabled in production). Open the captured URL to complete login.
 
 ## Syncing Fresh Bookmarks
 
@@ -181,9 +224,12 @@ vercel --prod   # manual production deploy
 
 The Cloudflare Worker (search) is deployed separately — see `npm run deploy:worker` above; it needs redeploying any time the synced data changes, since Vercel pushes alone don't reach it.
 
+Because the live app calls the Worker through `/api/search` with a shared secret and the Worker is fail-closed on that secret, the **app deploy and the Worker deploy must go live together** — set the Vercel env vars (`SEARCH_ENDPOINT`, `SEARCH_PROXY_SECRET`, `BETTER_AUTH_*`, `RESEND_API_KEY`, `DATABASE_URL`) **before** the build, then merge and `npm run deploy:worker` in the same window. The full atomic sequence is in **[docs/SYNC-AND-DEPLOY.md](docs/SYNC-AND-DEPLOY.md)**.
+
 ## Notes
 
 - The bookmark JSON is committed into the private repository (the data files are several MB; a large push may need `git config http.postBuffer 524288000`).
-- Search runs server-side on a Cloudflare Worker that embeds/reranks with Workers AI and fetches its index data from the static JSON hosted on Vercel — still no database required at runtime.
-- Favorites, digests, and chats are intentionally not synced across devices.
-- The Vercel runtime server API exists only for the AI Digest, chat, and query-expansion endpoints — all three are passkey-gated and stateless (no database). Search itself is served separately by the Cloudflare Worker's `/search` endpoint (ungated, public) — see [Search architecture](#search-architecture).
+- Search runs server-side on a Cloudflare Worker that embeds/reranks with Workers AI and fetches its index data from the static JSON hosted on Vercel; a Neon Postgres database backs auth, sessions, invites, quotas, and saved digests/chats.
+- Favorites and language are per-browser; saved digests and chats are DB-backed and sync across every device you sign in on.
+- Every Vercel server route (`/api/search`, `/api/digest`, `/api/chat`, `/api/expand`, the invite + auth routes) requires a session; the Cloudflare Worker's `/search` endpoint is reachable only through the authenticated `/api/search` proxy holding `SEARCH_PROXY_SECRET` — see [Search architecture](#search-architecture).
+- The raw bookmark JSON under `public/data/*` is still publicly fetchable (the Worker reads it cookie-less): the UI is private, but the archive files themselves are not gated. Locking them down would need an authenticated Worker→data fetch or private storage (R2 / Blob).
