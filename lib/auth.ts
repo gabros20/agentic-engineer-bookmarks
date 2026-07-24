@@ -5,7 +5,11 @@ import { magicLink } from "better-auth/plugins";
 
 import { db } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/email";
-import { consumeInvite, findValidPendingSignup } from "@/lib/invite";
+import {
+  consumeInvite,
+  findValidPendingSignup,
+  isCodeRedeemable,
+} from "@/lib/invite";
 
 // ---------------------------------------------------------------------------
 // Better Auth server instance: passwordless magic-link over the Drizzle/Neon
@@ -49,11 +53,33 @@ export const auth = betterAuth({
                 "An invite code is required to create an account. / Fiók létrehozásához meghívókód szükséges.",
             });
           }
+          // Re-check the reserved code is STILL redeemable: a code deactivated
+          // or exhausted by other redemptions during the ≤15-min pending window
+          // must not let this reservation through. Closes the mid-flight gap.
+          if (!(await isCodeRedeemable(pending.codeId))) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "This invite code is no longer valid. / Ez a meghívókód már nem érvényes.",
+            });
+          }
         },
         // Fires only on successful creation: consume the reservation and bump
-        // the code's usedCount (single neon-http batch / server-side txn).
+        // the code's usedCount (single neon-http batch / server-side txn). This
+        // runs AFTER the session + cookie are already set (queued post-txn), so
+        // a failure here must never crash the hook drain or revoke the granted
+        // access. Fail safe: swallow + log — the pending row simply lingers to
+        // its 15-min expiry (still counted against maxUses at reserve) and
+        // usedCount isn't bumped; the invited user correctly keeps access.
         after: async (user) => {
-          await consumeInvite(user.email);
+          try {
+            await consumeInvite(user.email);
+          } catch (err) {
+            console.error(
+              `[auth] consumeInvite failed after creating user ${user.email}; ` +
+                "pending_signups row left to expire, usedCount not incremented",
+              err,
+            );
+          }
         },
       },
     },
@@ -67,8 +93,14 @@ export const auth = betterAuth({
         // Test seam — NEVER set in production. When MAGIC_LINK_SINK points at a
         // file, capture the raw link there (the token is only in the URL under
         // hashed storage) and skip email, so integration tests don't depend on
-        // inbox delivery. Unset in prod → always emails via Resend.
-        if (process.env.MAGIC_LINK_SINK) {
+        // inbox delivery. Unset in prod → always emails via Resend. Hard-gated
+        // on NODE_ENV !== "production" too, so even if the env var leaks into
+        // prod config the sink stays inert (never suppresses email / captures
+        // live tokens in prod).
+        if (
+          process.env.MAGIC_LINK_SINK &&
+          process.env.NODE_ENV !== "production"
+        ) {
           const { appendFile } = await import("node:fs/promises");
           await appendFile(
             process.env.MAGIC_LINK_SINK,

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { inviteCodes, pendingSignups } from "@/lib/db/schema";
@@ -68,11 +68,30 @@ export async function reserveInvite(rawEmail: string, rawCode: string): Promise<
     .where(eq(inviteCodes.code, code))
     .limit(1);
 
-  const codeValid =
-    codeRow &&
-    codeRow.active &&
-    (codeRow.maxUses === null || codeRow.usedCount < codeRow.maxUses);
-  if (!codeValid) return { ok: false, status: 400, error: INVALID_CODE };
+  if (!codeRow || !codeRow.active) {
+    return { ok: false, status: 400, error: INVALID_CODE };
+  }
+  // Enforce maxUses against BOTH committed redemptions (usedCount) AND
+  // outstanding un-consumed reservations for this code (unexpired
+  // pending_signups). Without counting reservations, N emails could each
+  // reserve a maxUses=1 code before any consume bumps usedCount, then all sign
+  // up and overshoot the limit. Exclude this email's own row so a re-request by
+  // the same person never counts against itself (the upsert below replaces it).
+  if (codeRow.maxUses !== null) {
+    const [{ outstanding }] = await db
+      .select({ outstanding: sql<number>`count(*)::int` })
+      .from(pendingSignups)
+      .where(
+        and(
+          eq(pendingSignups.codeId, codeRow.id),
+          ne(pendingSignups.email, email),
+          gt(pendingSignups.expiresAt, new Date()),
+        ),
+      );
+    if (codeRow.usedCount + outstanding >= codeRow.maxUses) {
+      return { ok: false, status: 400, error: INVALID_CODE };
+    }
+  }
 
   // Per-email cooldown: `createdAt` is refreshed on every reservation below, so
   // it doubles as "last issued at". Reject a burst of repeat requests.
@@ -113,6 +132,24 @@ export async function findValidPendingSignup(rawEmail: string) {
   if (!row) return null;
   if (row.expiresAt.getTime() < Date.now()) return null;
   return row;
+}
+
+/**
+ * Signup-time re-validation of the reserved code. `findValidPendingSignup` only
+ * proves a reservation exists and is unexpired; in the ≤15-min window between
+ * reserve and signup the code can be deactivated or exhausted by other
+ * redemptions. The gate calls this after the pending lookup succeeds and MUST
+ * abort account creation when it returns false. Closes the mid-flight window.
+ */
+export async function isCodeRedeemable(codeId: string): Promise<boolean> {
+  const [code] = await db
+    .select()
+    .from(inviteCodes)
+    .where(eq(inviteCodes.id, codeId))
+    .limit(1);
+  if (!code || !code.active) return false;
+  if (code.maxUses !== null && code.usedCount >= code.maxUses) return false;
+  return true;
 }
 
 /**
