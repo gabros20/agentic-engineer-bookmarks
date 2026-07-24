@@ -22,6 +22,13 @@
       "when": 1784914105217,
       "tag": "0002_superb_omega_flight",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784915162757,
+      "tag": "0003_steep_maverick",
+      "breakpoints": true
     }
   ]
 }

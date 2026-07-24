@@ -106,6 +106,22 @@ export const inviteCodes = pgTable("invite_codes", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// T7: durable anti-guessing signal for POST /api/invite/verify. One row per FAILED
+// (invalid/exhausted-code) attempt, keyed by client IP + time. The route counts recent rows in a
+// sliding window and rejects (429) past a threshold, so invalid-code guessing is bounded ACROSS
+// isolates — unlike the coarse per-isolate in-memory burst limiter that resets on cold start.
+// Only failures are recorded; a successful reservation writes nothing. Rows outside the window are
+// pruned opportunistically on write, so the table stays small.
+export const inviteVerifyAttempts = pgTable(
+  "invite_verify_attempts",
+  {
+    id: text("id").primaryKey(),
+    ip: text("ip").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("invite_verify_attempts_ip_idx").on(table.ip)],
+);
+
 export const pendingSignups = pgTable("pending_signups", {
   email: text("email").primaryKey(),
   codeId: text("codeId")

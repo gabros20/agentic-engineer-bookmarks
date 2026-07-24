@@ -1,7 +1,7 @@
-import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { and, eq, gt, lt, ne, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { inviteCodes, pendingSignups } from "@/lib/db/schema";
+import { inviteCodes, inviteVerifyAttempts, pendingSignups } from "@/lib/db/schema";
 
 // ---------------------------------------------------------------------------
 // Invite domain: the hard gate that decides who may create an account.
@@ -43,6 +43,39 @@ async function seedInvite(): Promise<void> {
     .insert(inviteCodes)
     .values({ id: crypto.randomUUID(), code: secret, label: "seed" })
     .onConflictDoNothing({ target: inviteCodes.code });
+}
+
+// ---------------------------------------------------------------------------
+// Durable per-IP anti-guessing limiter (T7). Bounds invalid-code guessing ACROSS
+// isolates via the `invite_verify_attempts` table (the route also keeps a cheap
+// per-isolate in-memory burst limiter in front of this). Only FAILED attempts
+// are recorded; a valid code writes nothing, so a legitimate user is never
+// blocked. Simple + correct: a sliding 1h window, a fixed threshold.
+// ---------------------------------------------------------------------------
+const IP_FAIL_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const IP_FAIL_MAX = 10; // failed /invite/verify per IP per hour before we reject
+
+/** True once an IP has exceeded {@link IP_FAIL_MAX} failed attempts in the window. */
+export async function isInviteIpBlocked(ip: string): Promise<boolean> {
+  const since = new Date(Date.now() - IP_FAIL_WINDOW_MS);
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(inviteVerifyAttempts)
+    .where(and(eq(inviteVerifyAttempts.ip, ip), gt(inviteVerifyAttempts.createdAt, since)));
+  return (row?.count ?? 0) > IP_FAIL_MAX;
+}
+
+/**
+ * Record one failed (invalid/exhausted-code) verify attempt for `ip`, and prune
+ * rows older than the window in the same batch so the table can't grow. Called
+ * best-effort by the route — a failure here must never break verify.
+ */
+export async function recordInviteFailure(ip: string): Promise<void> {
+  const cutoff = new Date(Date.now() - IP_FAIL_WINDOW_MS);
+  await db.batch([
+    db.insert(inviteVerifyAttempts).values({ id: crypto.randomUUID(), ip }),
+    db.delete(inviteVerifyAttempts).where(lt(inviteVerifyAttempts.createdAt, cutoff)),
+  ]);
 }
 
 export type ReserveResult =

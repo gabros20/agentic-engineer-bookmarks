@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ensureSeedInvite, reserveInvite } from "@/lib/invite";
+import {
+  ensureSeedInvite,
+  isInviteIpBlocked,
+  recordInviteFailure,
+  reserveInvite,
+} from "@/lib/invite";
 
 export const runtime = "nodejs";
 
@@ -13,10 +18,12 @@ export const runtime = "nodejs";
 // Rate limiting (lightweight, documented):
 //  - Per-email: a 30s reissue cooldown enforced in reserveInvite via the
 //    reservation's createdAt (durable, DB-backed).
-//  - Per-IP: a coarse in-memory sliding window (below). Best-effort only — it
-//    is per-isolate and resets on cold start; it blunts bursts, not a
-//    determined distributed attacker. The durable gate is the invite code
-//    itself + the per-email cooldown.
+//  - Per-IP burst: a coarse in-memory sliding window (below). Best-effort only
+//    — it is per-isolate and resets on cold start; it blunts rapid bursts.
+//  - Per-IP durable (T7): failed (invalid/exhausted-code) attempts are counted
+//    across isolates in `invite_verify_attempts`; >10 per IP per hour → 429.
+//    This is the cross-isolate anti-guessing bound the in-memory limiter can't
+//    give. The hard gate is still the code itself + the per-email cooldown.
 // ---------------------------------------------------------------------------
 
 const IP_WINDOW_MS = 60 * 1000; // 1 minute
@@ -44,7 +51,9 @@ function clientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  if (ipRateLimited(clientIp(req))) {
+  const ip = clientIp(req);
+  // Cheap per-isolate burst check first (no DB hit), then the durable cross-isolate bound.
+  if (ipRateLimited(ip) || (await isInviteIpBlocked(ip))) {
     return NextResponse.json(
       { ok: false, error: "Too many requests. / Túl sok kérés." },
       { status: 429 },
@@ -74,6 +83,16 @@ export async function POST(req: NextRequest) {
 
   const result = await reserveInvite(email, code);
   if (!result.ok) {
+    // Record a durable failure ONLY for an invalid/exhausted-code guess (status 400) — the signal
+    // we bound. The per-email 30s cooldown (429) is a legitimate user retrying, not a guess.
+    // Best-effort: a limiter write must never turn a 400 into a 500.
+    if (result.status === 400) {
+      try {
+        await recordInviteFailure(ip);
+      } catch (err) {
+        console.error("[invite] failed to record verify failure:", err);
+      }
+    }
     return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
   }
   return NextResponse.json({ ok: true });
