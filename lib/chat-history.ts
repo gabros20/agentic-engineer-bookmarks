@@ -1,5 +1,7 @@
-// localStorage-backed history for explicitly-saved chats. Mirrors
-// lib/digest-cache.ts in shape.
+// T6 (cross-device sync): saved chats now live in the DB (chat_sessions + chat_messages),
+// keyed to the user, so a chat saved on one device shows on another. This module keeps the
+// SavedChat shape + id/title helpers, thin async DB accessors the panels/chat use, and a
+// legacy localStorage reader that survives only to feed the one-shot migration.
 
 const STORAGE_KEY = "agentic-engineer-bookmarks:chats";
 
@@ -7,14 +9,50 @@ export type SavedChat = {
   id: string;
   title: string;
   language: "en" | "hu";
-  /** UIMessage[] from useChat, serialized as-is */
+  /** UIMessage[] from useChat, persisted verbatim (each message's `parts` is stored as jsonb). */
   messages: unknown[];
-  /** Optional snapshot of the search context at save time */
+  /** Optional snapshot of the search context at save time. */
   query: string | null;
   createdAt: string;
 };
 
-function read(): Record<string, SavedChat> {
+/** List-row metadata (no messages) — what /api/chats GET returns for the history panel. */
+export type SavedChatMeta = Omit<SavedChat, "messages">;
+
+// --- Client accessors (DB-backed, async) --------------------------------------------------
+
+export async function fetchSavedChats(): Promise<SavedChatMeta[]> {
+  const res = await fetch("/api/chats", { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`GET /api/chats ${res.status}`);
+  const data = (await res.json()) as { chats?: SavedChatMeta[] };
+  return data.chats ?? [];
+}
+
+/** Load one saved chat WITH its ordered messages (to reopen it). */
+export async function fetchChat(id: string): Promise<SavedChat | null> {
+  const res = await fetch(`/api/chats/${encodeURIComponent(id)}`, {
+    headers: { accept: "application/json" },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { chat?: SavedChat | null };
+  return data.chat ?? null;
+}
+
+export async function saveChat(entry: SavedChat): Promise<void> {
+  await fetch("/api/chats", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteChatById(id: string): Promise<void> {
+  await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+// --- Legacy localStorage reader (migration input only) ------------------------------------
+
+function readLegacy(): Record<string, SavedChat> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -26,39 +64,14 @@ function read(): Record<string, SavedChat> {
   }
 }
 
-function write(all: Record<string, SavedChat>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch {
-    // quota / serialization — silently drop
-  }
+/** Legacy localStorage chats — only read to seed the one-shot DB migration (T6). */
+export function readLegacyChats(): SavedChat[] {
+  return Object.values(readLegacy());
 }
 
-export function saveChat(entry: SavedChat) {
-  const all = read();
-  all[entry.id] = entry;
-  write(all);
-}
-
-export function deleteChat(id: string) {
-  const all = read();
-  delete all[id];
-  write(all);
-}
-
-export function getChat(id: string): SavedChat | null {
-  return read()[id] ?? null;
-}
-
-export function listSavedChats(): SavedChat[] {
-  return Object.values(read()).sort(
-    (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
-  );
-}
+// --- Pure helpers (unchanged) -------------------------------------------------------------
 
 export function makeChatId() {
-  // localStorage-only — collision risk is negligible.
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
