@@ -141,6 +141,9 @@ export const chatSessions = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title"),
     language: text("language"),
+    // T6: snapshot of the search query the chat was saved from (nullable — a chat
+    // opened cold via ⌘K has none). Carries the panel's `· query` suffix cross-device.
+    query: text("query"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt")
       .defaultNow()
