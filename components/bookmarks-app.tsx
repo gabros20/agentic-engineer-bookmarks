@@ -3,7 +3,7 @@
 import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, LogOut, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
@@ -158,45 +158,40 @@ export function BookmarksApp() {
     }
   }
 
-  // T6: header badge counts come from the DB (cross-device) — fetched on mount (after the
+  // T6: header badge counts come from the DB (cross-device) — refreshed on mount (after the
   // one-shot localStorage migration) and again whenever a panel closes (a delete or save may
-  // have changed them).
+  // have changed them). M4 fix: both triggers share ONE seq-guarded refresher so two in-flight
+  // fetches can't race — only the most-recently-STARTED fetch may write state, so a slow earlier
+  // request (e.g. the mount fetch that waited on migration) can never clobber a fresher count.
+  const countSeqRef = useRef(0);
+  const refreshCounts = useCallback(async () => {
+    const token = ++countSeqRef.current;
+    try {
+      const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
+      if (token !== countSeqRef.current) return; // superseded by a newer refresh
+      setSavedCount(digests.length);
+      setSavedChatsCount(chats.length);
+    } catch {
+      // Leave counts as-is on failure.
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       await migrateLegacyOnce();
       if (!alive) return;
-      try {
-        const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
-        if (!alive) return;
-        setSavedCount(digests.length);
-        setSavedChatsCount(chats.length);
-      } catch {
-        // Leave counts as-is on failure.
-      }
+      await refreshCounts();
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshCounts]);
 
   useEffect(() => {
     if (savedOpen || digestOpen || chatOpen || chatHistoryOpen) return;
-    let alive = true;
-    (async () => {
-      try {
-        const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
-        if (!alive) return;
-        setSavedCount(digests.length);
-        setSavedChatsCount(chats.length);
-      } catch {
-        // Leave counts as-is on failure.
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen]);
+    void refreshCounts();
+  }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen, refreshCounts]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
