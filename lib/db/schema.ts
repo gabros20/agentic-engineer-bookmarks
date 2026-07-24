@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
@@ -129,7 +130,13 @@ export const savedDigests = pgTable(
     language: text("language"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (table) => [index("saved_digests_userId_idx").on(table.userId)],
+  (table) => [
+    index("saved_digests_userId_idx").on(table.userId),
+    // T6 fix (I2): one digest per (user, query). A regenerated digest REPLACES the prior one
+    // (onConflictDoUpdate in app/api/digest onFinish) instead of appending a new row, so
+    // deleting the shown digest can't resurface a stale older generation of the same query.
+    unique("saved_digests_userId_query_uq").on(table.userId, table.query),
+  ],
 );
 
 export const chatSessions = pgTable(

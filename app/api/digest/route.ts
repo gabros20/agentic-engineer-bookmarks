@@ -93,16 +93,34 @@ export async function POST(request: NextRequest) {
     onFinish: async ({ object, error }) => {
       if (error || !object) return;
       try {
-        await db.insert(savedDigests).values({
-          id: crypto.randomUUID(),
-          userId,
-          title: query,
-          query,
-          precision: null, // digestRequestSchema carries no precision; T6 may thread it through.
-          content: object,
-          sourceIds,
-          language,
-        });
+        // T6 fix (I2): dedupe-on-write. UNIQUE(userId, query) + onConflictDoUpdate means a
+        // regenerated digest REPLACES the prior row for the same (user, query) rather than
+        // appending — one row per query, so deleting the shown digest can't resurface an older
+        // generation. createdAt is refreshed so the list's newest-first order reflects the
+        // latest regeneration.
+        await db
+          .insert(savedDigests)
+          .values({
+            id: crypto.randomUUID(),
+            userId,
+            title: query,
+            query,
+            precision: null, // digestRequestSchema carries no precision; T6 may thread it through.
+            content: object,
+            sourceIds,
+            language,
+          })
+          .onConflictDoUpdate({
+            target: [savedDigests.userId, savedDigests.query],
+            set: {
+              title: query,
+              precision: null,
+              content: object,
+              sourceIds,
+              language,
+              createdAt: new Date(),
+            },
+          });
       } catch (err) {
         // A failed persist must not surface as a stream error to the client (the digest still
         // rendered). Log and move on; the client-side cache still holds this digest for now.
