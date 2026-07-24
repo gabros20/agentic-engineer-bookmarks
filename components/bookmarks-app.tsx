@@ -11,7 +11,6 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { SavedChatsPanel } from "@/components/saved-chats-panel";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
 import { OptionSelect } from "@/components/ui/select";
-import { UnlockForm } from "@/components/unlock-form";
 import { listSavedChats, type SavedChat } from "@/lib/chat-history";
 import type {
   GetBookmarkInput,
@@ -96,7 +95,6 @@ export function BookmarksApp() {
   >("status.ready");
   const [error, setError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [digestUnlocked, setDigestUnlocked] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const [digestPayload, setDigestPayload] = useState<{
     query: string;
@@ -105,8 +103,6 @@ export function BookmarksApp() {
   } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
-  const [unlockOpen, setUnlockOpen] = useState(false);
-  const [pendingDigest, setPendingDigest] = useState<{ query: string; sources: DigestSource[] } | null>(null);
   // T1 (digest engine upgrade): true while the CTA is re-querying the Worker at limit 50
   // (deeper sourcing) before opening the panel.
   const [digestSourcing, setDigestSourcing] = useState(false);
@@ -117,8 +113,6 @@ export function BookmarksApp() {
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | null>(null);
   const [savedChatsCount, setSavedChatsCount] = useState(0);
-  const [pendingChatOpen, setPendingChatOpen] = useState(false);
-  const [pendingShortlistPrompt, setPendingShortlistPrompt] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
@@ -146,17 +140,13 @@ export function BookmarksApp() {
   }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen]);
 
   useEffect(() => {
-    setDigestUnlocked(document.cookie.split("; ").some((c) => c.startsWith("digest_ok=1")));
-  }, []);
-
-  useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // ⌘K / Ctrl+K to toggle the chat. Same passkey gate as the AI Digest CTA.
+  // ⌘K / Ctrl+K to toggle the chat. The app is behind login, so no extra gate — open directly.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -165,18 +155,13 @@ export function BookmarksApp() {
           setChatOpen(false);
           return;
         }
-        if (digestUnlocked) {
-          setChatHistoryMessages(null);
-          setChatOpen(true);
-        } else {
-          setPendingChatOpen(true);
-          setUnlockOpen(true);
-        }
+        setChatHistoryMessages(null);
+        setChatOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chatOpen, digestUnlocked]);
+  }, [chatOpen]);
 
   // Fetch + parse the bookmark JSON in a Web Worker so JSON.parse doesn't freeze the main
   // thread on a 10 MB string. Rendering-only data — the search index never reaches the
@@ -275,13 +260,13 @@ export function BookmarksApp() {
     const controller = new AbortController();
     setSearchStatusKey("status.searching");
 
-    // LLM rewrites still fetched client-side (broad + unlocked only, /api/expand) and passed
-    // to the Worker, which merges them with its own static synonym expansions server-side.
-    // fetchQueryRewrites has a hard non-blocking-failure contract ([] on timeout/error/abort
-    // — lib/expand-client.ts), so a slow/dead LLM costs at most REWRITE_TIMEOUT_MS, never a
-    // failed search.
+    // LLM rewrites still fetched client-side (broad only, /api/expand — session-gated server
+    // side now) and passed to the Worker, which merges them with its own static synonym
+    // expansions server-side. fetchQueryRewrites has a hard non-blocking-failure contract ([]
+    // on timeout/error/abort — lib/expand-client.ts), so a slow/dead LLM costs at most
+    // REWRITE_TIMEOUT_MS, never a failed search.
     const rewritesPromise: Promise<string[]> =
-      precision === "broad" && digestUnlocked
+      precision === "broad"
         ? fetchQueryRewrites(q, lang, controller.signal)
         : Promise.resolve<string[]>([]);
 
@@ -310,7 +295,7 @@ export function BookmarksApp() {
       cancelled = true;
       controller.abort();
     };
-  }, [debouncedQuery, posts.length, precision, digestUnlocked, lang]);
+  }, [debouncedQuery, posts.length, precision, lang]);
 
   const visiblePosts = useMemo(() => {
     const { text, operators } = parsedQuery;
@@ -572,13 +557,8 @@ export function BookmarksApp() {
             <button
               type="button"
               onClick={() => {
-                if (digestUnlocked) {
-                  setChatHistoryMessages(null);
-                  setChatOpen(true);
-                } else {
-                  setPendingChatOpen(true);
-                  setUnlockOpen(true);
-                }
+                setChatHistoryMessages(null);
+                setChatOpen(true);
               }}
               className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
               aria-label={t("chat.title")}
@@ -590,30 +570,26 @@ export function BookmarksApp() {
                 ⌘K
               </kbd>
             </button>
-            {digestUnlocked ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setChatHistoryOpen(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                  aria-label={t("chat.history")}
-                  title={t("chat.history")}
-                >
-                  <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
-                  {savedChatsCount > 0 ? number(savedChatsCount) : null}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSavedOpen(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                  aria-label={t("app.aria.savedDigests")}
-                  title={t("app.saved")}
-                >
-                  <BookmarkIcon size={14} className="text-[color:var(--color-primary)]" />
-                  {savedCount > 0 ? number(savedCount) : null}
-                </button>
-              </>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => setChatHistoryOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+              aria-label={t("chat.history")}
+              title={t("chat.history")}
+            >
+              <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
+              {savedChatsCount > 0 ? number(savedChatsCount) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSavedOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+              aria-label={t("app.aria.savedDigests")}
+              title={t("app.saved")}
+            >
+              <BookmarkIcon size={14} className="text-[color:var(--color-primary)]" />
+              {savedCount > 0 ? number(savedCount) : null}
+            </button>
             {favorites.size > 0 ? (
               <div
                 className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)]"
@@ -654,51 +630,42 @@ export function BookmarksApp() {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    if (digestUnlocked) {
-                      setChatHistoryMessages(null);
-                      setChatOpen(true);
-                    } else {
-                      setPendingChatOpen(true);
-                      setUnlockOpen(true);
-                    }
+                    setChatHistoryMessages(null);
+                    setChatOpen(true);
                   }}
                   className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
                 >
                   <Sparkles size={16} className="text-[color:var(--color-primary)]" />
                   {t("chat.title")}
                 </button>
-                {digestUnlocked ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        setChatHistoryOpen(true);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                    >
-                      <MessagesSquare size={16} className="text-[color:var(--color-primary)]" />
-                      <span className="flex-1">{t("chat.history")}</span>
-                      {savedChatsCount > 0 ? (
-                        <span className="text-xs text-[color:var(--color-muted)]">{number(savedChatsCount)}</span>
-                      ) : null}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        setSavedOpen(true);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                    >
-                      <BookmarkIcon size={16} className="text-[color:var(--color-primary)]" />
-                      <span className="flex-1">{t("app.saved")}</span>
-                      {savedCount > 0 ? (
-                        <span className="text-xs text-[color:var(--color-muted)]">{number(savedCount)}</span>
-                      ) : null}
-                    </button>
-                  </>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setChatHistoryOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                >
+                  <MessagesSquare size={16} className="text-[color:var(--color-primary)]" />
+                  <span className="flex-1">{t("chat.history")}</span>
+                  {savedChatsCount > 0 ? (
+                    <span className="text-xs text-[color:var(--color-muted)]">{number(savedChatsCount)}</span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setSavedOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                >
+                  <BookmarkIcon size={16} className="text-[color:var(--color-primary)]" />
+                  <span className="flex-1">{t("app.saved")}</span>
+                  {savedCount > 0 ? (
+                    <span className="text-xs text-[color:var(--color-muted)]">{number(savedCount)}</span>
+                  ) : null}
+                </button>
                 {favorites.size > 0 ? (
                   <div className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium text-[color:var(--color-ink)]">
                     <Star size={16} className="fill-[color:var(--color-primary)] text-[color:var(--color-primary)]" />
@@ -894,14 +861,8 @@ export function BookmarksApp() {
                   } finally {
                     setDigestSourcing(false);
                   }
-                  const payload = { query, sources };
-                  if (digestUnlocked) {
-                    setDigestPayload(payload);
-                    setDigestOpen(true);
-                  } else {
-                    setPendingDigest(payload);
-                    setUnlockOpen(true);
-                  }
+                  setDigestPayload({ query, sources });
+                  setDigestOpen(true);
                 }}
                 className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-70"
               >
@@ -914,15 +875,9 @@ export function BookmarksApp() {
                 onClick={() => {
                   if (!displayQuery) return;
                   const prompt = t("chat.shortlistPrompt", { q: displayQuery });
-                  if (digestUnlocked) {
-                    setChatHistoryMessages(null);
-                    setChatInitialPrompt(prompt);
-                    setChatOpen(true);
-                  } else {
-                    setPendingShortlistPrompt(prompt);
-                    setPendingChatOpen(true);
-                    setUnlockOpen(true);
-                  }
+                  setChatHistoryMessages(null);
+                  setChatInitialPrompt(prompt);
+                  setChatOpen(true);
                 }}
                 className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[color:var(--color-primary)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-primary)] transition-colors hover:bg-[color:var(--color-primary)]/10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
               >
@@ -1004,35 +959,6 @@ export function BookmarksApp() {
               setDigestPayload({ query: saved.query, initialCached: saved });
               setSavedOpen(false);
               setDigestOpen(true);
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {unlockOpen ? (
-          <UnlockForm
-            onClose={() => {
-              setUnlockOpen(false);
-              setPendingDigest(null);
-              setPendingChatOpen(false);
-              setPendingShortlistPrompt(null);
-            }}
-            onUnlocked={() => {
-              setDigestUnlocked(true);
-              setUnlockOpen(false);
-              if (pendingDigest) {
-                setDigestPayload(pendingDigest);
-                setPendingDigest(null);
-                setDigestOpen(true);
-              }
-              if (pendingChatOpen) {
-                setPendingChatOpen(false);
-                setChatHistoryMessages(null);
-                setChatInitialPrompt(pendingShortlistPrompt);
-                setPendingShortlistPrompt(null);
-                setChatOpen(true);
-              }
             }}
           />
         ) : null}

@@ -83,14 +83,6 @@ export const messages = {
     "saved.delete": "Delete",
     "saved.aria.close": "Close",
 
-    "unlock.title": "Unlock AI Digest",
-    "unlock.hint": "Enter the passkey to enable AI digests on this device. Saved for 30 days.",
-    "unlock.placeholder": "Passkey",
-    "unlock.submit": "Unlock",
-    "unlock.error.invalid": "Invalid passkey.",
-    "unlock.error.generic": "Unlock failed ({code}).",
-    "unlock.aria.close": "Close",
-
     "auth.signOut": "Sign out",
 
     "login.title": "Sign in",
@@ -191,14 +183,6 @@ export const messages = {
     "saved.themesPlural": "{n} téma",
     "saved.delete": "Törlés",
     "saved.aria.close": "Bezárás",
-
-    "unlock.title": "AI Összegzés feloldása",
-    "unlock.hint": "Add meg a jelszót az AI Összegzés engedélyezéséhez ezen az eszközön. 30 napig megőrizve.",
-    "unlock.placeholder": "Jelszó",
-    "unlock.submit": "Feloldás",
-    "unlock.error.invalid": "Érvénytelen jelszó.",
-    "unlock.error.generic": "Feloldás sikertelen ({code}).",
-    "unlock.aria.close": "Bezárás",
 
     "auth.signOut": "Kijelentkezés",
 
