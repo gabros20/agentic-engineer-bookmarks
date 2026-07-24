@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/email";
 import {
   consumeInvite,
+  emailMayReceiveMagicLink,
   findValidPendingSignup,
   isCodeRedeemable,
 } from "@/lib/invite";
@@ -90,6 +91,28 @@ export const auth = betterAuth({
       // lives solely in the emailed URL.
       storeToken: "hashed",
       sendMagicLink: async ({ email, url }) => {
+        // I2 send-gate: `signIn.magicLink` can be called directly (outside the
+        // /api/invite/verify → link flow), so without this an unauthenticated
+        // caller could make us email magic links to ARBITRARY third-party
+        // addresses (send/Resend-cost + reputation abuse). Account creation is
+        // still separately invite-gated (`user.create.before`); this only bounds
+        // the SEND. Email only an already-known address: an existing user
+        // (returning-login) OR a valid unexpired invite reservation
+        // (invited-signup). Otherwise skip silently — log without the address, and
+        // do NOT throw (don't leak whether an email is known, and don't 500 the
+        // caller). On a DB read error, fail SAFE: skip the send rather than fan
+        // out to strangers.
+        let mayReceive = false;
+        try {
+          mayReceive = await emailMayReceiveMagicLink(email);
+        } catch (err) {
+          console.error("[auth] magic-link eligibility check failed; skipping send", err);
+          return;
+        }
+        if (!mayReceive) {
+          console.warn("[auth] magic-link send skipped: address not invited or known");
+          return;
+        }
         // Test seam — NEVER set in production. When MAGIC_LINK_SINK points at a
         // file, capture the raw link there (the token is only in the URL under
         // hashed storage) and skip email, so integration tests don't depend on

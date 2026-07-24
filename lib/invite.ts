@@ -1,7 +1,12 @@
 import { and, eq, gt, lt, ne, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { inviteCodes, inviteVerifyAttempts, pendingSignups } from "@/lib/db/schema";
+import {
+  inviteCodes,
+  inviteVerifyAttempts,
+  pendingSignups,
+  user,
+} from "@/lib/db/schema";
 
 // ---------------------------------------------------------------------------
 // Invite domain: the hard gate that decides who may create an account.
@@ -148,6 +153,25 @@ export async function reserveInvite(rawEmail: string, rawCode: string): Promise<
     });
 
   return { ok: true };
+}
+
+/**
+ * I2 send-gate: may we email a magic link to `email`? True iff the address is
+ * either an EXISTING user (returning-login path) OR holds a valid unexpired
+ * `pending_signups` reservation (invited-signup path). Used to stop magic-link
+ * SENDS to arbitrary un-invited addresses (send/Resend-cost abuse) — account
+ * creation stays gated separately by `user.create.before`. Both lookups are
+ * case-insensitive on the normalized email.
+ */
+export async function emailMayReceiveMagicLink(rawEmail: string): Promise<boolean> {
+  const email = normalizeEmail(rawEmail);
+  const [existing] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(sql`lower(${user.email})`, email))
+    .limit(1);
+  if (existing) return true;
+  return (await findValidPendingSignup(email)) !== null;
 }
 
 /**
