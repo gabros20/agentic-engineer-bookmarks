@@ -53,7 +53,17 @@ function clientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
   // Cheap per-isolate burst check first (no DB hit), then the durable cross-isolate bound.
-  if (ipRateLimited(ip) || (await isInviteIpBlocked(ip))) {
+  // F2: FAIL-OPEN on the durable read — a transient Neon error must never turn an otherwise-valid
+  // invite verify (incl. a legitimate login) into a framework 500. On read failure we simply skip
+  // the durable bound (the per-isolate burst limiter + the code itself + the per-email cooldown
+  // still stand). Mirrors the best-effort guard already around recordInviteFailure below.
+  let durablyBlocked = false;
+  try {
+    durablyBlocked = await isInviteIpBlocked(ip);
+  } catch (err) {
+    console.error("[invite] isInviteIpBlocked read failed; failing open:", err);
+  }
+  if (ipRateLimited(ip) || durablyBlocked) {
     return NextResponse.json(
       { ok: false, error: "Too many requests. / Túl sok kérés." },
       { status: 429 },
