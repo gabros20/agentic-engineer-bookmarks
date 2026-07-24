@@ -23,6 +23,12 @@ import { getSessionCookie } from "better-auth/cookies";
 //                          hit by fetch()/useObject, so they must return a JSON 401 on
 //                          no session, not an HTML /login redirect. The passkey they
 //                          used before is retired; the session is now the only gate.
+//  - /api/digests,/api/chats,/api/migrate  the T6 history/sync routes — each runs its
+//                          own `auth.api.getSession` gate (+ user-scoping) and is hit by
+//                          fetch() from the panels, so must return JSON 401, not a
+//                          redirect. NOTE: these are distinct prefixes from /api/digest
+//                          and /api/chat (the "+ /" boundary means /api/digest does not
+//                          match /api/digests), so they are listed explicitly.
 //  - Next internals + static assets  (excluded via the matcher below)
 //  - /data/*               static JSON the Cloudflare Worker fetches from Vercel
 //                          with NO cookie; blocking it would break prod search.
@@ -33,7 +39,10 @@ const ALLOW_PREFIXES = [
   "/api/invite",
   "/api/search",
   "/api/digest",
+  "/api/digests",
   "/api/chat",
+  "/api/chats",
+  "/api/migrate",
   "/api/expand",
 ];
 
