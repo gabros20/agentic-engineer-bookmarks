@@ -1,14 +1,23 @@
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { headers } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { buildChatContextBlock, getChatSystemPrompt, type ChatContext } from "@/lib/chat-prompt";
 import { getBookmarkInputSchema, searchBookmarksInputSchema } from "@/lib/chat-tools";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { aiUsageDaily } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MODEL = "google/gemini-3.6-flash";
+
+// T5: per-user chat turns/day. The 41st POST of a UTC day → 429. One POST = one user turn =
+// one increment (the agent may take multiple tool steps internally; that's still one turn).
+const DAILY_CHAT_LIMIT = 40;
 
 const requestSchema = z.object({
   messages: z.array(z.unknown()),
@@ -30,13 +39,11 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const expected = process.env.DIGEST_UNLOCK_SECRET;
-  if (!expected) {
-    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-  }
-  const cookie = request.cookies.get("digest_unlock")?.value;
-  if (cookie !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Session gate — same DB-backed lookup as the search proxy (T4). The legacy digest-unlock
+  // passkey is retired: the whole app is already behind login.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json({ error: "OPENROUTER_API_KEY unset" }, { status: 500 });
@@ -54,6 +61,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
   const { messages, context } = parsed.data;
+
+  // Atomic per-user daily chat quota — same ON CONFLICT pattern as search/digest. One POST is
+  // one turn regardless of internal tool steps; increment before the OpenRouter call so an
+  // over-limit turn never bills a generation.
+  const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+  const [usage] = await db
+    .insert(aiUsageDaily)
+    .values({ userId: session.user.id, day, chatCount: 1 })
+    .onConflictDoUpdate({
+      target: [aiUsageDaily.userId, aiUsageDaily.day],
+      set: { chatCount: sql`${aiUsageDaily.chatCount} + 1` },
+    })
+    .returning({ chatCount: aiUsageDaily.chatCount });
+
+  if (usage.chatCount > DAILY_CHAT_LIMIT) {
+    return NextResponse.json(
+      {
+        error: "Daily chat limit reached. / Elérted a napi csevegési limitet.",
+        code: "chat_quota",
+      },
+      { status: 429 },
+    );
+  }
 
   const system = [
     getChatSystemPrompt(context.language, context.archiveCount),

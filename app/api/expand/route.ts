@@ -1,7 +1,9 @@
 import { generateObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { headers } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
@@ -31,13 +33,12 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 export async function POST(request: NextRequest) {
-  const expected = process.env.DIGEST_UNLOCK_SECRET;
-  if (!expected) {
-    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-  }
-  const cookie = request.cookies.get("digest_unlock")?.value;
-  if (cookie !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Session gate only — no separate quota bucket. /api/expand only fires on broad search
+  // (cheap query rewrites), and that path is already bounded by the 300/day search quota (T4).
+  // The legacy digest-unlock passkey is retired: the whole app is already behind login.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json({ error: "OPENROUTER_API_KEY unset" }, { status: 500 });
