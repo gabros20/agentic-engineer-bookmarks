@@ -23,6 +23,7 @@
 // hu-topic numbers on BOTH sides of this comparison are a lower bound on shipping quality;
 // the comparison stays apples-to-apples because neither side gets rewrites.
 
+import { readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +35,31 @@ const E5_BASELINE_PATH = join(root, "scripts/eval-baseline.json");
 const BGE_BASELINE_PATH = join(root, "scripts/eval-baseline-bge.json");
 
 const WORKER_URL = process.env.WORKER_URL ?? "http://localhost:8787";
+
+// T4: /search is now gated by the X-Proxy-Secret shared secret (the same one the Vercel proxy
+// forwards). The eval hits the Worker DIRECTLY (bypassing the Vercel proxy/auth/quota, which are
+// orthogonal to ranking), so it must send the secret itself or every query 401s. Read it from
+// SEARCH_PROXY_SECRET, else fall back to parsing worker/.dev.vars (where local `wrangler dev`
+// gets it). Sending the correct secret runs the identical ranking path → output is unchanged.
+function loadProxySecret() {
+  if (process.env.SEARCH_PROXY_SECRET) return process.env.SEARCH_PROXY_SECRET;
+  try {
+    const devVars = readFileSync(join(root, "worker/.dev.vars"), "utf8");
+    const match = devVars.match(/^\s*SEARCH_PROXY_SECRET\s*=\s*(.+)\s*$/m);
+    if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+  } catch {
+    /* fall through to the explicit error below */
+  }
+  return null;
+}
+const PROXY_SECRET = loadProxySecret();
+if (!PROXY_SECRET) {
+  console.error(
+    "FATAL: SEARCH_PROXY_SECRET not found (env var or worker/.dev.vars). The Worker's /search is\n" +
+      "gated (T4); set SEARCH_PROXY_SECRET or add it to worker/.dev.vars so the eval can authenticate.",
+  );
+  process.exit(1);
+}
 const TOP_K = 10;
 // Ask the Worker for the FULL floored result set (its default cap is 240) so the broad-tail
 // count reflects the true post-floor size, matching eval-search.mjs's uncapped methodology.
@@ -76,7 +102,7 @@ console.log(`bge index: count=${meta.count} vectors=${meta.vector_count} model=$
 async function searchWorker(query, precision) {
   const res = await fetch(`${WORKER_URL}/search`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Proxy-Secret": PROXY_SECRET },
     // NO `rewrites` (see honesty note above): raw-query rerank on both sides.
     body: JSON.stringify({ query, precision, limit: RESULT_LIMIT }),
   });
