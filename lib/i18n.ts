@@ -91,6 +91,21 @@ export const messages = {
     "unlock.error.generic": "Unlock failed ({code}).",
     "unlock.aria.close": "Close",
 
+    "auth.signOut": "Sign out",
+
+    "login.title": "Sign in",
+    "login.hint": "Enter your invite code and email. We'll send a magic link to sign in.",
+    "login.code.label": "Invite code",
+    "login.code.placeholder": "Invite code",
+    "login.email.label": "Email",
+    "login.email.placeholder": "you@example.com",
+    "login.submit": "Send magic link",
+    "login.error.generic": "Something went wrong. Please try again.",
+    "login.error.link": "Could not send the magic link. Please try again.",
+    "login.sent.title": "Check your email",
+    "login.sent.body": "We sent a sign-in link to {email}. Open it on this device to continue.",
+    "login.sent.back": "Use a different email",
+
     "lang.label": "Language",
     "lang.en": "English",
     "lang.hu": "Magyar",
@@ -184,6 +199,21 @@ export const messages = {
     "unlock.error.invalid": "Érvénytelen jelszó.",
     "unlock.error.generic": "Feloldás sikertelen ({code}).",
     "unlock.aria.close": "Bezárás",
+
+    "auth.signOut": "Kijelentkezés",
+
+    "login.title": "Bejelentkezés",
+    "login.hint": "Add meg a meghívókódot és az e-mail-címed. Küldünk egy bűvös linket a bejelentkezéshez.",
+    "login.code.label": "Meghívókód",
+    "login.code.placeholder": "Meghívókód",
+    "login.email.label": "E-mail",
+    "login.email.placeholder": "te@pelda.hu",
+    "login.submit": "Bűvös link küldése",
+    "login.error.generic": "Valami hiba történt. Kérlek, próbáld újra.",
+    "login.error.link": "Nem sikerült elküldeni a bűvös linket. Kérlek, próbáld újra.",
+    "login.sent.title": "Nézd meg az e-mailed",
+    "login.sent.body": "Küldtünk egy bejelentkezési linket ide: {email}. Nyisd meg ezen az eszközön a folytatáshoz.",
+    "login.sent.back": "Másik e-mail megadása",
 
     "lang.label": "Nyelv",
     "lang.en": "English",
