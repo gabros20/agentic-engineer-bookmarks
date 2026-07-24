@@ -14,12 +14,15 @@ import { getSessionCookie } from "better-auth/cookies";
 //  - /login                 the login UI itself
 //  - /api/auth/*            Better Auth (magic-link verify, sign-out, …)
 //  - /api/invite/*          invite-code reservation (login step 1)
+//  - /api/search            the search proxy (T4) — it runs its OWN authoritative
+//                          `auth.api.getSession` gate and must return a JSON 401
+//                          to fetch() callers, not an HTML /login redirect.
 //  - Next internals + static assets  (excluded via the matcher below)
 //  - /data/*               static JSON the Cloudflare Worker fetches from Vercel
 //                          with NO cookie; blocking it would break prod search.
 // ---------------------------------------------------------------------------
 
-const ALLOW_PREFIXES = ["/api/auth", "/api/invite"];
+const ALLOW_PREFIXES = ["/api/auth", "/api/invite", "/api/search"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

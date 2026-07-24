@@ -1,20 +1,26 @@
-// Shared client for the Cloudflare search Worker (Task 4). ONE fetch wrapper used by
-// both the live search effect and the ⌘K chat's search tool (runChatSearch) in
-// components/bookmarks-app.tsx, so request/response shape and error handling live in a
-// single place. This is the entire client-side "search engine" after the cutover: no
-// embeddings, no vector math, no rerank — the Worker owns all of that.
+// Shared client for search (Task 4). ONE fetch wrapper used by both the live search effect and
+// the ⌘K chat's search tool (runChatSearch) in components/bookmarks-app.tsx, so request/response
+// shape and error handling live in a single place. This is the entire client-side "search
+// engine" after the cutover: no embeddings, no vector math, no rerank — the server owns all of
+// that.
 //
-// Contract (frozen in .orchestrate/run.md, served by worker/src/index.ts):
-//   POST {SEARCH_ENDPOINT}/search  { query, precision, rewrites?, limit? }
+// T4: the client no longer talks to the Cloudflare Worker directly. It POSTs same-origin to the
+// authenticated Vercel proxy /api/search, which checks the session + a per-user daily search
+// quota and forwards to the Worker with a server-only shared secret. The Worker URL and secret
+// are NOT in the client bundle (no NEXT_PUBLIC_*). The wire contract is otherwise unchanged.
+//
+// Contract (served by app/api/search/route.ts → worker/src/index.ts):
+//   POST /api/search  { query, precision, rewrites?, limit? }   (credentials: session cookie)
 //        -> { results: [{ id, score }], phase?: "reranked" }
-// Non-2xx / malformed responses throw; callers fall back to a cheap client-side
-// substring filter over already-loaded posts (never re-run any ML on the client).
+// Non-2xx / malformed responses throw; callers fall back to a cheap client-side substring filter
+// over already-loaded posts (never re-run any ML on the client). A 429 (search quota exhausted)
+// surfaces the same way — the caller degrades to the substring fallback.
 
 import type { SearchPrecision } from "@/lib/bookmark-search";
 
-// Deployed Worker URL is injected at build time by Vercel (T5); dev defaults to a local
-// `wrangler dev` on :8787. Trailing slash trimmed so `${endpoint}/search` is always clean.
-const SEARCH_ENDPOINT = (process.env.NEXT_PUBLIC_SEARCH_ENDPOINT ?? "http://localhost:8787").replace(/\/+$/, "");
+// Same-origin proxy path. No host/secret in the client bundle — the proxy (server) holds the
+// real Worker endpoint + shared secret.
+const SEARCH_ENDPOINT = "/api/search";
 
 // Hard ceiling on a single /search round trip. Without it, a connected-but-silent Worker
 // (hung isolate, network black hole) would leave the UI stuck in "searching…" forever, since
@@ -49,10 +55,13 @@ export async function searchViaWorker(request: SearchRequest): Promise<RankedRes
   // the request.
   const timeout = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
   const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
-  const response = await fetch(`${SEARCH_ENDPOINT}/search`, {
+  const response = await fetch(SEARCH_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ query, precision, rewrites, limit }),
+    // Send the Better Auth session cookie so the proxy can authenticate the user (same-origin,
+    // but explicit so the intent is clear and it survives any future cross-origin move).
+    credentials: "include",
     signal: combinedSignal,
   });
   if (!response.ok) throw new Error(`search request failed: ${response.status}`);
