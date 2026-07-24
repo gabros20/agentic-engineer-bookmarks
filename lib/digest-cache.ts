@@ -84,7 +84,10 @@ export async function fetchDigestByQuery(query: string): Promise<SavedDigest | n
 }
 
 export async function deleteDigestById(id: string): Promise<void> {
-  await fetch(`/api/digests/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const res = await fetch(`/api/digests/${encodeURIComponent(id)}`, { method: "DELETE" });
+  // Throw on failure so an optimistic UI can roll back + surface an error (T6 M3) rather than
+  // silently diverge from the DB (the row would reappear on the next load).
+  if (!res.ok) throw new Error(`DELETE /api/digests ${res.status}`);
 }
 
 // --- Legacy localStorage reader (migration input only) ------------------------------------

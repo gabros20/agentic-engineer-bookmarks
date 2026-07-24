@@ -30,7 +30,7 @@ import type { UIMessage } from "ai";
 import { type SearchPrecision } from "@/lib/bookmark-search";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
-import { searchViaWorker } from "@/lib/search-client";
+import { searchViaWorker, SearchQuotaError } from "@/lib/search-client";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
@@ -117,7 +117,7 @@ export function BookmarksApp() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
   const [searchStatusKey, setSearchStatusKey] = useState<
-    "status.ready" | "status.searching" | "status.results" | "status.offline"
+    "status.ready" | "status.searching" | "status.results" | "status.offline" | "status.searchQuota"
   >("status.ready");
   const [error, setError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -343,11 +343,13 @@ export function BookmarksApp() {
         if (process.env.NODE_ENV !== "production") {
           console.debug("[search] worker search failed, falling back to substring filter:", err);
         }
-        // Offline/error fallback: clear the ranked map so visiblePosts degrades to its
-        // cheap `searchable(post).includes(q)` substring branch over the already-loaded
-        // posts — no lunr rebuild, no ML, search stays usable.
+        // Either way we clear the ranked map so visiblePosts degrades to its cheap
+        // `searchable(post).includes(q)` substring branch over the already-loaded posts — no lunr
+        // rebuild, no ML, search stays usable. Only the status message differs: a quota 429 gets a
+        // distinct "daily limit reached" notice (non-blocking) instead of the generic offline copy,
+        // so the user knows WHY results look basic rather than seeing silent degradation.
         setHybridResults(null);
-        setSearchStatusKey("status.offline");
+        setSearchStatusKey(err instanceof SearchQuotaError ? "status.searchQuota" : "status.offline");
       });
 
     return () => {

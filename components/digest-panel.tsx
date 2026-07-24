@@ -4,7 +4,7 @@ import { experimental_useObject as useObject } from "@ai-sdk/react";
 import { Loader2, RefreshCcw, Sparkles, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { RemoveScroll } from "react-remove-scroll";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { digestSchema, type DigestSource } from "@/lib/digest-schema";
 import { fetchDigestByQuery, type SavedDigest } from "@/lib/digest-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -18,9 +18,22 @@ type Props = {
 
 export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   const { lang, t } = useLanguage();
+
+  // The daily-digest quota 429 doesn't render usefully through useObject (a JSON error body isn't
+  // a valid object stream), so intercept it here: a 429 from /api/digest flips `limitReached`, and
+  // the render shows a localized "daily limit reached" message instead of the raw stream error.
+  const [limitReached, setLimitReached] = useState(false);
+  const quotaFetch = useCallback<typeof fetch>(async (input, init) => {
+    setLimitReached(false);
+    const res = await fetch(input, init);
+    if (res.status === 429) setLimitReached(true);
+    return res;
+  }, []);
+
   const { object, submit, isLoading, error, stop } = useObject({
     api: "/api/digest",
     schema: digestSchema,
+    fetch: quotaFetch,
   });
 
   const [cached, setCached] = useState<SavedDigest | null>(null);
@@ -186,7 +199,11 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
         >
-          {error ? (
+          {limitReached ? (
+            <div className="rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-3 text-sm text-[color:var(--color-error)]">
+              {t("digest.limit")}
+            </div>
+          ) : error ? (
             <div className="rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-3 text-sm text-[color:var(--color-error)]">
               {t("digest.error")} {error.message}
             </div>
@@ -338,7 +355,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
             </div>
           ) : null}
 
-          {!isLoading && !checkingCache && display.themes.length === 0 && !error ? (
+          {!isLoading && !checkingCache && display.themes.length === 0 && !error && !limitReached ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("digest.empty")}</p>
           ) : null}
         </div>

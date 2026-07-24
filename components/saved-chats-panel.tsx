@@ -24,6 +24,9 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  // Transient action error — a reopen that failed to load (T6 M2) or a delete that failed
+  // server-side (T6 M3). Shown as a small inline banner without replacing the list.
+  const [actionError, setActionError] = useState<null | "reopen" | "delete">(null);
 
   // DB-backed (T6): fetch the user's saved chats (metadata) on open — cross-device.
   useEffect(() => {
@@ -54,18 +57,30 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
   }, [onClose]);
 
   function remove(id: string) {
+    // Optimistic delete with rollback (T6 M3): on failure restore the row + surface an error so
+    // the UI never silently diverges from the DB (the item would reappear on the next load).
+    const snapshot = items;
+    setActionError(null);
     setItems((current) => current.filter((c) => c.id !== id));
-    void deleteChatById(id);
+    deleteChatById(id).catch(() => {
+      setItems(snapshot);
+      setActionError("delete");
+    });
   }
 
   // Load the full conversation (its ordered messages) before opening — the list carries
-  // metadata only. A single in-flight open at a time.
+  // metadata only. A single in-flight open at a time. On a failed load (T6 M2) surface an error
+  // instead of silently doing nothing.
   async function open(id: string) {
     if (openingId) return;
     setOpeningId(id);
+    setActionError(null);
     try {
       const chat = await fetchChat(id);
       if (chat) onOpenChat(chat);
+      else setActionError("reopen");
+    } catch {
+      setActionError("reopen");
     } finally {
       setOpeningId(null);
     }
@@ -118,6 +133,11 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
         >
+          {actionError ? (
+            <p className="mb-3 rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-2.5 text-center text-[13px] text-[color:var(--color-error)]" role="alert">
+              {t(actionError === "reopen" ? "chat.reopenError" : "chat.deleteError")}
+            </p>
+          ) : null}
           {loading ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">
               {t("chat.loading")}

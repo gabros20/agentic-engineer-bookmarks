@@ -31,6 +31,19 @@ const SEARCH_TIMEOUT_MS = 12000;
 
 export type RankedResult = { id: string; score: number };
 
+/**
+ * Thrown when /api/search returns 429 (the per-user daily search quota is exhausted). Distinct
+ * from a generic network/offline failure so the caller can surface a "daily limit reached" notice
+ * instead of the silent offline-fallback state. Search still degrades to the substring filter —
+ * this only changes the message the user sees.
+ */
+export class SearchQuotaError extends Error {
+  constructor() {
+    super("search quota exhausted");
+    this.name = "SearchQuotaError";
+  }
+}
+
 export type SearchRequest = {
   query: string;
   precision: SearchPrecision;
@@ -64,6 +77,10 @@ export async function searchViaWorker(request: SearchRequest): Promise<RankedRes
     credentials: "include",
     signal: combinedSignal,
   });
+  // A 429 means the per-user daily search quota is exhausted — surface it distinctly so the UI can
+  // show a "daily limit reached" notice rather than the generic offline state. Any other non-2xx
+  // is a plain failure the caller degrades to a substring filter on.
+  if (response.status === 429) throw new SearchQuotaError();
   if (!response.ok) throw new Error(`search request failed: ${response.status}`);
 
   const data: unknown = await response.json();

@@ -47,7 +47,10 @@ export async function saveChat(entry: SavedChat): Promise<void> {
 }
 
 export async function deleteChatById(id: string): Promise<void> {
-  await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const res = await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: "DELETE" });
+  // Throw on failure so an optimistic UI can roll back + surface an error (T6 M3) rather than
+  // silently diverge from the DB (the row would reappear on the next load).
+  if (!res.ok) throw new Error(`DELETE /api/chats ${res.status}`);
 }
 
 // --- Legacy localStorage reader (migration input only) ------------------------------------

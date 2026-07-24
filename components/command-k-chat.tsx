@@ -82,13 +82,25 @@ export function CommandKChat({
   const { t, lang } = useLanguage();
   const isHistory = !!initialMessages;
 
+  // The daily-chat quota 429 doesn't surface a useful message through useChat's error, so intercept
+  // it in the transport's fetch: a 429 from /api/chat flips `limitReached`, and the render shows a
+  // localized "daily limit reached" message. Reset on every new send.
+  const [limitReached, setLimitReached] = useState(false);
+  const quotaFetch = useCallback<typeof fetch>(async (input, init) => {
+    setLimitReached(false);
+    const res = await fetch(input, init);
+    if (res.status === 429) setLimitReached(true);
+    return res;
+  }, []);
+
   const transport = useMemo(() => {
     if (isHistory) return undefined;
     return new DefaultChatTransport({
       api: "/api/chat",
       body: { context },
+      fetch: quotaFetch,
     });
-  }, [context, isHistory]);
+  }, [context, isHistory, quotaFetch]);
 
   const { messages, sendMessage, status, error, addToolOutput } = useChat({
     transport,
@@ -322,7 +334,11 @@ export function CommandKChat({
               ))}
             </AnimatePresence>
 
-            {error ? (
+            {limitReached ? (
+              <div className="mt-3 rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-3 text-sm text-[color:var(--color-error)]">
+                {t("chat.limit")}
+              </div>
+            ) : error ? (
               <div className="mt-3 rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-3 text-sm text-[color:var(--color-error)]">
                 {error.message}
               </div>

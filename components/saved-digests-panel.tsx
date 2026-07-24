@@ -17,6 +17,9 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
   const [items, setItems] = useState<SavedDigest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // Transient action error (e.g. a delete that failed server-side) — distinct from the
+  // list-load `error` above, shown as a small inline banner without replacing the list.
+  const [actionError, setActionError] = useState(false);
 
   // DB-backed (T6): fetch the user's saved digests on open — the source of truth is the DB, so
   // these appear on every device, not just where they were generated.
@@ -48,9 +51,16 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
   }, [onClose]);
 
   function remove(id: string) {
-    // Optimistic: drop it from the list immediately, then delete server-side (user-scoped).
+    // Optimistic: drop it from the list immediately, then delete server-side (user-scoped). On
+    // failure (T6 M3) restore the row and show a small error, so the UI never silently diverges
+    // from the DB (the item would otherwise reappear on the next load).
+    const snapshot = items;
+    setActionError(false);
     setItems((current) => current.filter((d) => d.id !== id));
-    void deleteDigestById(id);
+    deleteDigestById(id).catch(() => {
+      setItems(snapshot);
+      setActionError(true);
+    });
   }
 
   return (
@@ -98,6 +108,11 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
         >
+          {actionError ? (
+            <p className="mb-3 rounded-lg border border-[color:var(--color-error)]/30 bg-[color:var(--color-error)]/5 p-2.5 text-center text-[13px] text-[color:var(--color-error)]" role="alert">
+              {t("saved.deleteError")}
+            </p>
+          ) : null}
           {loading ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("saved.loading")}</p>
           ) : error ? (
