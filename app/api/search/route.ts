@@ -70,7 +70,11 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ query, precision, rewrites, limit }),
       // Abort a hung Worker so it can't hold this function open to maxDuration. On timeout the
       // fetch rejects and drops into the catch below → generic 502 (a slow Worker fails fast).
-      signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
+      // T7 M1: compose the timeout with the INCOMING request signal so an abandoned/superseded
+      // client search actually cancels the billable Workers-AI call upstream (the whole cost
+      // rationale of the proxy lockdown) instead of running to the 12s ceiling. Either the client
+      // aborting or the timeout firing rejects the fetch → the catch below returns the 502.
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(WORKER_TIMEOUT_MS)]),
     });
     // Pass the Worker's JSON body + status through unchanged (the client depends on the exact
     // { results, phase } shape). A non-JSON body from the Worker is treated as a bad gateway.
