@@ -161,10 +161,15 @@ export function CommandKChat({
   }, [isHistory, initialPrompt, sendMessage]);
 
   const [saved, setSaved] = useState(false);
+  // T6: one stable id per open conversation so re-saving a GROWN chat upserts the same DB row
+  // (POST /api/chats) instead of creating a duplicate. The chat now persists to the DB — it
+  // syncs across devices — rather than to per-device localStorage.
+  const savedIdRef = useRef<string | null>(null);
   const handleSave = useCallback(() => {
     if (isHistory || messages.length === 0) return;
-    saveChat({
-      id: makeChatId(),
+    if (!savedIdRef.current) savedIdRef.current = makeChatId();
+    void saveChat({
+      id: savedIdRef.current,
       title: deriveChatTitle(messages),
       language: lang,
       messages: messages as unknown[],

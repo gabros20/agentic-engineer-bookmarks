@@ -5,8 +5,8 @@ import { Loader2, RefreshCcw, Sparkles, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { RemoveScroll } from "react-remove-scroll";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { digestSchema, type Digest, type DigestSource } from "@/lib/digest-schema";
-import { getDigest, saveDigest, type SavedDigest } from "@/lib/digest-cache";
+import { digestSchema, type DigestSource } from "@/lib/digest-schema";
+import { fetchDigestByQuery, type SavedDigest } from "@/lib/digest-cache";
 import { useLanguage } from "@/lib/i18n";
 
 type Props = {
@@ -24,24 +24,39 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   });
 
   const [cached, setCached] = useState<SavedDigest | null>(null);
+  // True while we're checking the DB for a previously-generated digest for this query, before
+  // deciding whether to render it or start a fresh generation. Prevents a flash of "empty".
+  const [checkingCache, setCheckingCache] = useState<boolean>(!initialCached);
   const lastSubmittedRef = useRef<string | null>(null);
-  const savedForRef = useRef<string | null>(null);
 
-  // The parent remounts this component (via `key`) per open, so this runs exactly once per session.
+  // The parent remounts this component (via `key`) per open, so this runs exactly once per
+  // session. T6: the "already generated?" lookup now hits the DB (/api/digests?query=) — the
+  // single source of truth, shared across devices — instead of per-device localStorage. The
+  // digest itself is PERSISTED server-side by /api/digest onFinish (T5); this panel no longer
+  // writes anything on completion.
   useEffect(() => {
     if (initialCached) {
       setCached(initialCached);
       return;
     }
-    const hit = getDigest(query);
-    if (hit) {
-      setCached(hit);
-      return;
-    }
-    if (!sources?.length) return;
-    const key = `${query}::${lang}::${sources.map((s) => s.id).join(",")}`;
-    lastSubmittedRef.current = key;
-    submit({ query, sources, language: lang });
+    let alive = true;
+    (async () => {
+      const hit = await fetchDigestByQuery(query);
+      if (!alive) return;
+      if (hit) {
+        setCached(hit);
+        setCheckingCache(false);
+        return;
+      }
+      setCheckingCache(false);
+      if (!sources?.length) return;
+      const key = `${query}::${lang}::${sources.map((s) => s.id).join(",")}`;
+      lastSubmittedRef.current = key;
+      submit({ query, sources, language: lang });
+    })();
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -49,62 +64,6 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   useEffect(() => {
     return () => stop();
   }, [stop]);
-
-  useEffect(() => {
-    if (cached) return;
-    if (isLoading || error) return;
-    const themes = object?.themes;
-    const overall = object?.overall;
-    if (!themes?.length || !overall) return;
-    const key = `${query}::done`;
-    if (savedForRef.current === key) return;
-
-    const sanitizedThemes: Digest["themes"] = themes
-      .filter((t): t is NonNullable<typeof t> => Boolean(t))
-      .map((th) => ({
-        title: th.title ?? "",
-        summary: th.summary ?? "",
-        sources: (th.sources ?? [])
-          .filter((s): s is NonNullable<typeof s> => Boolean(s))
-          .map((s) => ({
-            bookmarkId: s.bookmarkId ?? "",
-            author: s.author ?? "",
-            gist: s.gist ?? "",
-            url: s.url ?? "",
-          })),
-      }));
-
-    const sanitizedReadFirst: Digest["readFirst"] = (object?.readFirst ?? [])
-      .filter((r): r is NonNullable<typeof r> => Boolean(r))
-      .map((r) => ({
-        bookmarkId: r.bookmarkId ?? "",
-        author: r.author ?? "",
-        why: r.why ?? "",
-        url: r.url ?? "",
-      }));
-
-    const sanitizedDeeperReads: NonNullable<Digest["deeperReads"]> = (object?.deeperReads ?? [])
-      .filter((d): d is NonNullable<typeof d> => Boolean(d))
-      .map((d) => ({
-        bookmarkId: d.bookmarkId ?? "",
-        articleTitle: d.articleTitle ?? "",
-        author: d.author ?? "",
-        why: d.why ?? "",
-        url: d.url ?? "",
-      }));
-
-    savedForRef.current = key;
-    saveDigest({
-      query,
-      tldr: object?.tldr,
-      themes: sanitizedThemes,
-      overall,
-      readFirst: sanitizedReadFirst,
-      deeperReads: sanitizedDeeperReads.length ? sanitizedDeeperReads : undefined,
-      sourceCount: sources?.length ?? 0,
-      createdAt: new Date().toISOString(),
-    });
-  }, [object, isLoading, error, query, sources, cached]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -150,7 +109,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
   function regenerate() {
     if (!sources?.length) return;
     setCached(null);
-    savedForRef.current = null;
+    setCheckingCache(false);
     lastSubmittedRef.current = `${query}::${lang}::${sources.map((s) => s.id).join(",")}::regen-${Date.now()}`;
     submit({ query, sources, language: lang });
   }
@@ -266,7 +225,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
             ) : null}
           </AnimatePresence>
 
-          {display.themes.length === 0 && isLoading ? (
+          {display.themes.length === 0 && (isLoading || checkingCache) ? (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
                 <motion.div
@@ -379,7 +338,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
             </div>
           ) : null}
 
-          {!isLoading && display.themes.length === 0 && !error ? (
+          {!isLoading && !checkingCache && display.themes.length === 0 && !error ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("digest.empty")}</p>
           ) : null}
         </div>

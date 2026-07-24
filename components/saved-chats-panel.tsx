@@ -4,7 +4,13 @@ import { MessagesSquare, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { RemoveScroll } from "react-remove-scroll";
 import { useEffect, useState } from "react";
-import { deleteChat, listSavedChats, type SavedChat } from "@/lib/chat-history";
+import {
+  deleteChatById,
+  fetchChat,
+  fetchSavedChats,
+  type SavedChat,
+  type SavedChatMeta,
+} from "@/lib/chat-history";
 import { useLanguage } from "@/lib/i18n";
 
 type Props = {
@@ -14,10 +20,29 @@ type Props = {
 
 export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
   const { t } = useLanguage();
-  const [items, setItems] = useState<SavedChat[]>([]);
+  const [items, setItems] = useState<SavedChatMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
+  // DB-backed (T6): fetch the user's saved chats (metadata) on open — cross-device.
   useEffect(() => {
-    setItems(listSavedChats());
+    let alive = true;
+    setLoading(true);
+    setError(false);
+    fetchSavedChats()
+      .then((rows) => {
+        if (alive) setItems(rows);
+      })
+      .catch(() => {
+        if (alive) setError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -29,8 +54,21 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
   }, [onClose]);
 
   function remove(id: string) {
-    deleteChat(id);
-    setItems(listSavedChats());
+    setItems((current) => current.filter((c) => c.id !== id));
+    void deleteChatById(id);
+  }
+
+  // Load the full conversation (its ordered messages) before opening — the list carries
+  // metadata only. A single in-flight open at a time.
+  async function open(id: string) {
+    if (openingId) return;
+    setOpeningId(id);
+    try {
+      const chat = await fetchChat(id);
+      if (chat) onOpenChat(chat);
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   return (
@@ -80,7 +118,15 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
         >
-          {items.length === 0 ? (
+          {loading ? (
+            <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">
+              {t("chat.loading")}
+            </p>
+          ) : error ? (
+            <p className="py-8 text-center text-sm text-[color:var(--color-error)]">
+              {t("chat.error")}
+            </p>
+          ) : items.length === 0 ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">
               {t("chat.empty")}
             </p>
@@ -99,8 +145,9 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
                   >
                     <button
                       type="button"
-                      onClick={() => onOpenChat(item)}
-                      className="block w-full rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-3 text-left transition hover:border-[color:var(--color-primary)]/30 hover:bg-[color:var(--color-surface-cream-strong)]"
+                      onClick={() => open(item.id)}
+                      disabled={openingId === item.id}
+                      className="block w-full rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] p-3 text-left transition hover:border-[color:var(--color-primary)]/30 hover:bg-[color:var(--color-surface-cream-strong)] disabled:opacity-60"
                     >
                       <div className="font-display text-[18px] leading-snug text-[color:var(--color-ink)] pr-9">
                         {item.title}

@@ -4,7 +4,7 @@ import { Bookmark, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { RemoveScroll } from "react-remove-scroll";
 import { useEffect, useState } from "react";
-import { deleteDigest, listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
+import { deleteDigestById, fetchSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { useLanguage } from "@/lib/i18n";
 
 type Props = {
@@ -15,9 +15,28 @@ type Props = {
 export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
   const { t } = useLanguage();
   const [items, setItems] = useState<SavedDigest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
+  // DB-backed (T6): fetch the user's saved digests on open — the source of truth is the DB, so
+  // these appear on every device, not just where they were generated.
   useEffect(() => {
-    setItems(listSavedDigests());
+    let alive = true;
+    setLoading(true);
+    setError(false);
+    fetchSavedDigests()
+      .then((rows) => {
+        if (alive) setItems(rows);
+      })
+      .catch(() => {
+        if (alive) setError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -28,9 +47,10 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function remove(query: string) {
-    deleteDigest(query);
-    setItems(listSavedDigests());
+  function remove(id: string) {
+    // Optimistic: drop it from the list immediately, then delete server-side (user-scoped).
+    setItems((current) => current.filter((d) => d.id !== id));
+    void deleteDigestById(id);
   }
 
   return (
@@ -78,7 +98,11 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
         >
-          {items.length === 0 ? (
+          {loading ? (
+            <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("saved.loading")}</p>
+          ) : error ? (
+            <p className="py-8 text-center text-sm text-[color:var(--color-error)]">{t("saved.error")}</p>
+          ) : items.length === 0 ? (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">{t("saved.empty")}</p>
           ) : (
             <ul className="space-y-2">
@@ -91,7 +115,7 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
                   const preview = item.tldr || item.overall;
                   return (
                     <motion.li
-                      key={item.query}
+                      key={item.id ?? item.query}
                       layout
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -117,7 +141,7 @@ export function SavedDigestsPanel({ onClose, onOpenDigest }: Props) {
                         aria-label={t("saved.delete")}
                         onClick={(e) => {
                           e.stopPropagation();
-                          remove(item.query);
+                          if (item.id) remove(item.id);
                         }}
                         className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full text-[color:var(--color-muted)] opacity-100 transition hover:bg-[color:var(--color-error)]/10 hover:text-[color:var(--color-error)] sm:h-7 sm:w-7 sm:opacity-0 sm:group-hover:opacity-100"
                       >

@@ -11,7 +11,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { SavedChatsPanel } from "@/components/saved-chats-panel";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
 import { OptionSelect } from "@/components/ui/select";
-import { listSavedChats, type SavedChat } from "@/lib/chat-history";
+import { fetchSavedChats, readLegacyChats, type SavedChat } from "@/lib/chat-history";
 import type {
   GetBookmarkInput,
   GetBookmarkResult,
@@ -19,7 +19,7 @@ import type {
   SearchBookmarksResult,
 } from "@/lib/chat-tools";
 import { authClient } from "@/lib/auth-client";
-import { getDigest, listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
+import { fetchDigestByQuery, fetchSavedDigests, readLegacyDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
 import { fetchQueryRewrites } from "@/lib/expand-client";
@@ -38,6 +38,32 @@ const PAGE_SIZE = 240;
 // T1 (digest engine upgrade): the digest CTA re-queries the Worker at this depth (deeper +
 // reranked) instead of clustering the 30/PAGE_SIZE-limited posts currently on screen.
 const DIGEST_SOURCE_LIMIT = 50;
+
+// T6 (cross-device sync): one-shot import of any pre-T6 localStorage digests/chats into the
+// DB. Runs once per browser (guarded by a `:migrated` flag), is non-destructive (localStorage
+// is left intact as a fallback), and the server route is itself idempotent. A failure leaves
+// the flag unset so it retries on the next load.
+const MIGRATED_FLAG = "agentic-engineer-bookmarks:migrated";
+async function migrateLegacyOnce() {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(MIGRATED_FLAG)) return;
+    const digests = readLegacyDigests();
+    const chats = readLegacyChats();
+    if (digests.length === 0 && chats.length === 0) {
+      window.localStorage.setItem(MIGRATED_FLAG, "1");
+      return;
+    }
+    const res = await fetch("/api/migrate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ digests, chats }),
+    });
+    if (res.ok) window.localStorage.setItem(MIGRATED_FLAG, "1");
+  } catch {
+    // Leave the flag unset — the migration retries on the next load.
+  }
+}
 
 const formatter = new Intl.NumberFormat("en");
 
@@ -113,6 +139,9 @@ export function BookmarksApp() {
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | null>(null);
   const [savedChatsCount, setSavedChatsCount] = useState(0);
+  // T6: the previously-generated digest for the current query, fetched from the DB to enrich
+  // the chat's context block. Replaces the old synchronous localStorage getDigest() lookup.
+  const [contextDigest, setContextDigest] = useState<SavedDigest | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
@@ -129,14 +158,44 @@ export function BookmarksApp() {
     }
   }
 
+  // T6: header badge counts come from the DB (cross-device) — fetched on mount (after the
+  // one-shot localStorage migration) and again whenever a panel closes (a delete or save may
+  // have changed them).
   useEffect(() => {
-    setSavedCount(listSavedDigests().length);
-    setSavedChatsCount(listSavedChats().length);
+    let alive = true;
+    (async () => {
+      await migrateLegacyOnce();
+      if (!alive) return;
+      try {
+        const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
+        if (!alive) return;
+        setSavedCount(digests.length);
+        setSavedChatsCount(chats.length);
+      } catch {
+        // Leave counts as-is on failure.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (!savedOpen && !digestOpen) setSavedCount(listSavedDigests().length);
-    if (!chatOpen && !chatHistoryOpen) setSavedChatsCount(listSavedChats().length);
+    if (savedOpen || digestOpen || chatOpen || chatHistoryOpen) return;
+    let alive = true;
+    (async () => {
+      try {
+        const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
+        if (!alive) return;
+        setSavedCount(digests.length);
+        setSavedChatsCount(chats.length);
+      } catch {
+        // Leave counts as-is on failure.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen]);
 
   useEffect(() => {
@@ -367,6 +426,25 @@ export function BookmarksApp() {
     return text ? `${text} ${suffix}` : suffix;
   }, [parsedQuery]);
 
+  // T6: keep the chat's context digest in sync with the current query, from the DB.
+  useEffect(() => {
+    if (!displayQuery) {
+      setContextDigest(null);
+      return;
+    }
+    let alive = true;
+    fetchDigestByQuery(displayQuery)
+      .then((d) => {
+        if (alive) setContextDigest(d);
+      })
+      .catch(() => {
+        if (alive) setContextDigest(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [displayQuery]);
+
   // T4.1: removable chip descriptors for the active operators + any invalid tokens. Each
   // chip's ✕ does a surgical string removal on the raw `query` state (not the parsed
   // residual) so any other typed text survives untouched.
@@ -421,12 +499,12 @@ export function BookmarksApp() {
       query: displayQuery || null,
       precision: displayQuery ? precision : null,
       sources: visiblePosts.slice(0, 20).map(toDigestSource),
-      digest: displayQuery ? getDigest(displayQuery) : null,
+      digest: displayQuery ? contextDigest : null,
       // 0 while the archive hasn't loaded yet reads as "unknown" server-side (falls back to
       // the static default text), same as omitting it entirely — see formatArchiveCount.
       archiveCount: posts.length || null,
     };
-  }, [lang, displayQuery, precision, visiblePosts, posts.length]);
+  }, [lang, displayQuery, precision, visiblePosts, posts.length, contextDigest]);
 
   // search_bookmarks tool executor — same Worker-backed search the live UI uses (ONE
   // search client, lib/search-client.ts), then maps ranked ids onto the already-loaded
