@@ -1,13 +1,11 @@
 import { streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { headers } from "next/headers";
 import { NextResponse, after, type NextRequest } from "next/server";
-import { sql } from "drizzle-orm";
 import { digestRequestSchema, digestSchema } from "@/lib/digest-schema";
 import { buildDigestUserPrompt, getDigestSystemPrompt } from "@/lib/digest-prompt";
-import { auth } from "@/lib/auth";
+import { enforceQuota, requireUser } from "@/lib/api-guard";
 import { db } from "@/lib/db";
-import { aiUsageDaily, savedDigests } from "@/lib/db/schema";
+import { savedDigests } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 // The digest now clusters ~50 Worker-reranked sources (up from ~30) with gemini-3.6-flash, so a
@@ -30,10 +28,8 @@ const DAILY_DIGEST_LIMIT = 10;
 export async function POST(request: NextRequest) {
   // 1. Session gate — same DB-backed lookup as the search proxy (T4) and the login wall (T3).
   //    The legacy digest-unlock passkey is retired: the whole app is already behind login.
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const gate = await requireUser();
+  if (!gate.ok) return gate.response;
   if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json({ error: "OPENROUTER_API_KEY unset" }, { status: 500 });
   }
@@ -51,33 +47,17 @@ export async function POST(request: NextRequest) {
   }
   const { query, sources, language } = parsed.data;
 
-  // 2. Atomic per-user daily quota. Insert today's row at count 1 or increment, RETURNING the
-  //    new value — one server-side-atomic statement (neon-http has no interactive txn). Day
-  //    boundary = UTC, deterministic on serverless. Over-limit is rejected before OpenRouter.
-  const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-  const [usage] = await db
-    .insert(aiUsageDaily)
-    .values({ userId: session.user.id, day, digestCount: 1 })
-    .onConflictDoUpdate({
-      target: [aiUsageDaily.userId, aiUsageDaily.day],
-      set: { digestCount: sql`${aiUsageDaily.digestCount} + 1` },
-    })
-    .returning({ digestCount: aiUsageDaily.digestCount });
-
-  if (usage.digestCount > DAILY_DIGEST_LIMIT) {
-    return NextResponse.json(
-      {
-        error: "Daily digest limit reached. / Elérted a napi összegzési limitet.",
-        code: "digest_quota",
-      },
-      { status: 429 },
-    );
-  }
+  // 2. Atomic per-user daily quota (shared helper). Increments today's counter before OpenRouter,
+  //    so an over-limit request never bills a generation. A quota-DB failure returns a clean JSON
+  //    500 (never a framework stack); over-limit returns a 429 { code: "digest_quota" } the UI
+  //    localizes.
+  const overLimit = await enforceQuota(gate.userId, "digest", DAILY_DIGEST_LIMIT);
+  if (overLimit) return overLimit;
 
   const openrouter = createOpenRouter();
   const model = openrouter.chat(MODEL);
 
-  const userId = session.user.id;
+  const userId = gate.userId;
   const sourceIds = sources.map((s) => s.id);
 
   const result = streamObject({
