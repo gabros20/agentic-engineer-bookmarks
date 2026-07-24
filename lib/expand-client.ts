@@ -1,5 +1,5 @@
-// Client-safe helper for the passkey-gated LLM query-expansion route
-// (app/api/expand/route.ts). Plain module — no "use client" needed, it holds
+// Client-safe helper for the session-gated LLM query-expansion route
+// (app/api/expand/route.ts; the passkey is retired). Plain module — no "use client" needed, it holds
 // no component state, just a module-level cache (mirrors lib/digest-cache.ts's
 // normalize-key convention) and a fetch wrapper.
 //

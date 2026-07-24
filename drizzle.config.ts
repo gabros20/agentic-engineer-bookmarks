@@ -8,12 +8,15 @@ import { defineConfig } from "drizzle-kit";
 function loadEnvLocal() {
   try {
     const raw = readFileSync(new URL(".env.local", import.meta.url), "utf8");
-    for (const line of raw.split("\n")) {
+    // T1: split on /\r?\n/ (not just "\n") so a CRLF-checked-out .env.local can't leave a
+    // trailing `\r` on each value — that `\r` would otherwise ride into DATABASE_URL and break
+    // the connection string. `.` in the value regex matches `\r`, so the split is what strips it.
+    for (const line of raw.split(/\r?\n/)) {
       const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
       if (!match) continue;
       const [, key, value] = match;
       if (process.env[key] === undefined) {
-        process.env[key] = value.replace(/^["']|["']$/g, "");
+        process.env[key] = value.replace(/^["']|["']$/g, "").trimEnd();
       }
     }
   } catch {
