@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
+import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, LogOut, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
@@ -18,6 +19,7 @@ import type {
   SearchBookmarksInput,
   SearchBookmarksResult,
 } from "@/lib/chat-tools";
+import { authClient } from "@/lib/auth-client";
 import { getDigest, listSavedDigests, type SavedDigest } from "@/lib/digest-cache";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
@@ -118,6 +120,20 @@ export function BookmarksApp() {
   const [pendingChatOpen, setPendingChatOpen] = useState(false);
   const [pendingShortlistPrompt, setPendingShortlistPrompt] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const router = useRouter();
+
+  // T3 login wall: sign out clears the Better Auth session, then routes to the
+  // login screen (the server gate on / would redirect there anyway).
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+    } finally {
+      router.replace("/login");
+    }
+  }
 
   useEffect(() => {
     setSavedCount(listSavedDigests().length);
@@ -609,6 +625,17 @@ export function BookmarksApp() {
               </div>
             ) : null}
             <LanguageSwitcher />
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={t("auth.signOut")}
+              title={t("auth.signOut")}
+            >
+              <LogOut size={14} className="text-[color:var(--color-primary)]" />
+              <span className="hidden sm:inline">{t("auth.signOut")}</span>
+            </button>
           </div>
         </div>
 
@@ -683,6 +710,18 @@ export function BookmarksApp() {
                   <span className="text-xs uppercase tracking-wide text-[color:var(--color-muted)]">{t("lang.label")}</span>
                   <LanguageSwitcher />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    void handleSignOut();
+                  }}
+                  disabled={signingOut}
+                  className="mt-1 flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <LogOut size={16} className="text-[color:var(--color-primary)]" />
+                  {t("auth.signOut")}
+                </button>
               </div>
             </motion.div>
           ) : null}
