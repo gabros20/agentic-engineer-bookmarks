@@ -2,7 +2,7 @@
 
 import { ArrowLeft, KeyRound, Loader2, Mail, MailCheck } from "lucide-react";
 import { motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { authClient } from "@/lib/auth-client";
@@ -18,6 +18,11 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
+
+  // T3 a11y/UX: focus the first field on mount so keyboard users can type immediately.
+  useEffect(() => {
+    codeRef.current?.focus();
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -54,8 +59,9 @@ export function LoginForm() {
       }
       setStage("sent");
       setBusy(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("login.error.generic"));
+    } catch {
+      // T3: surface a LOCALIZED (EN/HU) message, never a raw fetch/exception string.
+      setError(t("login.error.generic"));
       setBusy(false);
     }
   }
@@ -124,7 +130,13 @@ export function LoginForm() {
               </label>
 
               {error ? (
-                <p className="text-xs font-semibold text-[color:var(--color-error)]">{error}</p>
+                <p
+                  role="alert"
+                  aria-live="polite"
+                  className="text-xs font-semibold text-[color:var(--color-error)]"
+                >
+                  {error}
+                </p>
               ) : null}
 
               <motion.button
