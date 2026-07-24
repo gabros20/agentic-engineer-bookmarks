@@ -19,12 +19,15 @@
   // PROD data source: the deployed Worker fetches the packed index + rerank docs + lunr index
   // from the Vercel static CDN (the files live in public/data/, served at /data). No R2 needed
   // for v1 — R2 is a future hardening option (loadData() prefers a SEARCH_DATA R2 binding over
-  // DATA_BASE_URL if one is ever added). ALLOWED_ORIGINS pins CORS to the prod app origin.
-  // DEV overrides DATA_BASE_URL to a local static server (http://localhost:8080/data) via
-  // worker/.dev.vars (`cd public && python3 -m http.server 8080`), which wrangler dev reads in
-  // preference to these vars.
+  // DATA_BASE_URL if one is ever added). DEV overrides DATA_BASE_URL to a local static server
+  // (http://localhost:8080/data) via worker/.dev.vars (`cd public && python3 -m http.server
+  // 8080`), which wrangler dev reads in preference to these vars.
+  //
+  // T4: /search is gated by SEARCH_PROXY_SECRET — a Worker SECRET, NOT a var. It is set for
+  // prod via `wrangler secret put SEARCH_PROXY_SECRET` and read locally from worker/.dev.vars;
+  // the value must NEVER be committed here. (ALLOWED_ORIGINS was dropped: the browser no longer
+  // calls the Worker directly, so CORS origin-pinning is moot — the secret is the gate.)
   "vars": {
-    "DATA_BASE_URL": "https://agentic-engineer-bookmarks.vercel.app/data",
-    "ALLOWED_ORIGINS": "https://agentic-engineer-bookmarks.vercel.app"
+    "DATA_BASE_URL": "https://agentic-engineer-bookmarks.vercel.app/data"
   }
 }

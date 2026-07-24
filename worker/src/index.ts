@@ -42,8 +42,12 @@ interface Env {
   // PROD (T5, after R2 is enabled): bind the bucket holding the packed index + rerank docs.
   // loadData() prefers this over DATA_BASE_URL when present — the only swap needed at deploy.
   SEARCH_DATA?: R2Bucket;
-  // Optional comma-separated extra allowed CORS origins (prod app origin, set in T5).
-  ALLOWED_ORIGINS?: string;
+  // Shared secret gating /search (T4). The browser no longer calls the Worker directly — an
+  // authenticated Vercel proxy (app/api/search) is the ONLY caller, forwarding this secret in
+  // the `X-Proxy-Secret` header. Unset OR a mismatched header → /search returns 401, so the
+  // billable bge-m3 + reranker pipeline can't be hit directly. Set for prod via `wrangler secret
+  // put SEARCH_PROXY_SECRET`; local `wrangler dev` reads it from worker/.dev.vars.
+  SEARCH_PROXY_SECRET?: string;
   // Shared secret gating the billable /embed route. /embed is a dev-only tool (the bge-m3
   // re-embed job runs it via `wrangler dev`); on the deployed Worker it must NOT be a public
   // billable endpoint. Unset -> /embed is disabled (403). Set -> callers must send a matching
@@ -222,29 +226,16 @@ async function rerankWindow(
 }
 
 // ========================================= CORS ============================================
-function allowedOrigin(origin: string | null, env: Env): string | null {
-  if (!origin) return null;
-  const extra = (env.ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (extra.includes(origin)) return origin;
-  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
-  if (/^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return origin;
-  // TODO(T5): pin the production Vercel app origin via ALLOWED_ORIGINS (or replace this regex).
-  if (/^https:\/\/([a-z0-9-]+\.)*vercel\.app$/.test(origin)) return origin;
-  return null;
-}
+// T4: /search is now called ONLY server-to-server by the Vercel proxy (app/api/search), never
+// from a browser, so no cross-origin reflection is needed — the X-Proxy-Secret check is the
+// real gate. A minimal static header set is kept only so a stray browser OPTIONS/POST still
+// gets a sane, harmless response.
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Secret",
+};
 
-function corsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allow = allowedOrigin(origin, env);
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    Vary: "Origin",
-  };
-  if (allow) headers["Access-Control-Allow-Origin"] = allow;
-  return headers;
-}
-
-function json(body: unknown, status: number, cors: Record<string, string>): Response {
+function json(body: unknown, status: number, cors: Record<string, string> = CORS_HEADERS): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json", ...cors },
@@ -261,21 +252,29 @@ type SearchBody = {
 
 const DEFAULT_LIMIT = 240;
 
-async function handleSearch(request: Request, env: Env, cors: Record<string, string>): Promise<Response> {
+async function handleSearch(request: Request, env: Env): Promise<Response> {
+  // T4 gate: only the authenticated Vercel proxy may reach the billable pipeline. It forwards a
+  // server-only shared secret; a missing secret binding or a mismatched header → 401. This is
+  // the real lockdown (the CORS simplification above is not a security control). Constant string
+  // compare is acceptable here: the secret is high-entropy and never returned to the caller.
+  if (!env.SEARCH_PROXY_SECRET || request.headers.get("X-Proxy-Secret") !== env.SEARCH_PROXY_SECRET) {
+    return json({ error: "unauthorized" }, 401);
+  }
+
   let body: SearchBody;
   try {
     body = (await request.json()) as SearchBody;
   } catch {
-    return json({ error: "invalid JSON body" }, 400, cors);
+    return json({ error: "invalid JSON body" }, 400);
   }
 
   const { query, precision } = body;
   if (typeof query !== "string" || (precision !== "exact" && precision !== "broad")) {
-    return json({ error: 'body must be { query: string, precision: "exact"|"broad" }' }, 400, cors);
+    return json({ error: 'body must be { query: string, precision: "exact"|"broad" }' }, 400);
   }
   const prec = precision as SearchPrecision;
   const q = query.trim();
-  if (!q) return json({ results: [] }, 200, cors); // empty query -> empty results, not an error
+  if (!q) return json({ results: [] }, 200); // empty query -> empty results, not an error
 
   const rewrites =
     Array.isArray(body.rewrites) ? body.rewrites.filter((r): r is string => typeof r === "string" && r.trim().length > 0) : [];
@@ -288,7 +287,7 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
     //    exact -> [normalized query]; broad -> up to 8 synonym-expanded variants.
     const staticExpansions = expandSemanticQueries(q, prec);
     const expandedQueries = mergeExpansions(staticExpansions, rewrites);
-    if (!expandedQueries.length) return json({ results: [] }, 200, cors);
+    if (!expandedQueries.length) return json({ results: [] }, 200);
 
     // 2. Embed all query variants — RAW text, no prefix (bge-m3), truncate oversized inputs.
     //    Strip lone surrogates so odd query text can't hard-error the embed call. Same transient
@@ -328,25 +327,23 @@ async function handleSearch(request: Request, env: Env, cors: Record<string, str
 
     // 5. Cap and return final reranked order (single round trip).
     const results = reranked.slice(0, limit).map((r) => ({ id: r.id, score: r.score }));
-    return json({ results, phase: "reranked" }, 200, cors);
+    return json({ results, phase: "reranked" }, 200);
   } catch (err) {
     // /search is public; don't echo internal detail (R2 keys, DATA_BASE_URL, bin-size mismatches)
     // to the client. Log server-side (Workers logs) and return a generic message instead.
     console.error("search failed:", err);
-    return json({ error: "search failed" }, 500, cors);
+    return json({ error: "search failed" }, 500);
   }
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const origin = request.headers.get("Origin");
-    const cors = corsHeaders(origin, env);
 
     if (url.pathname === "/search") {
-      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-      if (request.method === "POST") return handleSearch(request, env, cors);
-      return json({ error: "method not allowed" }, 405, cors);
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+      if (request.method === "POST") return handleSearch(request, env);
+      return json({ error: "method not allowed" }, 405);
     }
 
     // POST /embed — batch bge-m3 embeddings for the re-embed pipeline (T1). Billable, so it
@@ -372,6 +369,6 @@ export default {
       }
     }
 
-    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "POST /embed"] }, 200, cors);
+    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "POST /embed"] }, 200);
   },
 };
