@@ -186,6 +186,10 @@ export const chatMessages = pgTable(
     seq: integer("seq").notNull(),
     role: text("role").notNull(),
     parts: jsonb("parts").notNull(),
+    // T6 M5: full UIMessage fidelity — persist the optional `metadata` alongside `parts` so a
+    // reopened chat restores the complete stored message (not just id/role/parts). Nullable;
+    // most messages carry none.
+    metadata: jsonb("metadata"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [index("chat_messages_sessionId_idx").on(table.sessionId)],

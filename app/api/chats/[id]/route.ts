@@ -32,7 +32,12 @@ export async function GET(
   }
 
   const msgs = await db
-    .select({ id: chatMessages.id, role: chatMessages.role, parts: chatMessages.parts })
+    .select({
+      id: chatMessages.id,
+      role: chatMessages.role,
+      parts: chatMessages.parts,
+      metadata: chatMessages.metadata,
+    })
     .from(chatMessages)
     .where(eq(chatMessages.sessionId, id))
     .orderBy(asc(chatMessages.seq));
@@ -44,8 +49,15 @@ export async function GET(
       language: (row.language === "hu" ? "hu" : "en") as "en" | "hu",
       query: row.query ?? null,
       createdAt: row.createdAt.toISOString(),
-      // Rebuild UIMessage[] verbatim: { id, role, parts } is what useChat's initialMessages needs.
-      messages: msgs.map((m) => ({ id: m.id, role: m.role, parts: m.parts })),
+      // Rebuild UIMessage[] fully (M5): restore `metadata` alongside { id, role, parts } so a
+      // reopened chat renders identically. Omit the key entirely when null so useChat sees a
+      // clean UIMessage rather than `metadata: null`.
+      messages: msgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        parts: m.parts,
+        ...(m.metadata != null ? { metadata: m.metadata } : {}),
+      })),
     },
   });
 }

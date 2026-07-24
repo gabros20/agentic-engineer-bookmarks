@@ -49,7 +49,7 @@ type SaveChatBody = {
   messages?: unknown;
 };
 
-type IncomingMessage = { id?: unknown; role?: unknown; parts?: unknown };
+type IncomingMessage = { id?: unknown; role?: unknown; parts?: unknown; metadata?: unknown };
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
     seq,
     role: typeof m.role === "string" ? m.role : "assistant",
     parts: (Array.isArray(m.parts) ? m.parts : []) as unknown,
+    // M5: persist the message's optional `metadata` so a reopened chat restores it verbatim.
+    metadata: m.metadata ?? null,
   }));
   if (rows.length > 0) {
     await db.batch([
