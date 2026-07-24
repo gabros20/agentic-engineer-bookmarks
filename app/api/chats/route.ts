@@ -98,7 +98,9 @@ export async function POST(request: NextRequest) {
 
   // Replace the message set wholesale — the client sends the full conversation each save, so
   // deleting + re-inserting keeps seq contiguous and reflects the grown conversation exactly.
-  await db.delete(chatMessages).where(eq(chatMessages.sessionId, id));
+  // M1 fix: run the delete+reinsert as ONE neon-http batch (server-side transaction, same
+  // pattern as lib/invite.ts consumeInvite) so it's all-or-nothing — a failure between the
+  // delete and the insert can no longer wipe the messages and leave the chat empty.
   const rows = (body.messages as IncomingMessage[]).map((m, seq) => ({
     id: typeof m.id === "string" && m.id ? m.id : crypto.randomUUID(),
     sessionId: id,
@@ -107,7 +109,13 @@ export async function POST(request: NextRequest) {
     parts: (Array.isArray(m.parts) ? m.parts : []) as unknown,
   }));
   if (rows.length > 0) {
-    await db.insert(chatMessages).values(rows);
+    await db.batch([
+      db.delete(chatMessages).where(eq(chatMessages.sessionId, id)),
+      db.insert(chatMessages).values(rows),
+    ]);
+  } else {
+    // No messages to insert → the delete alone is a single atomic statement.
+    await db.delete(chatMessages).where(eq(chatMessages.sessionId, id));
   }
 
   return NextResponse.json({ ok: true, id });
