@@ -427,8 +427,14 @@ export function BookmarksApp() {
   }, [parsedQuery]);
 
   // T6: keep the chat's context digest in sync with the current query, from the DB.
+  // I1 fix: fetch LAZILY — only while the chat panel is open. `contextDigest` feeds only
+  // `chatContext` (consumed by CommandKChat, rendered only when `chatOpen`), and `displayQuery`
+  // recomputes per keystroke, so the old unconditional effect ran a full user-digest scan on
+  // every character typed. Gating on `chatOpen` means idle typing fires ZERO /api/digests
+  // requests; the fetch runs when the chat opens (focus is trapped in the modal, so
+  // `displayQuery` is stable while open — effectively fetch-on-open, with re-sync if it changes).
   useEffect(() => {
-    if (!displayQuery) {
+    if (!chatOpen || !displayQuery) {
       setContextDigest(null);
       return;
     }
@@ -443,7 +449,7 @@ export function BookmarksApp() {
     return () => {
       alive = false;
     };
-  }, [displayQuery]);
+  }, [displayQuery, chatOpen]);
 
   // T4.1: removable chip descriptors for the active operators + any invalid tokens. Each
   // chip's ✕ does a surgical string removal on the raw `query` state (not the parsed
