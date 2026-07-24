@@ -107,7 +107,7 @@ async function startWranglerDev() {
   return new Promise((resolve, reject) => {
     const child = spawn("npx", ["wrangler", "dev", "--port", String(WRANGLER_PORT)], {
       cwd: workerDir,
-      env: process.env, // wrangler reads worker/.env (CLOUDFLARE_API_TOKEN) + worker/.dev.vars itself
+      env: process.env, // wrangler reads Cloudflare auth from `wrangler login`, CLOUDFLARE_API_TOKEN, or worker/.dev.vars itself
       detached: true, // own process group, so teardown can signal wrangler's own child processes too
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -129,6 +129,23 @@ async function startWranglerDev() {
       const text = chunk.toString();
       buffer += text;
       appendFile(wranglerLogPath, text).catch(() => {});
+      // Fail fast with actionable guidance if wrangler can't authenticate, instead of hanging
+      // until the ready-timeout. This project intentionally does NOT persist a token on disk, so
+      // a fresh shell must provide Cloudflare auth per session (see docs/SYNC-AND-DEPLOY.md).
+      if (!settled && /not logged in|CLOUDFLARE_API_TOKEN|not authenticated/i.test(buffer)) {
+        settled = true;
+        clearTimeout(timer);
+        reject(
+          new Error(
+            "Cloudflare auth is required for the embed step but wrangler is not authenticated.\n" +
+              "  Fix (pick one), then re-run `npm run sync`:\n" +
+              "    • cd worker && npx wrangler login      (browser OAuth)\n" +
+              "    • export CLOUDFLARE_API_TOKEN=<token>   (this shell only)\n" +
+              `  (No token is stored on disk by design.) Full wrangler log: ${wranglerLogPath}`,
+          ),
+        );
+        return;
+      }
       const match = buffer.match(/Ready on (http:\/\/\S+)/);
       if (match && !settled) {
         settled = true;

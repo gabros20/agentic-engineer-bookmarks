@@ -100,6 +100,19 @@ New bookmarks are pulled and **appended incrementally** (only what's new since t
 npm i -g x-relay-mcp@latest
 ```
 
+**Cloudflare auth (per session — no token is stored on disk by design).** The sync's embed step and
+`npm run deploy:worker` need Cloudflare auth; provide it once per terminal with **either**:
+
+```bash
+cd worker && npx wrangler login && cd ..     # browser OAuth
+# — or —
+export CLOUDFLARE_API_TOKEN=<your-token>       # this shell only
+```
+
+(Only needed when a sync actually embeds new posts, or when you deploy. A no-op sync needs nothing.
+If it's missing when required, the sync fails fast with these exact instructions.) See
+**[docs/SYNC-AND-DEPLOY.md](docs/SYNC-AND-DEPLOY.md)** for the complete runbook.
+
 Then, from the project root:
 
 ```bash
@@ -139,7 +152,7 @@ git push
 **The deployed Worker caches its data per isolate, so it does NOT pick up a fresh sync automatically** — after committing/pushing, redeploy it:
 
 ```bash
-npm run deploy:worker   # cd worker && wrangler deploy — needs CLOUDFLARE_API_TOKEN (worker/.env) or `wrangler login`
+npm run deploy:worker   # cd worker && wrangler deploy — needs Cloudflare auth (wrangler login or CLOUDFLARE_API_TOKEN; see above)
 ```
 
 ### Related scripts
