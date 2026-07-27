@@ -31,6 +31,9 @@ interface R2ObjectBody {
   arrayBuffer(): Promise<ArrayBuffer>;
   json<T = unknown>(): Promise<T>;
   text(): Promise<string>;
+  // Present on both a real R2 object and the dev HTTP-fallback Response, so /archive
+  // can stream the raw bookmark archive through without buffering it into memory.
+  body: ReadableStream | null;
 }
 interface R2Bucket {
   get(key: string): Promise<R2ObjectBody | null>;
@@ -39,8 +42,10 @@ interface Env {
   AI: { run: (model: string, input: unknown) => Promise<any> };
   // DEV: base URL of a static server exposing public/data (e.g. http://localhost:8080/data).
   DATA_BASE_URL?: string;
-  // PROD (T5, after R2 is enabled): bind the bucket holding the packed index + rerank docs.
-  // loadData() prefers this over DATA_BASE_URL when present — the only swap needed at deploy.
+  // PROD (T8): private R2 bucket holding the packed index + rerank docs + lunr index AND the raw
+  // bookmark archive (all-bookmarks.json, served by /archive). fetchAsset() prefers this over
+  // DATA_BASE_URL when present; an R2 miss falls back to DATA_BASE_URL only in dev (see fetchAsset).
+  // This is the T8 lockdown: none of the data is publicly downloadable from Vercel anymore.
   SEARCH_DATA?: R2Bucket;
   // Shared secret gating /search (T4). The browser no longer calls the Worker directly — an
   // authenticated Vercel proxy (app/api/search) is the ONLY caller, forwarding this secret in
@@ -77,8 +82,12 @@ let dataPromise: Promise<LoadedData> | null = null;
 async function fetchAsset(env: Env, name: string): Promise<R2ObjectBody> {
   if (env.SEARCH_DATA) {
     const obj = await env.SEARCH_DATA.get(name);
-    if (!obj) throw new Error(`R2 object not found: ${name}`);
-    return obj;
+    if (obj) return obj;
+    // R2 miss. In PROD there is no DATA_BASE_URL (removed from wrangler.jsonc at the T8 lockdown),
+    // so a genuinely-missing object is a hard, visible error. In local `wrangler dev` the bound
+    // bucket is an EMPTY local simulation, so every get() misses — fall through to the HTTP dev
+    // server (DATA_BASE_URL in worker/.dev.vars) instead of failing, keeping eval/dev offline-friendly.
+    if (!env.DATA_BASE_URL) throw new Error(`R2 object not found: ${name}`);
   }
   const base = env.DATA_BASE_URL ?? "http://localhost:8080/data";
   const res = await fetch(`${base}/${name}`);
@@ -336,6 +345,35 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// GET /archive — stream the raw bookmark archive (all-bookmarks.json) to the AUTHENTICATED
+// Vercel proxy (app/api/archive), which the browser's data Web Worker calls to render the cards.
+// Gated by the SAME X-Proxy-Secret as /search: before T8 this file was a public static asset at
+// /data/all-bookmarks.json on Vercel — the user's entire private archive, downloadable by anyone
+// with the URL. Now it lives only in private R2 and is reachable solely through this secret-gated
+// endpoint behind a session-checked proxy. Streams the body through (no in-memory buffering) via
+// the shared fetchAsset loader, so it transparently uses R2 in prod and the dev HTTP fallback locally.
+async function handleArchive(request: Request, env: Env): Promise<Response> {
+  if (!env.SEARCH_PROXY_SECRET || request.headers.get("X-Proxy-Secret") !== env.SEARCH_PROXY_SECRET) {
+    return json({ error: "unauthorized" }, 401);
+  }
+  try {
+    const obj = await fetchAsset(env, "all-bookmarks.json");
+    return new Response(obj.body, {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        // Same archive for every user, and the Vercel proxy re-checks the session on each request,
+        // so a short PRIVATE cache is safe and spares repeat R2 reads on reload/tab restore.
+        "cache-control": "private, max-age=300",
+      },
+    });
+  } catch (err) {
+    // Don't leak R2 keys / DATA_BASE_URL / internal detail to the caller (mirrors handleSearch).
+    console.error("archive failed:", err);
+    return json({ error: "archive failed" }, 500);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -343,6 +381,11 @@ export default {
     if (url.pathname === "/search") {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
       if (request.method === "POST") return handleSearch(request, env);
+      return json({ error: "method not allowed" }, 405);
+    }
+
+    if (url.pathname === "/archive") {
+      if (request.method === "GET") return handleArchive(request, env);
       return json({ error: "method not allowed" }, 405);
     }
 
@@ -369,6 +412,6 @@ export default {
       }
     }
 
-    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "POST /embed"] }, 200);
+    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "GET /archive", "POST /embed"] }, 200);
   },
 };

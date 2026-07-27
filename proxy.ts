@@ -29,9 +29,14 @@ import { getSessionCookie } from "better-auth/cookies";
 //                          redirect. NOTE: these are distinct prefixes from /api/digest
 //                          and /api/chat (the "+ /" boundary means /api/digest does not
 //                          match /api/digests), so they are listed explicitly.
+//  - /api/archive          the T8 archive proxy — the browser's data Web Worker fetches the
+//                          raw bookmark archive here; it runs its OWN `requireUser` gate and
+//                          must return a JSON 401 to the fetch() caller, not an HTML redirect.
 //  - Next internals + static assets  (excluded via the matcher below)
-//  - /data/*               static JSON the Cloudflare Worker fetches from Vercel
-//                          with NO cookie; blocking it would break prod search.
+//
+// NOTE (T8): /data/* is gone — the bookmark data was moved out of the public CDN into a private
+// R2 bucket (search index served server-side to the Worker; the archive via /api/archive above).
+// The matcher still excludes `data/` harmlessly (nothing is served there now).
 // ---------------------------------------------------------------------------
 
 const ALLOW_PREFIXES = [
@@ -44,6 +49,7 @@ const ALLOW_PREFIXES = [
   "/api/chats",
   "/api/migrate",
   "/api/expand",
+  "/api/archive",
 ];
 
 export function proxy(request: NextRequest) {

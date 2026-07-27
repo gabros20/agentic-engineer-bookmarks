@@ -190,3 +190,46 @@ Digests persist server-side in `/api/digest`'s `streamObject` **`onFinish`** —
 
 ### Tables (app-owned, beyond Better Auth's core four)
 `invite_codes`, `pending_signups`, `invite_verify_attempts`, `saved_digests`, `chat_sessions` + `chat_messages`, `ai_usage_daily` (PK `(userId, day)`; `searchCount`/`digestCount`/`chatCount`).
+
+## 9. Data lockdown — private R2, no public CDN (T8)
+
+**The problem.** Before T8 all bookmark data was static JSON under `public/data/*`, served by Vercel's
+CDN. Even though the UI is invite-gated, the files themselves were publicly fetchable by URL — including
+`all-bookmarks.json`, the user's **entire raw archive** (the actual private content), plus the vector /
+lunr / rerank index (the paid-Workers-AI-embedding output). The login wall protected the *UI*, not the
+*data*.
+
+**The fix.** One **private R2 bucket** (`bookmark-search-data`) holds everything; nothing is served from
+the CDN. Two consumer paths:
+- **Search index** (`search-index-bge.bin` + `.meta.json`, `lunr-index.json`, `rerank-docs.json`) — read
+  **server-side** by the Worker via its `SEARCH_DATA` R2 binding (`fetchAsset`/`loadData`), cached per
+  isolate. Never touches the browser.
+- **Raw archive** (`all-bookmarks.json`) — the browser's data Web Worker (`lib/data-worker.ts`) needs it
+  to render cards, so it can't be Worker-server-only. It's served through **`/api/archive`** (Vercel,
+  `requireUser` → JSON 401 if anon, allow-listed in `proxy.ts`) → secret-gated Worker **`GET /archive`**
+  (`X-Proxy-Secret`, same gate as `/search`) → `SEARCH_DATA.get('all-bookmarks.json')`, **streamed**
+  through both hops (no buffering the ~9 MB payload) with `Cache-Control: private, max-age=300`. No
+  per-user quota (it's a once-per-load render fetch, not a billable model call — the session gate is the
+  control). Reuses the existing `SEARCH_ENDPOINT` + `SEARCH_PROXY_SECRET`; **no new env vars.**
+
+**`fetchAsset` dev fallback.** `fetchAsset` prefers R2, but on an R2 **miss** falls back to
+`DATA_BASE_URL` *only if it's set*. Prod has no `DATA_BASE_URL` (removed from `wrangler.jsonc` vars) → a
+miss is a hard, visible error. Local `wrangler dev` binds an **empty** local R2 simulation → every get()
+misses → it falls back to the `worker/.dev.vars` `DATA_BASE_URL` (`localhost:8080/data`), so offline
+dev/eval keep working against the files still on disk. (`wrangler dev --remote` uses the real R2 bucket —
+used to validate the prod path before deploy.)
+
+**Files leave git + CDN, stay on disk.** `.gitignore` ignores all of `public/data/`; `git rm --cached`
+untracked it. The files remain in the working tree for dev/eval (`cd public && python3 -m http.server
+8080`), but are gone from git history-going-forward and from the Vercel build (untracked ⇒ not deployed
+⇒ 404 on the CDN). The private repo + private R2 are the only copies of the archive that ship anywhere.
+
+**Refresh path.** `npm run upload:r2` (`scripts/upload-r2.mjs`, `wrangler r2 object put … --remote`) pushes
+the 4 search assets + the archive to R2; it's the last step of `npm run sync`. Data no longer rides a
+`git push` — see the updated SYNC-AND-DEPLOY runbook. **Requires R2 enabled on the account** (dashboard),
+which was the one manual prerequisite.
+
+**Verified (pre-deploy, against real R2 via `--remote`):** `/search "nextjs app router"` → 37 reranked
+results (full R2→embed→lunr→rerank pipeline intact); `/archive` → byte-identical 9,173,483-byte stream;
+Worker `GET /archive` gate returns 401 (no/wrong secret) / 405 (non-GET) / 200 (authed). Ranking code +
+data are unchanged, so search results are identical to the CDN path — only the *source* moved.

@@ -9,5 +9,9 @@ dist/
 .vercel
 *.tsbuildinfo
 
-# one-time migration backup
-public/data/*.legacy.bak
+# T8 lockdown: the bookmark data (search index + raw archive) is no longer served from the
+# public Vercel CDN. It lives in a private R2 bucket (prod, read by the Worker + /api/archive);
+# the files stay on disk locally for dev/eval (served via `cd public && python3 -m http.server
+# 8080` → the Worker's DATA_BASE_URL dev fallback). Untracked so they leave git AND stop
+# deploying to Vercel. Refresh prod with `npm run upload:r2` after a sync. See docs/SYNC-AND-DEPLOY.md.
+public/data/

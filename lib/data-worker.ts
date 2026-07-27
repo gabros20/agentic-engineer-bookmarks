@@ -19,12 +19,16 @@ if (typeof self !== "undefined" && typeof (self as unknown as WorkerScope).postM
   const ctx = self as unknown as WorkerScope;
 
   ctx.addEventListener("message", () => {
-    void load("/data/all-bookmarks.json");
+    // T8: the archive is no longer a public /data/* static asset — it's served by the
+    // session-gated /api/archive proxy (→ secret-gated Worker → private R2). Same-origin
+    // fetch from this dedicated worker carries the session cookie by default; a logged-out
+    // caller gets a 401 (handled as an error below), which the app surfaces like any load failure.
+    void load("/api/archive");
   });
 
   async function load(url: string) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: "same-origin" });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

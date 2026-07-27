@@ -16,18 +16,20 @@
     "@/scripts/lib/embed": "../scripts/lib/embed.mjs"
   },
 
-  // PROD data source: the deployed Worker fetches the packed index + rerank docs + lunr index
-  // from the Vercel static CDN (the files live in public/data/, served at /data). No R2 needed
-  // for v1 — R2 is a future hardening option (loadData() prefers a SEARCH_DATA R2 binding over
-  // DATA_BASE_URL if one is ever added). DEV overrides DATA_BASE_URL to a local static server
-  // (http://localhost:8080/data) via worker/.dev.vars (`cd public && python3 -m http.server
-  // 8080`), which wrangler dev reads in preference to these vars.
+  // PROD data source (T8): a PRIVATE R2 bucket holds ALL runtime data — the packed bge index
+  // (.bin + .meta.json), rerank docs, lunr index, AND the raw bookmark archive (all-bookmarks.json,
+  // served by GET /archive). fetchAsset() reads via this SEARCH_DATA binding; nothing is fetched
+  // from Vercel anymore (public/data/* was removed from git + the CDN — see docs/SYNC-AND-DEPLOY.md).
+  // There is deliberately NO prod DATA_BASE_URL: an R2 miss is a hard, visible error in prod.
   //
-  // T4: /search is gated by SEARCH_PROXY_SECRET — a Worker SECRET, NOT a var. It is set for
-  // prod via `wrangler secret put SEARCH_PROXY_SECRET` and read locally from worker/.dev.vars;
-  // the value must NEVER be committed here. (ALLOWED_ORIGINS was dropped: the browser no longer
-  // calls the Worker directly, so CORS origin-pinning is moot — the secret is the gate.)
-  "vars": {
-    "DATA_BASE_URL": "https://agentic-engineer-bookmarks.vercel.app/data"
-  }
+  // DEV: `wrangler dev` binds an EMPTY local R2 simulation, so fetchAsset misses and falls back to
+  // DATA_BASE_URL from worker/.dev.vars (http://localhost:8080/data via `cd public && python3 -m
+  // http.server 8080` — the data files still live on disk locally, just untracked/ungitignored).
+  //
+  // T4: /search + /archive are gated by SEARCH_PROXY_SECRET — a Worker SECRET, NOT a var. Set for
+  // prod via `wrangler secret put SEARCH_PROXY_SECRET`, read locally from worker/.dev.vars; the
+  // value must NEVER be committed here.
+  "r2_buckets": [
+    { "binding": "SEARCH_DATA", "bucket_name": "bookmark-search-data" }
+  ]
 }
