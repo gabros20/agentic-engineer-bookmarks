@@ -3,13 +3,15 @@
 The operational flow for pulling fresh bookmarks and getting them live. This is the single source of
 truth; the README's "Syncing Fresh Bookmarks" section links here.
 
-## Mental model — two deploy targets, one is easy to forget
+## Mental model — three moving parts, and data no longer rides the `git push`
 
-- **Vercel** hosts the app + serves the search data files (`public/data/*`). Updated by a normal `git push` to `main`.
-- **The Cloudflare Worker** (`bookmark-search.*.workers.dev`) runs the actual search and **fetches the data from Vercel, caching it per isolate**. It does **NOT** update on a `git push` — you must **redeploy it** (`npm run deploy:worker`) whenever the data (or its ranking code) changes.
+- **Vercel** hosts the app + `/api` routes. Updated by a normal `git push` to `main`. **It no longer serves any data** — T8 removed `public/data/*` from git + the CDN (the files stay on disk locally, untracked, for dev/eval only).
+- **Private R2 bucket** (`bookmark-search-data`) holds ALL runtime data — the search index **and** the raw archive (`all-bookmarks.json`). Updated by **`npm run upload:r2`** (folded into `npm run sync`), NOT by a `git push`.
+- **The Cloudflare Worker** (`bookmark-search.*.workers.dev`) runs search and reads the data from **R2** via its `SEARCH_DATA` binding (cached per isolate). It also serves the archive to the logged-in browser at `GET /archive` (secret-gated, fronted by the session-gated `/api/archive`). It does **NOT** update on a `git push` — **redeploy it** (`npm run deploy:worker`) after any Worker/ranking change.
 
-> If you only `git push` after a sync, the *app* shows new data but *search* keeps serving the old
-> corpus until you `npm run deploy:worker`. This is the #1 thing to remember.
+> After a data sync you must **`npm run upload:r2`** (push the new corpus to R2) — a `git push` does
+> nothing for data anymore. If the Worker's *code* changed too, also `npm run deploy:worker`. This is
+> the #1 thing to remember. (A stale R2 = the app + search both serve the old corpus.)
 
 ## Environment (auth / DB / search-proxy) — set in Vercel BEFORE the build
 
@@ -31,20 +33,33 @@ build** (they're read at build/runtime; `SEARCH_ENDPOINT`/`SEARCH_PROXY_SECRET` 
 Apply DB migrations with `npm run db:migrate` (uses `DATABASE_URL_UNPOOLED`) when the schema changes.
 Issue invite codes with `node scripts/add-invite.mjs <CODE> [label] [maxUses]`.
 
-## Atomic rollout — the locked Worker and the Vercel app go live TOGETHER
+No new env vars are needed for the R2 data lockdown (T8): the Worker reaches R2 through its
+`SEARCH_DATA` binding in `worker/wrangler.jsonc` (Cloudflare-side, not a Vercel var), and `/api/archive`
+reuses the existing `SEARCH_ENDPOINT` + `SEARCH_PROXY_SECRET`.
 
-Search now flows browser → `/api/search` (session + quota) → Worker (with `SEARCH_PROXY_SECRET`), and the
-Worker **rejects any request without that secret**. So the locked Worker and the app that calls it with
-the secret must land in the **same window** — do them in this order, without a gap:
+## Atomic rollout — R2 + the Worker + the Vercel app go live TOGETHER
 
-1. **Set the Vercel env vars above** (all environments as appropriate) — especially `SEARCH_ENDPOINT`
-   + `SEARCH_PROXY_SECRET` — **before** triggering the build.
-2. **Merge to `main`** → Vercel builds + deploys the app + `/api` routes (now calling `/api/search`).
-3. **`npm run deploy:worker`** immediately → deploys the secret-gated Worker.
+Search flows browser → `/api/search` (session + quota) → Worker (with `SEARCH_PROXY_SECRET`); the archive
+flows browser → `/api/archive` (session) → Worker `GET /archive` → R2. The Worker **rejects any request
+without the secret** and reads all data from **R2**, and after the merge the app **no longer serves
+`/data/*`**. So R2 must be populated first, and the Worker + app must land in the **same window** — in
+this order, without a gap:
 
-Why together: deploying the locked Worker **before** the new app ships would 401 the currently-live public
-search; merging the app **before** the Worker is locked leaves `/api/search` forwarding a secret the live
-Worker doesn't yet require (harmless, but the lockdown isn't in effect). Keep the gap as small as possible.
+1. **Populate R2:** `npm run upload:r2` (uploads the 4 search assets + `all-bookmarks.json` to
+   `bookmark-search-data`). The Worker has no data until this runs.
+2. **Confirm Vercel env** (from the table above) — especially `SEARCH_ENDPOINT` + `SEARCH_PROXY_SECRET`.
+   The R2 lockdown adds **no** new Vercel vars.
+3. **`npm run deploy:worker` FIRST** → deploys the R2-bound Worker (reads R2, adds `GET /archive`). This
+   is **backward-compatible**: prod `/search` now serves from R2 (identical data), and the still-live old
+   app keeps working (it fetches the public `/data/*`, which the old Vercel deployment still serves). No
+   break.
+4. **Push to `main`** → Vercel builds + atomically swaps to the new app. Only now does `/data/*` 404 —
+   and by then the Worker's `/archive` + R2 are already live, so the browser's `/api/archive` fetch
+   works from the first request.
+
+Why worker-first: with the Worker already serving `/archive`, the Vercel swap is gap-free. The reverse
+order (push first) would 404 `/data/*` while the old Worker still lacks `/archive` — a broken-archive
+window until the deploy. Populate R2 **before** either step.
 
 ## Cloudflare auth — per session, no token on disk (by design)
 
@@ -59,7 +74,8 @@ export CLOUDFLARE_API_TOKEN=<your-token>       # this shell only; create at
 ```
 
 Auth is needed only for:
-- the **embed step of a sync** — and only when there are new/changed posts to embed (a no-op sync needs nothing), and
+- the **embed step of a sync** — and only when there are new/changed posts to embed (a no-op sync needs nothing),
+- **`npm run upload:r2`** (pushes the corpus to R2), and
 - **`npm run deploy:worker`**.
 
 If auth is missing when the sync needs it, `scripts/sync-bge.mjs` fails fast with these exact instructions
@@ -71,33 +87,41 @@ If auth is missing when the sync needs it, `scripts/sync-bge.mjs` fails fast wit
 # 0. (once per session, only if this sync will embed new posts or you'll deploy)
 cd worker && npx wrangler login && cd ..        # or: export CLOUDFLARE_API_TOKEN=...
 
-# 1. keep the bookmark CLI current, then pull + rebuild
+# 1. keep the bookmark CLI current, then pull + rebuild + push to R2
 npm i -g x-relay-mcp@latest
-npm run sync
+npm run sync          # ends with `upload:r2` — the fresh corpus is now live in R2
 
-# 2. ship the data to Vercel
-git add public/data && git commit -m "sync fresh bookmarks" && git push
+# 2. (only if you changed the app / API / Worker code) ship code to Vercel
+git commit -am "…" && git push        # NOTE: public/data is untracked — data does NOT ride this push
 
-# 3. refresh the Worker so search sees the new data (git push does NOT do this)
+# 3. (only if the Worker's CODE changed) redeploy it — a data-only sync does NOT need this,
+#    because upload:r2 already refreshed what the Worker reads from R2
 npm run deploy:worker
 ```
 
+> Data-only sync? Just `npm run sync` (which runs `upload:r2`) — you're done. `git push` /
+> `deploy:worker` are only for **code** changes now.
+
 ### What `npm run sync` does
 `xrelay archive bookmarks` (incremental pull) → `backfill-articles.mjs` (fill X Article bodies) →
-`sync-bge.mjs`, which:
+`sync-bge.mjs` → `upload-r2.mjs`. `sync-bge.mjs`:
 1. runs an incremental **dry-run** to see what's pending (content-fingerprinted, so a backfilled article's
    stale main vector is re-embedded, not skipped-by-id);
 2. **if nothing is pending → stops** (no `wrangler dev`, no auth needed) — the common case;
 3. if pending → starts a throwaway `wrangler dev` (port **8799**, override `SYNC_BGE_WRANGLER_PORT`),
    embeds the new posts with bge-m3 via its gated `/embed` route, tears it down (even on error/Ctrl-C);
 4. rebuilds `lunr-index.json`, `rerank-docs.json`, and repacks `search-index-bge.bin`/`.meta.json` so the
-   three Worker-served artifacts stay aligned with the corpus.
+   Worker-served artifacts stay aligned with the corpus.
+Then `upload-r2.mjs` pushes those 4 assets **plus** `all-bookmarks.json` to the `bookmark-search-data`
+R2 bucket (needs Cloudflare auth) so prod picks up the new corpus.
 
 ## Troubleshooting
 
 - **"Cloudflare auth is required … not authenticated"** during sync → you skipped auth step 0. Run
   `wrangler login` or `export CLOUDFLARE_API_TOKEN=...` and re-run `npm run sync`.
-- **Search on prod still shows old results after a sync** → you forgot `npm run deploy:worker` (see the mental model).
+- **Search / archive on prod still shows old results after a sync** → the corpus lives in R2 now, not on the CDN. `npm run sync` ends with `upload:r2`; if you ran the steps by hand, run **`npm run upload:r2`**. (`deploy:worker` is only needed for Worker *code* changes.)
+- **Prod archive/cards fail to load; `/api/archive` 502s** → R2 is empty or missing `all-bookmarks.json`. Run `npm run upload:r2`. Verify with `cd worker && npx wrangler r2 object get bookmark-search-data/all-bookmarks.json --remote --pipe | wc -c`.
+- **`Please enable R2 … [code: 10042]`** → R2 isn't enabled on the Cloudflare account. Enable it in the dashboard (R2 Object Storage → enable), then `npm run upload:r2`.
 - **Port 8799 in use** → `SYNC_BGE_WRANGLER_PORT=<free port> npm run sync`.
 - **wrangler dev automation misbehaves** → the manual two-terminal fallback is documented in the README's Syncing section.
 - **`rm` deletes to Trash** on this machine (`rm` aliased to `trash`) → use `/bin/rm` in scripts.
