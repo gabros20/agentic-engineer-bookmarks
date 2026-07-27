@@ -49,13 +49,17 @@ this order, without a gap:
    `bookmark-search-data`). The Worker has no data until this runs.
 2. **Confirm Vercel env** (from the table above) — especially `SEARCH_ENDPOINT` + `SEARCH_PROXY_SECRET`.
    The R2 lockdown adds **no** new Vercel vars.
-3. **Merge to `main`** → Vercel builds + deploys the app + `/api` routes. After this, `/data/*` 404s on
-   Vercel and the browser fetches the archive via `/api/archive`.
-4. **`npm run deploy:worker`** immediately → deploys the R2-bound Worker (reads R2, adds `GET /archive`).
+3. **`npm run deploy:worker` FIRST** → deploys the R2-bound Worker (reads R2, adds `GET /archive`). This
+   is **backward-compatible**: prod `/search` now serves from R2 (identical data), and the still-live old
+   app keeps working (it fetches the public `/data/*`, which the old Vercel deployment still serves). No
+   break.
+4. **Push to `main`** → Vercel builds + atomically swaps to the new app. Only now does `/data/*` 404 —
+   and by then the Worker's `/archive` + R2 are already live, so the browser's `/api/archive` fetch
+   works from the first request.
 
-Why together: the R2-bound Worker deploy is backward-compatible (the old app still worked), but once the
-app merge lands, `/data/all-bookmarks.json` 404s — so the Worker + R2 serving `/archive` must already be
-live. Populate R2 **before** either deploy; keep the merge↔deploy gap as small as possible.
+Why worker-first: with the Worker already serving `/archive`, the Vercel swap is gap-free. The reverse
+order (push first) would 404 `/data/*` while the old Worker still lacks `/archive` — a broken-archive
+window until the deploy. Populate R2 **before** either step.
 
 ## Cloudflare auth — per session, no token on disk (by design)
 
