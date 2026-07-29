@@ -75,6 +75,7 @@ export CLOUDFLARE_API_TOKEN=<your-token>       # this shell only; create at
 
 Auth is needed only for:
 - the **embed step of a sync** — and only when there are new/changed posts to embed (a no-op sync needs nothing),
+- the **sync preflight** — only if an input file is missing and must be restored from R2 (normally a no-op),
 - **`npm run upload:r2`** (pushes the corpus to R2), and
 - **`npm run deploy:worker`**.
 
@@ -103,8 +104,20 @@ npm run deploy:worker
 > `deploy:worker` are only for **code** changes now.
 
 ### What `npm run sync` does
-`xrelay archive bookmarks` (incremental pull) → `backfill-articles.mjs` (fill X Article bodies) →
-`sync-bge.mjs` → `upload-r2.mjs`. `sync-bge.mjs`:
+`prepare-sync.mjs` → `xrelay archive bookmarks` (incremental pull, `--limit 10000`) →
+`backfill-articles.mjs` (fill X Article bodies) → `sync-bge.mjs` → `upload-r2.mjs`.
+
+**`prepare-sync.mjs` (preflight — the safety net).** Since the T8 lockdown, `public/data/*` is
+gitignored, so the two INCREMENTAL-INPUT files live only on local disk: `all-bookmarks.json` (xrelay's
+append base) and `search-index-bge.json` (the embed reuse base). If either is **missing**, the preflight
+restores it from R2 **before** xrelay runs. This is load-bearing: with `all-bookmarks.json` missing,
+xrelay would do a capped fresh pull and silently **drop every bookmark beyond `--limit`** (the corpus is
+already > 5000); with the embed base missing, `sync-bge` would do a full, costly re-embed. If a file is
+missing and R2's state can't be confirmed (auth/network error) the preflight **STOPS the whole sync**
+(exit 1) rather than risk truncation — only a confirmed "not in R2" is treated as a genuine first run.
+When both files are present (the common case) it's a pure no-op needing no auth.
+
+**`sync-bge.mjs`:**
 1. runs an incremental **dry-run** to see what's pending (content-fingerprinted, so a backfilled article's
    stale main vector is re-embedded, not skipped-by-id);
 2. **if nothing is pending → stops** (no `wrangler dev`, no auth needed) — the common case;
@@ -112,8 +125,11 @@ npm run deploy:worker
    embeds the new posts with bge-m3 via its gated `/embed` route, tears it down (even on error/Ctrl-C);
 4. rebuilds `lunr-index.json`, `rerank-docs.json`, and repacks `search-index-bge.bin`/`.meta.json` so the
    Worker-served artifacts stay aligned with the corpus.
-Then `upload-r2.mjs` pushes those 4 assets **plus** `all-bookmarks.json` to the `bookmark-search-data`
-R2 bucket (needs Cloudflare auth) so prod picks up the new corpus.
+
+Then **`upload-r2.mjs`** pushes to the `bookmark-search-data` R2 bucket (needs Cloudflare auth): the 4
+Worker-served search assets + `all-bookmarks.json`, **plus `search-index-bge.json` as a BACKUP-only
+object** (the Worker never fetches it — it exists so the preflight above can restore the embed base after
+a lost/fresh disk). Six objects total; prod picks up the new corpus immediately.
 
 ## Troubleshooting
 
@@ -122,6 +138,7 @@ R2 bucket (needs Cloudflare auth) so prod picks up the new corpus.
 - **Search / archive on prod still shows old results after a sync** → the corpus lives in R2 now, not on the CDN. `npm run sync` ends with `upload:r2`; if you ran the steps by hand, run **`npm run upload:r2`**. (`deploy:worker` is only needed for Worker *code* changes.)
 - **Prod archive/cards fail to load; `/api/archive` 502s** → R2 is empty or missing `all-bookmarks.json`. Run `npm run upload:r2`. Verify with `cd worker && npx wrangler r2 object get bookmark-search-data/all-bookmarks.json --remote --pipe | wc -c`.
 - **`Please enable R2 … [code: 10042]`** → R2 isn't enabled on the Cloudflare account. Enable it in the dashboard (R2 Object Storage → enable), then `npm run upload:r2`.
+- **`[prepare-sync] REFUSING to continue`** → the sync preflight found a missing input file and couldn't reach R2 to restore it (usually Cloudflare auth). This is the safety net doing its job — it stopped rather than let xrelay truncate your archive. Fix auth (`wrangler login` / `CLOUDFLARE_API_TOKEN`) and re-run `npm run sync`.
 - **Port 8799 in use** → `SYNC_BGE_WRANGLER_PORT=<free port> npm run sync`.
 - **wrangler dev automation misbehaves** → the manual two-terminal fallback is documented in the README's Syncing section.
 - **`rm` deletes to Trash** on this machine (`rm` aliased to `trash`) → use `/bin/rm` in scripts.
