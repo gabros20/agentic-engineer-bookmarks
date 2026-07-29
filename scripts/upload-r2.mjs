@@ -17,14 +17,19 @@ import { dirname, join } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BUCKET = "bookmark-search-data";
 
-// key = the filename the Worker fetches (fetchAsset(env, name)); value = content type. Keep this
-// list in sync with worker/src/index.ts loadData() (the 4 search assets) + handleArchive (the archive).
+// key = the filename stored in R2; value = content type. The first five are what the Worker fetches
+// (worker/src/index.ts loadData() — the 4 search assets — + handleArchive — the archive). Keep those
+// in sync with the Worker. The last one is BACKUP-ONLY.
 const ASSETS = [
   ["search-index-bge.meta.json", "application/json"],
   ["search-index-bge.bin", "application/octet-stream"],
   ["rerank-docs.json", "application/json"],
   ["lunr-index.json", "application/json"],
   ["all-bookmarks.json", "application/json"],
+  // BACKUP-ONLY: the Worker does NOT fetch this (it reads the packed .bin). Stored in R2 so the
+  // incremental-embed reuse base survives a lost/fresh local disk — scripts/prepare-sync.mjs restores
+  // it before a sync. Without this, a disk loss forces a full, costly re-embed of the whole corpus.
+  ["search-index-bge.json", "application/json"],
 ];
 
 function log(msg) {
