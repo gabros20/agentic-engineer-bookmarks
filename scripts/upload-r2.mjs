@@ -36,6 +36,9 @@ function log(msg) {
   console.log(`[upload-r2] ${msg}`);
 }
 
+const MAX_ATTEMPTS = 3;
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 let failed = 0;
 for (const [name, contentType] of ASSETS) {
   const filePath = join(root, "public/data", name);
@@ -46,22 +49,16 @@ for (const [name, contentType] of ASSETS) {
   }
   const mb = (statSync(filePath).size / 1e6).toFixed(1);
   log(`uploading ${name} (${mb} MB) → r2://${BUCKET}/${name}`);
-  const res = spawnSync(
-    "npx",
-    [
-      "wrangler",
-      "r2",
-      "object",
-      "put",
-      `${BUCKET}/${name}`,
-      "--file",
-      filePath,
-      "--content-type",
-      contentType,
-      "--remote",
-    ],
-    { cwd: root, stdio: "inherit", env: process.env },
-  );
+  const putArgs = ["wrangler", "r2", "object", "put", `${BUCKET}/${name}`, "--file", filePath, "--content-type", contentType, "--remote"];
+  // Cloudflare's API intermittently answers a large PUT with a transient 5xx (a 520 HTML page was
+  // seen in a real sync). Re-running the PUT is idempotent, so retry with backoff before giving up.
+  let res;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    res = spawnSync("npx", putArgs, { cwd: root, stdio: "inherit", env: process.env });
+    if (res.status === 0 || res.status === null || attempt === MAX_ATTEMPTS) break;
+    log(`${name}: attempt ${attempt} failed (exit ${res.status}) — retrying in ${attempt * 10}s`);
+    sleep(attempt * 10_000);
+  }
   if (res.status !== 0) {
     console.error(`[upload-r2] FAILED to upload ${name} (wrangler exit ${res.status}).`);
     // Surface the common cause without hanging: auth. wrangler already prints the detail above.

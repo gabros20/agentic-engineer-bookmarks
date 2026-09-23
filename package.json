@@ -14,6 +14,8 @@
     "migrate:archive": "node scripts/migrate-to-archive.mjs",
     "sync": "node scripts/prepare-sync.mjs && xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000 && node scripts/backfill-articles.mjs && node scripts/sync-bge.mjs && node scripts/upload-r2.mjs",
     "prepare-sync": "node scripts/prepare-sync.mjs",
+    "autosync": "node scripts/autosync.mjs",
+    "autosync:run": "node scripts/auto-sync.mjs",
     "build": "next build",
     "start": "next start",
     "deploy:worker": "cd worker && wrangler deploy",

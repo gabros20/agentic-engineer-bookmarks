@@ -252,9 +252,58 @@ git push
 npm run deploy:worker   # cd worker && wrangler deploy — needs Cloudflare auth (wrangler login or CLOUDFLARE_API_TOKEN; see above)
 ```
 
+### Autopilot: daily sync with launchd
+
+Syncing can run on its own every day on macOS. A launchd agent runs `scripts/auto-sync.mjs`, which does the same steps as `npm run sync` with extra safety because nobody is watching. It survives restarts: agents in `~/Library/LaunchAgents` load at login, and if the Mac is asleep at the scheduled time, launchd runs the job once on wake.
+
+```bash
+npm run autosync -- set-token --env-file   # one-time: Cloudflare API token → ~/.config/xbookmarks-sync/env (chmod 600) — best for servers
+npm run autosync -- set-cookies      # optional: X cookies (auth_token + ct0) → env file, so no logged-in browser is needed
+npm run autosync -- set-token        # …or keep the token in the login Keychain — OR in 1Password:
+npm run autosync -- set-token --1password "op://Automation/Cloudflare xbookmarks/credential"
+npm run autosync -- set-token --op-service-account   # 1Password service-account token → Keychain: op reads run unattended (no Touch ID)
+npm run autosync -- install          # daily at 14:00; options: --hour 9 --minute 30 --notify changes|always|failure|never
+                                     #   --browser chrome (xrelay cookie source) --account-id <cf-id> --update-xrelay
+npm run autosync -- run              # run it NOW under launchd (the first time, allow macOS's "node wants to access Documents" prompt)
+npm run autosync -- status           # schedule, agent state, auth, last run (+N bookmarks, published or not)
+npm run autosync -- logs             # latest run log
+npm run autosync -- uninstall
+npm run autosync:run -- --dry-run    # preflight only, in your terminal (also: --force-upload, --no-notify)
+```
+
+What the autopilot adds on top of `npm run sync`:
+
+- **Cloudflare auth from an env file, 1Password or the Keychain.** `wrangler login` expires and can't renew itself without you, so unattended runs use an API token that is never stored in the repo. It comes from the first source that works: `CLOUDFLARE_API_TOKEN` in the environment or in `~/.config/xbookmarks-sync/env` (a `KEY=VALUE` file, mode 600, loaded into every run; it can also hold `XRELAY_COOKIES`), then `op read <op:// reference>` (1Password), then the macOS Keychain (service `xbookmarks-sync`). With 1Password there are two modes: through the 1Password app, which asks for Touch ID each run and fails if the app is locked; or, fully unattended, through a **service account** with read access to one vault, whose token is kept in the Keychain. The token needs *Workers R2 Storage: Edit*, *Workers AI: Read*, *Workers Scripts: Edit* and *Account Settings: Read* on your account. `set-token` checks it with `wrangler whoami`.
+- **Checks before touching data.** X auth (`xrelay whoami`) and Cloudflare auth (`wrangler whoami`) are verified first. A failure stops the run and sends a macOS notification.
+- **Truncation guard.** `all-bookmarks.json` is backed up before the pull. If the archive would shrink, the backup is restored and nothing is uploaded.
+- **Upload only when data changed.** Uploads are skipped when the six R2 objects are unchanged; xrelay's `generatedAt` timestamp is ignored, so a quiet day costs no upload.
+- **No overlaps, timeouts, retries.** A lock prevents overlapping runs (with a manual sync too), every step has a timeout, the network steps retry (`upload-r2` retries transient Cloudflare 5xx errors), and a flaky article backfill is only a warning.
+- **Run history.** `~/Library/Logs/xbookmarks-sync/`: one log per run (last 30 kept), plus `last-run.json` and launchd's stdout/stderr. Config lives in `~/.config/xbookmarks-sync/config.json`.
+
+#### Running it on a headless Mac mini
+
+The env file is designed for this case: no Keychain to unlock, no 1Password password, and no browser needed.
+
+```bash
+git clone <repo> && cd agentic-engineer-bookmarks && npm install
+npm i -g x-relay-mcp@latest                  # the xrelay CLI
+npm run autosync -- set-token --env-file     # Cloudflare API token
+npm run autosync -- set-cookies              # X auth_token + ct0, from a browser that's logged into x.com
+npm run autosync -- install --hour 14 --minute 0 --notify failure
+npm run autosync -- run && npm run autosync -- status
+```
+
+- **No local data needed.** On the first run, `prepare-sync` restores `all-bookmarks.json` and the embedding base from R2, and the autopilot creates the local-only `EMBED_SECRET` in `worker/.dev.vars`.
+- **The agent needs a logged-in user.** A LaunchAgent only runs while that user is logged in, so turn on **automatic login** for it (System Settings → Users & Groups) so that runs resume after a reboot or power cut.
+- **Don't run it on both machines.** Two Macs pulling into two separate local archives is harmless, because each run is incremental and R2 just gets the latest upload. But it's pointless: uninstall the agent on the laptop (`npm run autosync -- uninstall`) once the mini is running it.
+- **Expired X cookies.** The cookies last until that X session is logged out. When `xrelay whoami` starts failing, the run stops at preflight and notifies you; then run `set-cookies` again.
+
+After a Node upgrade (fnm/nvm), run `install` again: the agent pins the real path of the Node binary it was installed with. macOS may ask once more for Documents access.
+
 ### Related scripts
 
 ```bash
+npm run autosync -- status   # the daily autopilot (see above)
 npm run sync:bge         # the bge chain alone (embed-bge + wrangler-dev automation + lunr/rerank/pack), no xrelay fetch
 npm run embed:bge        # embed-bge.mjs directly — add --dry-run (report only) or --full (from-scratch rebuild)
 npm run deploy:worker    # redeploy the Cloudflare Worker so it picks up freshly-synced data
