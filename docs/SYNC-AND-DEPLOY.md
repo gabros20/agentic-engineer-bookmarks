@@ -61,6 +61,26 @@ Why worker-first: with the Worker already serving `/archive`, the Vercel swap is
 order (push first) would 404 `/data/*` while the old Worker still lacks `/archive` — a broken-archive
 window until the deploy. Populate R2 **before** either step.
 
+## Autopilot (daily unattended sync)
+
+`scripts/auto-sync.mjs` runs the same five steps as `npm run sync`, scheduled by a per-user launchd agent
+(`scripts/autosync.mjs` installs and manages it). Full usage is in the README ("Autopilot"). Operational notes:
+
+- **Auth:** unattended runs need a Cloudflare **API token**, from the env file `~/.config/xbookmarks-sync/env`
+  (`set-token --env-file`; the right choice for a headless Mac mini, together with `set-cookies` for `XRELAY_COOKIES`),
+  from 1Password (`set-token --1password op://…`,
+  plus `set-token --op-service-account` to avoid a daily Touch ID prompt) or the Keychain (`set-token`).
+  If 1Password can't be read, the run falls back to the Keychain token, then to `wrangler login`, and logs a warning.
+  Without one they fall back to `wrangler login`, which expires, and the next run then fails at preflight with a
+  notification. X auth is xrelay's browser cookies: log into x.com in that browser again if `xrelay whoami` fails.
+- **macOS privacy (TCC):** the repo lives under `~/Documents`, so the first launchd run makes macOS ask whether
+  `node` may access Documents. Allow it. The grant is tied to the node binary path, so after a Node upgrade
+  run `install` again and allow once more. Until then the job sits idle in state `running` with an empty log.
+- **Safety:** a pull that would shrink `all-bookmarks.json` is rolled back from a pre-pull backup and nothing is
+  uploaded; the upload is skipped when nothing changed; one run at a time (lock in `~/.config/xbookmarks-sync/`).
+- **Diagnose:** `npm run autosync -- status` (last run, warnings, log path), `npm run autosync -- logs`,
+  `~/Library/Logs/xbookmarks-sync/launchd.err.log`.
+
 ## MCP server rollout (docs/MCP-PLAN.md)
 
 The MCP server (`/api/mcp`) is **Vercel-only**: no Worker deploy, no R2 upload. Its OAuth tables ship as an
