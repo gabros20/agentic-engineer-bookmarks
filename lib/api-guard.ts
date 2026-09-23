@@ -46,6 +46,11 @@ export async function requireUser(): Promise<RequireUserResult> {
 
 export type QuotaKind = "search" | "digest" | "chat";
 
+// Per-user searches per UTC day. ONE bucket shared by every search surface — the web UI
+// (app/api/search) and the MCP search tool (lib/server/bookmark-service) — so connecting an MCP
+// client never multiplies a user's billable Workers-AI budget.
+export const DAILY_SEARCH_LIMIT = 300;
+
 // 429 body `code` — the CLIENT keys its localized "daily limit reached" message
 // off this (lib/i18n), so it MUST stay stable across the three surfaces.
 const QUOTA_CODE: Record<QuotaKind, string> = {

@@ -32,6 +32,10 @@ import { getSessionCookie } from "better-auth/cookies";
 //  - /api/archive          the T8 archive proxy — the browser's data Web Worker fetches the
 //                          raw bookmark archive here; it runs its OWN `requireUser` gate and
 //                          must return a JSON 401 to the fetch() caller, not an HTML redirect.
+//  - /api/mcp             the MCP server — authenticated by an OAuth bearer token (requireMcpAuth),
+//                          not a cookie; a missing/invalid token must get the JSON-RPC 401 +
+//                          WWW-Authenticate challenge that starts the client's OAuth flow.
+//  - /.well-known/*        OAuth discovery metadata for MCP clients (public by design, no secrets).
 //  - Next internals + static assets  (excluded via the matcher below)
 //
 // NOTE (T8): /data/* is gone — the bookmark data was moved out of the public CDN into a private
@@ -50,6 +54,8 @@ const ALLOW_PREFIXES = [
   "/api/migrate",
   "/api/expand",
   "/api/archive",
+  "/api/mcp",
+  "/.well-known",
 ];
 
 export function proxy(request: NextRequest) {

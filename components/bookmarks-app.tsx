@@ -29,6 +29,15 @@ import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@
 import type { UIMessage } from "ai";
 import { type SearchPrecision } from "@/lib/bookmark-search";
 import type { BookmarkPost } from "@/lib/bookmark-types";
+import {
+  hasActiveOperators,
+  matchesContentFilter,
+  matchesOperators,
+  postTime as byDate,
+  searchable,
+  toBookmarkDetail,
+  toSearchHit,
+} from "@/lib/bookmark-filters";
 import { normalizeBookmarkPayload } from "@/lib/xrelay-archive";
 import { searchViaWorker, SearchQuotaError } from "@/lib/search-client";
 
@@ -69,27 +78,6 @@ const formatter = new Intl.NumberFormat("en");
 
 function number(value?: number) {
   return formatter.format(value ?? 0);
-}
-
-function searchable(post: BookmarkPost) {
-  return [
-    post.text,
-    post.articleTitle,
-    post.articleText,
-    post.author.name,
-    post.author.screenName,
-    ...(post.urls ?? []),
-    post.quotedTweet?.text,
-    post.quotedTweet?.author?.name,
-    post.quotedTweet?.author?.screenName,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function byDate(post: BookmarkPost) {
-  return new Date(post.createdAtISO ?? post.createdAt ?? 0).getTime();
 }
 
 // T4.1: render an operator Date back to the granularity the brief's examples use — a
@@ -372,16 +360,10 @@ export function BookmarksApp() {
     // null (the search effect below short-circuits on an empty residual), so `filtered`
     // falls through to `operatorScoped` unfiltered by text/hybrid, showing every
     // operator-matching post in the current sort order.
-    const operatorScoped =
-      operators.from || operators.before || operators.after
-        ? scoped.filter((post) => {
-            if (operators.from && post.author.screenName.toLowerCase() !== operators.from) return false;
-            const postTime = byDate(post);
-            if (operators.after && postTime < operators.after.getTime()) return false;
-            if (operators.before && postTime >= operators.before.getTime()) return false;
-            return true;
-          })
-        : scoped;
+    // Filter semantics are shared with the server-side query layer (lib/bookmark-filters.ts).
+    const operatorScoped = hasActiveOperators(operators)
+      ? scoped.filter((post) => matchesOperators(post, operators))
+      : scoped;
 
     const filtered = q
       ? hybridResults
@@ -536,45 +518,16 @@ export function BookmarksApp() {
     }
     const ids = new Set(ranked.map((r) => r.id));
     const score = new Map(ranked.map((r) => [r.id, r.score]));
-    let pool = posts.filter((p) => ids.has(p.id));
-    if (input.filter === "article") pool = pool.filter((p) => p.articleTitle || p.articleText);
-    else if (input.filter === "media") pool = pool.filter((p) => (p.media?.length ?? 0) > 0);
-    else if (input.filter === "text") pool = pool.filter((p) => !(p.media?.length));
+    const pool = posts.filter((p) => ids.has(p.id) && matchesContentFilter(p, input.filter));
     pool.sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
     const top = pool.slice(0, input.limit);
-    return {
-      count: top.length,
-      results: top.map((p) => ({
-        id: p.id,
-        author: p.author?.name ?? p.author?.screenName ?? "",
-        screenName: p.author?.screenName ?? "",
-        text: (p.text ?? "").slice(0, 280),
-        articleTitle: p.articleTitle,
-        url: `https://x.com/${p.author?.screenName ?? "i"}/status/${p.id}`,
-        createdAt: p.createdAtISO ?? p.createdAt,
-        likes: p.metrics?.likes,
-        bookmarks: p.metrics?.bookmarks,
-      })),
-    };
+    return { count: top.length, results: top.map(toSearchHit) };
   }
 
   function getChatBookmark(input: GetBookmarkInput): GetBookmarkResult {
     const post = posts.find((p) => p.id === input.id);
     if (!post) return { found: false };
-    return {
-      found: true,
-      bookmark: {
-        id: post.id,
-        author: post.author?.name ?? post.author?.screenName ?? "",
-        screenName: post.author?.screenName ?? "",
-        text: post.text ?? "",
-        articleTitle: post.articleTitle,
-        articleText: post.articleText,
-        url: `https://x.com/${post.author?.screenName ?? "i"}/status/${post.id}`,
-        createdAt: post.createdAtISO ?? post.createdAt,
-        metrics: post.metrics,
-      },
-    };
+    return { found: true, bookmark: toBookmarkDetail(post) };
   }
 
   function BookmarkCardSkeleton({ index }: { index: number }) {

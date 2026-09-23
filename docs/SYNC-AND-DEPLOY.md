@@ -61,6 +61,18 @@ Why worker-first: with the Worker already serving `/archive`, the Vercel swap is
 order (push first) would 404 `/data/*` while the old Worker still lacks `/archive` — a broken-archive
 window until the deploy. Populate R2 **before** either step.
 
+## MCP server rollout (docs/MCP-PLAN.md)
+
+The MCP server (`/api/mcp`) is **Vercel-only**: no Worker deploy, no R2 upload. Its OAuth tables ship as an
+additive migration, so the order is:
+
+1. `npm run db:migrate` (creates `jwks` + `oauth*` tables; the live app ignores them).
+2. Merge/push → Vercel. `BETTER_AUTH_URL` must be the canonical prod origin: it defines the token issuer and
+   the MCP resource `${BETTER_AUTH_URL}/api/mcp`.
+3. Smoke: `curl -i -X POST https://xbookmarks.tamasgabor.com/api/mcp` → `401` + `WWW-Authenticate: Bearer resource_metadata=…`.
+
+A data sync needs nothing extra for MCP: the server-side archive cache refreshes from R2 (via the Worker) within 5 minutes.
+
 ## Cloudflare auth — per session, no token on disk (by design)
 
 We deliberately do **not** keep a Cloudflare API token in the repo/working tree (no `worker/.env`).

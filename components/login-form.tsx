@@ -10,6 +10,31 @@ import { useLanguage } from "@/lib/i18n";
 
 type Stage = "form" | "sent";
 
+// Params Better Auth's OAuth provider adds when it bounces an MCP client's authorize request to
+// this login page (the signature over the query + its expiry/bookkeeping).
+const OAUTH_SIGNATURE_PARAMS = ["sig", "exp", "ba_iat", "ba_param", "ba_pl"];
+
+/**
+ * MCP OAuth (lib/auth.ts `mcp({ loginPage: "/login" })`): when an MCP client's
+ * /oauth2/authorize request arrives without a session, Better Auth redirects here with the
+ * original authorize query (+ a signature). Better Auth's built-in resume hooks the SIGN-IN
+ * request, but a magic link signs in later, from the email — so instead we make the link land
+ * back on the authorize endpoint itself: callbackURL = the original authorize request. With the
+ * fresh session cookie it continues to /consent and on to the client. `prompt=login` is dropped
+ * because the magic-link sign-in that precedes it satisfies it. Returns null for a normal login.
+ * Replaying the request needs no trust in these params: authorize re-validates the client and its
+ * redirect_uri, and nothing is granted without the /consent screen.
+ */
+function oauthResumeCallback(search: string): string | null {
+  const params = new URLSearchParams(search);
+  if (!params.get("client_id") || !params.get("response_type")) return null;
+  for (const key of OAUTH_SIGNATURE_PARAMS) params.delete(key);
+  const prompt = (params.get("prompt") ?? "").split(" ").filter((p) => p && p !== "login");
+  if (prompt.length) params.set("prompt", prompt.join(" "));
+  else params.delete("prompt");
+  return `/api/auth/oauth2/authorize?${params.toString()}`;
+}
+
 export function LoginForm() {
   const { t } = useLanguage();
   const [stage, setStage] = useState<Stage>("form");
@@ -18,10 +43,13 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
+  // Set on mount (window is client-only): the authorize request to resume after the magic link.
+  const [oauthCallback, setOauthCallback] = useState<string | null>(null);
 
   // T3 a11y/UX: focus the first field on mount so keyboard users can type immediately.
   useEffect(() => {
     codeRef.current?.focus();
+    setOauthCallback(oauthResumeCallback(window.location.search));
   }, []);
 
   async function submit(event: React.FormEvent) {
@@ -50,7 +78,7 @@ export function LoginForm() {
       // by the reservation we just made (lib/auth databaseHooks).
       const { error: linkError } = await authClient.signIn.magicLink({
         email: email.trim(),
-        callbackURL: "/",
+        callbackURL: oauthCallback ?? "/",
       });
       if (linkError) {
         setError(t("login.error.link"));
@@ -93,6 +121,11 @@ export function LoginForm() {
             <p className="mt-2 text-[14px] leading-relaxed text-[color:var(--color-body)]">
               {t("login.hint")}
             </p>
+            {oauthCallback ? (
+              <p className="mt-2 rounded-md bg-[color:var(--color-surface-cream-strong)] px-3 py-2 text-[13px] leading-relaxed text-[color:var(--color-body)]">
+                {t("login.oauth.hint")}
+              </p>
+            ) : null}
 
             <form onSubmit={submit} className="mt-5 grid gap-3">
               <label className="grid gap-1.5">

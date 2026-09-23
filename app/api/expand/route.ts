@@ -1,36 +1,16 @@
-import { generateObject } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { headers } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { generateQueryRewrites } from "@/lib/server/query-expand";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
-
-// Same model as digest/chat: fast, cheap, follows short-output instructions reliably.
-const MODEL = "openai/gpt-5.4-nano";
 
 const expandRequestSchema = z.object({
   query: z.string().min(1).max(200),
   language: z.enum(["en", "hu"]),
 });
-
-const expandSchema = z.object({
-  rewrites: z.array(z.string()).max(3),
-});
-
-const SYSTEM_PROMPT = [
-  "You rewrite a user's search query for semantic search over an English-language tech/AI",
-  "bookmark archive (X/Twitter posts and linked articles about AI agents, LLMs, coding tools).",
-  "Return up to 3 SHORT search rewrites of the user's query:",
-  "1. An English translation of the query, if the query is not already English.",
-  "2. An English synonym-rich rephrase of the query using domain vocabulary.",
-  "3. A narrower, more specific English variant of the query.",
-  "Skip a rewrite that would not apply (e.g. skip the translation if the query is already English).",
-  "Rules: no explanations, no labels, no numbering, no duplicates of the input query, no duplicate",
-  "rewrites of each other. Each rewrite is a short search phrase, not a sentence.",
-].join(" ");
 
 export async function POST(request: NextRequest) {
   // Session gate only — no separate quota bucket. /api/expand only fires on broad search
@@ -65,17 +45,7 @@ export async function POST(request: NextRequest) {
   // model's ability to detect language.
   const { query } = parsed.data;
 
-  const openrouter = createOpenRouter();
-  const model = openrouter.chat(MODEL);
-
-  const result = await generateObject({
-    model,
-    schema: expandSchema,
-    system: SYSTEM_PROMPT,
-    prompt: `Query: ${query}`,
-    temperature: 0.2,
-    abortSignal: request.signal,
-  });
-
-  return NextResponse.json(result.object);
+  // Prompt + model live in lib/server/query-expand.ts (shared with the MCP search tool).
+  const rewrites = await generateQueryRewrites(query, request.signal);
+  return NextResponse.json({ rewrites });
 }
