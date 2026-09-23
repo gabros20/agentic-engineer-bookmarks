@@ -6,7 +6,8 @@ The app renders a static JSON export as searchable cards with hybrid (keyword + 
 
 ## Live App
 
-- Production: <https://agentic-engineer-bookmarks.vercel.app>
+- Production: <https://xbookmarks.tamasgabor.com> (the old `agentic-engineer-bookmarks.vercel.app` 308-redirects here)
+- MCP server: `https://xbookmarks.tamasgabor.com/api/mcp` — see [MCP server](#mcp-server)
 - Repository: <https://github.com/gabros20/agentic-engineer-bookmarks>
 
 ## Data
@@ -55,6 +56,7 @@ localStorage["agentic-engineer-bookmarks:lang"]
 - Sort by relevance, newest, oldest, most bookmarked, or most liked; filter to starred / article / media / photo / video / text-only
 - **AI Digest** — summarize the top search results into themes via OpenRouter (`google/gemini-3.6-flash`), persisted server-side to the database and reopenable from a saved list on any device
 - **⌘K AI chat** — ask questions; the agent searches your archive with browser-side tools (AI SDK v6 + AI Elements); saved chats are DB-backed and sync cross-device
+- **MCP server** (`/api/mcp`) — search your archive from Claude Code, claude.ai, Cursor or any MCP client, with the same ranking, operators and quota as the web app, behind the same invite-gated login (OAuth 2.1) — see [MCP server](#mcp-server)
 - **Per-user daily quotas** on the cost-bearing endpoints (search 300 / digest 10 / chat 40 per day); hitting a cap shows a clear, localized "daily limit reached" message rather than failing silently
 - Bilingual UI and AI output (English / Magyar) with flag switcher
 - Star/unstar with local persistence; open the original post on `x.com`
@@ -71,11 +73,63 @@ Client → `/api/search` (Vercel proxy) → Cloudflare Worker → Vercel-hosted 
 
 Because the Worker caches that data per isolate, a bookmark sync (`npm run sync`) only updates what's live once the Worker is redeployed with the refreshed data — see [Syncing Fresh Bookmarks](#syncing-fresh-bookmarks).
 
+## MCP server
+
+The app is also a remote **[Model Context Protocol](https://modelcontextprotocol.io) server**, so an AI client can search your bookmarks directly:
+
+```text
+https://xbookmarks.tamasgabor.com/api/mcp        (Streamable HTTP, OAuth 2.1)
+```
+
+### Connect a client
+
+```bash
+# Claude Code
+claude mcp add --transport http x-bookmarks https://xbookmarks.tamasgabor.com/api/mcp
+# then run /mcp in Claude Code → x-bookmarks → Authenticate (opens your browser)
+```
+
+- **claude.ai / Claude Desktop:** Settings → Connectors → *Add custom connector* → paste the URL.
+- **Cursor / VS Code / others:** add it as a remote (HTTP) MCP server, e.g. `{"mcpServers": {"x-bookmarks": {"url": "https://xbookmarks.tamasgabor.com/api/mcp"}}}`.
+- **Debugging:** `npx @modelcontextprotocol/inspector` → Transport *Streamable HTTP* → the URL above.
+
+The first connection opens the normal login page (invite code + email → magic link). The magic link brings you straight back into the flow, then a **consent screen** asks you to allow the client read-only access. The client receives a 1-hour access token plus a refresh token, so it stays connected. Only invite-created accounts can finish this flow: the MCP server has no separate user list and adds no new way to create an account.
+
+### Tools
+
+| Tool | What it does | Quota |
+|---|---|---|
+| `search_bookmarks` | Hybrid keyword + semantic + reranked search, the same Worker pipeline as the web UI. Args: `query` (can include `from:`/`after:`/`before:` operators), `precision` (`exact`\|`broad`, default `broad`; broad also adds the LLM query rewrites, so Hungarian queries work), `limit` (1–60, default 20), `filter` (`all`\|`article`\|`media`\|`text`), and optional `from`/`after`/`before`. Returns ranked excerpts with `id`, `url`, author, date, likes/bookmarks and `score`. An operators-only query (e.g. `from:tom_doerr after:2026-08`) lists matches newest-first. | Counts against the **same 300/day search quota** as the web app. Operators-only listings are free. |
+| `get_bookmark` | One bookmark in full by `id`: post text, X Article title + markdown body, metrics, url. | Free |
+
+Both tools are read-only. `search_bookmarks` degrades to a plain substring match (and says so in `warnings`) if the search Worker is unreachable, like the web UI does.
+
+### How it works
+
+```text
+MCP client ──Bearer JWT──▶ /api/mcp  (Vercel, Next.js route)
+                             │ requireMcpAuth: verify JWT locally (JWKS) — issuer, audience=/api/mcp, expiry, scope bookmarks:read
+                             │ token `sub` = Better Auth user id → per-user quota (ai_usage_daily, "search")
+                             ▼
+                   lib/server/bookmark-service.ts
+                             │ operators + content filter + LLM rewrites (same helpers as the UI)
+                             ├─▶ Worker POST /search  (X-Proxy-Secret) → ranked {id, score}
+                             └─▶ Worker GET /archive  (X-Proxy-Secret) → archive, cached per instance for 5 min → hydrate ids into posts
+```
+
+- **Auth server = Better Auth.** `lib/auth.ts` adds `jwt()` (signs access tokens; keys in the `jwks` table), `mcp()` (the OAuth 2.1 provider, bound to the `/api/mcp` resource, with login at `/login` and consent at `/consent`) and `cimd()` (Client ID Metadata Documents, the MCP 2026-07-28 way for clients to identify themselves). Open Dynamic Client Registration is also on, for clients that don't support CIMD yet. Registering a client grants nothing: every token still needs an invite-gated login plus explicit consent.
+- **Discovery:** `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-authorization-server/api/auth` are served by `app/.well-known/[...path]` (forwarded to Better Auth).
+- **Transport:** `@modelcontextprotocol/server` v2 `createMcpHandler`. It serves the 2026-07-28 revision natively and falls back to per-request stateless serving for 2025-era clients. No session store is needed, which fits Vercel functions.
+- **No Worker change.** Ranking is identical to the web app's: the MCP path calls the same `/search` and `/archive` endpoints with the same secret. The filters the UI used to apply only in the browser (operators, content type) now live in `lib/bookmark-filters.ts`, shared by the UI and the server.
+
+Design notes, decisions and the validation log: **[docs/MCP-PLAN.md](docs/MCP-PLAN.md)**.
+
 ## Stack
 
 - Next.js `16` (App Router) · React `19` · Tailwind CSS `4`
 - Search: a Cloudflare Worker (Workers AI) running `bge-m3` semantic embeddings, `bge-reranker-base` cross-encoder rerank, and Lunr keyword search — no ML on the client
 - AI SDK v6 + `@ai-sdk/react` + AI Elements · OpenRouter (`@openrouter/ai-sdk-provider`)
+- Auth: Better Auth (magic link) + `@better-auth/mcp` / `@better-auth/cimd` (OAuth 2.1 for MCP clients) · MCP: `@modelcontextprotocol/server` v2
 - `motion` animations · Lucide icons · Vercel hosting
 
 ## Local Development
@@ -218,6 +272,8 @@ A global `bookmark-search` CLI (`scripts/bookmark-search.mjs`) also runs the sam
 
 The project is connected to Vercel and GitHub. Pushing to `main` updates production through Vercel's Git integration.
 
+**Schema changes ship before the code that needs them:** run `npm run db:migrate` against the production database *before* pushing (the MCP feature added the OAuth tables in `drizzle/0005_*.sql`; the migration only adds tables, so it's safe to run while the old app is live).
+
 ```bash
 vercel --prod   # manual production deploy
 ```
@@ -231,5 +287,5 @@ Because the live app calls the Worker through `/api/search` with a shared secret
 - The bookmark JSON is committed into the private repository (the data files are several MB; a large push may need `git config http.postBuffer 524288000`).
 - Search runs server-side on a Cloudflare Worker that embeds/reranks with Workers AI and fetches its index data from the static JSON hosted on Vercel; a Neon Postgres database backs auth, sessions, invites, quotas, and saved digests/chats.
 - Favorites and language are per-browser; saved digests and chats are DB-backed and sync across every device you sign in on.
-- Every Vercel server route (`/api/search`, `/api/digest`, `/api/chat`, `/api/expand`, the invite + auth routes) requires a session; the Cloudflare Worker's `/search` endpoint is reachable only through the authenticated `/api/search` proxy holding `SEARCH_PROXY_SECRET` — see [Search architecture](#search-architecture).
-- The raw bookmark JSON under `public/data/*` is still publicly fetchable (the Worker reads it cookie-less): the UI is private, but the archive files themselves are not gated. Locking them down would need an authenticated Worker→data fetch or private storage (R2 / Blob).
+- Every Vercel server route (`/api/search`, `/api/digest`, `/api/chat`, `/api/expand`, the invite + auth routes) requires a session, and `/api/mcp` requires an OAuth bearer token issued to a logged-in user; the Cloudflare Worker's `/search` endpoint is reachable only through the authenticated `/api/search` proxy holding `SEARCH_PROXY_SECRET` — see [Search architecture](#search-architecture).
+- The bookmark data is no longer publicly fetchable: it lives in a private R2 bucket, read only by the secret-gated Worker (see [docs/SYNC-AND-DEPLOY.md](docs/SYNC-AND-DEPLOY.md)).

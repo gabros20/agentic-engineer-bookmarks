@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { enforceQuota, requireUser } from "@/lib/api-guard";
+import { DAILY_SEARCH_LIMIT, enforceQuota, requireUser } from "@/lib/api-guard";
+import { forwardWorkerSearch, getWorkerConfig } from "@/lib/server/search-upstream";
 
 // Authenticated search proxy (T4). ALL search now flows through here: the browser
 // (lib/search-client.ts) POSTs same-origin to /api/search, this route checks the Better Auth
@@ -11,15 +12,13 @@ import { enforceQuota, requireUser } from "@/lib/api-guard";
 // verbatim. The real Worker URL and the secret live ONLY on the server (never NEXT_PUBLIC_*).
 export const runtime = "nodejs";
 
-// Per-user searches/day. Over this → 429 (the 301st search of a UTC day). Empty/whitespace
-// queries short-circuit to [] and do NOT consume quota (they never reach the Worker).
-const DAILY_SEARCH_LIMIT = 300;
-
-// Hard ceiling on the proxy→Worker round trip. Without it, a hung Worker (connected but silent
-// isolate, network black hole) would hold this Vercel function open to its maxDuration. On
-// timeout the fetch aborts and surfaces as the generic 502 below — fail fast, don't leak. Matches
-// the client's old SEARCH_TIMEOUT_MS so end-to-end timeout behavior is unchanged after the cutover.
-const WORKER_TIMEOUT_MS = 12000;
+// Per-user searches/day: DAILY_SEARCH_LIMIT (lib/api-guard — shared with the MCP search tool, which
+// draws from the SAME bucket). Over it → 429. Empty/whitespace queries short-circuit to [] and do
+// NOT consume quota (they never reach the Worker).
+//
+// The proxy→Worker round trip has a hard WORKER_SEARCH_TIMEOUT_MS ceiling (lib/server/search-
+// upstream): a hung Worker can't hold this function open to maxDuration. On timeout the fetch
+// aborts and surfaces as the generic 502 below — fail fast, don't leak.
 
 type SearchBody = {
   query?: unknown;
@@ -57,32 +56,22 @@ export async function POST(request: NextRequest) {
   if (overLimit) return overLimit;
 
   // 4. Forward to the Worker with the shared secret. The endpoint + secret are server-only.
-  const endpoint = process.env.SEARCH_ENDPOINT?.replace(/\/+$/, "");
-  const secret = process.env.SEARCH_PROXY_SECRET;
-  if (!endpoint || !secret) {
+  const worker = getWorkerConfig();
+  if (!worker) {
     return NextResponse.json({ error: "search misconfigured" }, { status: 500 });
   }
 
   try {
-    const res = await fetch(`${endpoint}/search`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "X-Proxy-Secret": secret },
-      body: JSON.stringify({ query, precision, rewrites, limit }),
-      // Abort a hung Worker so it can't hold this function open to maxDuration. On timeout the
-      // fetch rejects and drops into the catch below → generic 502 (a slow Worker fails fast).
-      // T7 M1: compose the timeout with the INCOMING request signal so an abandoned/superseded
-      // client search actually cancels the billable Workers-AI call upstream (the whole cost
-      // rationale of the proxy lockdown) instead of running to the 12s ceiling. Either the client
-      // aborting or the timeout firing rejects the fetch → the catch below returns the 502.
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(WORKER_TIMEOUT_MS)]),
-    });
+    // T7 M1: the INCOMING request signal is composed with the timeout, so an abandoned/superseded
+    // client search actually cancels the billable Workers-AI call upstream (the whole cost
+    // rationale of the proxy lockdown). Either firing rejects → the catch below returns the 502.
+    const { status, data } = await forwardWorkerSearch(worker, { query, precision, rewrites, limit }, request.signal);
     // Pass the Worker's JSON body + status through unchanged (the client depends on the exact
     // { results, phase } shape). A non-JSON body from the Worker is treated as a bad gateway.
-    const data = await res.json().catch(() => null);
     if (data === null) {
       return NextResponse.json({ error: "bad gateway" }, { status: 502 });
     }
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json(data, { status });
   } catch {
     // Network error / Worker unreachable → generic 502 (don't leak the endpoint or internals).
     return NextResponse.json({ error: "search upstream failed" }, { status: 502 });

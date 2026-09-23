@@ -1,10 +1,14 @@
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { magicLink } from "better-auth/plugins";
+import { jwt, magicLink } from "better-auth/plugins";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import { mcp } from "@better-auth/mcp";
 
 import { db } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/email";
+import { MCP_SCOPE } from "@/lib/mcp-scope";
 import {
   consumeInvite,
   emailMayReceiveMagicLink,
@@ -30,7 +34,41 @@ import {
 // step we own — consuming the invite — runs via `db.batch()` (see lib/invite).
 // ---------------------------------------------------------------------------
 
-const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+const baseURL = (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+
+// ---------------------------------------------------------------------------
+// MCP server authorization (app/api/mcp). Better Auth doubles as the OAuth 2.1
+// authorization server for MCP clients (Claude Code, claude.ai, Cursor, …):
+// `mcp()` is the OAuth provider bound to the MCP resource, `jwt()` signs the
+// resource-bound access tokens (JWKS at /api/auth/jwks), `cimd()` lets clients
+// identify themselves by a Client ID Metadata Document URL (MCP 2026-07-28).
+//
+// The invite gate is UNCHANGED: an OAuth authorization needs a Better Auth
+// session, which still only exists for invite-created accounts (magic link →
+// `user.create.before` above). Registering an OAuth client grants nothing by
+// itself — every client must go through that login + the /consent screen.
+// ---------------------------------------------------------------------------
+
+/** Canonical MCP protected-resource URL — the token audience; must match app/api/mcp. */
+export const MCP_RESOURCE = `${baseURL}/api/mcp`;
+export { MCP_SCOPE };
+
+/**
+ * RFC 8252 native-app redirect: http on an exact loopback host (the client's local callback
+ * listener, any port) or a private-use URI scheme. MCP clients like Claude Code, Cursor and the
+ * MCP Inspector register with these but usually OMIT `application_type`, which Better Auth then
+ * defaults to "web" — and web clients may not use loopback redirects, so the registration 400s.
+ */
+function isNativeRedirectUri(uri: unknown): boolean {
+  if (typeof uri !== "string") return false;
+  try {
+    const url = new URL(uri);
+    if (url.protocol === "http:") return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    return url.protocol !== "https:";
+  } catch {
+    return false;
+  }
+}
 
 export const auth = betterAuth({
   baseURL,
@@ -40,6 +78,19 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 days
     updateAge: 60 * 60 * 24, // refresh at most once per day
+  },
+  hooks: {
+    // MCP dynamic client registration: infer `application_type: "native"` when the client didn't
+    // say, and EVERY redirect URI is a native-app redirect (see isNativeRedirectUri). Mixed or
+    // https lists keep Better Auth's default ("web") and its strict validation. Registration still
+    // grants nothing by itself (login + consent required), and native clients get no secret.
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/oauth2/register") return;
+      const body = ctx.body as { application_type?: unknown; redirect_uris?: unknown } | undefined;
+      if (!body || body.application_type !== undefined || !Array.isArray(body.redirect_uris)) return;
+      if (!body.redirect_uris.length || !body.redirect_uris.every(isNativeRedirectUri)) return;
+      return { context: { ...ctx, body: { ...body, application_type: "native" } } };
+    }),
   },
   databaseHooks: {
     user: {
@@ -134,5 +185,20 @@ export const auth = betterAuth({
         await sendMagicLinkEmail({ email, url });
       },
     }),
+    jwt(),
+    mcp({
+      resource: MCP_RESOURCE,
+      // /login resumes the authorize request via the magic link's callbackURL (components/
+      // login-form.tsx); /consent is the allow/deny screen (app/consent).
+      loginPage: "/login",
+      consentPage: "/consent",
+      scopes: ["openid", "profile", "email", "offline_access", MCP_SCOPE],
+      // Open RFC 7591 registration, alongside CIMD, so MCP clients that don't do CIMD yet can
+      // still connect. Safe here: registration yields no access on its own — a token still needs
+      // an invite-gated account's login AND explicit consent.
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+    }),
+    cimd({ fetchClientMetadataResource, metadataProfile: "mcp-2026-07-28" }),
   ],
 });
