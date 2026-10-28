@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "flag-icons/css/flag-icons.min.css";
 
 :root {
@@ -7,28 +8,31 @@
   /* Neutral monochrome palette (2026-10 redesign). Ink is the accent: active chips, primary
      buttons and focus all use it. Token NAMES are kept from the earlier warm palette so every
      panel/component re-themes without per-file edits; dark values are redefined below. */
+  /* Tailwind zinc scale. --color-page is the app background (light gray); --color-canvas is the
+     raised surface on top of it: cards, panels, sheets, menus, inputs (white). */
+  --color-page: #f4f4f5; /* zinc-100 */
   --color-canvas: #ffffff;
-  --color-surface-soft: #fafafa;
-  --color-surface-card: #f4f4f5;
-  --color-surface-cream-strong: #e9e9eb;
+  --color-surface-soft: #fafafa; /* zinc-50 */
+  --color-surface-card: #f4f4f5; /* zinc-100 */
+  --color-surface-cream-strong: #e4e4e7; /* zinc-200 */
   /* "dark" surfaces are the INVERSE surface (dark on light, light on dark). */
-  --color-surface-dark: #09090b;
-  --color-surface-dark-elevated: #18181b;
-  --color-surface-dark-soft: #27272a;
-  --color-hairline: #e4e4e7;
-  --color-hairline-soft: #efeff1;
+  --color-surface-dark: #09090b; /* zinc-950 */
+  --color-surface-dark-elevated: #18181b; /* zinc-900 */
+  --color-surface-dark-soft: #27272a; /* zinc-800 */
+  --color-hairline: #e4e4e7; /* zinc-200 */
+  --color-hairline-soft: #f4f4f5; /* zinc-100 */
 
-  --color-primary: #09090b;
-  --color-primary-active: #27272a;
+  --color-primary: #09090b; /* zinc-950 */
+  --color-primary-active: #27272a; /* zinc-800 */
   --color-primary-disabled: #e4e4e7;
   --color-accent-teal: #0d9488;
   --color-accent-amber: #d97706;
 
-  --color-ink: #09090b;
-  --color-body-strong: #18181b;
-  --color-body: #3f3f46;
-  --color-muted: #71717a;
-  --color-muted-soft: #a1a1aa;
+  --color-ink: #09090b; /* zinc-950 */
+  --color-body-strong: #18181b; /* zinc-900 */
+  --color-body: #3f3f46; /* zinc-700 */
+  --color-muted: #71717a; /* zinc-500 */
+  --color-muted-soft: #a1a1aa; /* zinc-400 */
   --color-on-primary: #ffffff;
   --color-on-dark: #fafafa;
   --color-on-dark-soft: #a1a1aa;
@@ -43,7 +47,7 @@
   --shadow-float: 0 8px 30px rgb(9 9 11 / 0.12);
 
   /* Aliases used by Next defaults. */
-  --background: var(--color-canvas);
+  --background: var(--color-page);
   --foreground: var(--color-ink);
 
   /* shadcn/ui semantic tokens mapped to the Anthropic palette.
@@ -75,25 +79,26 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-canvas: #09090b;
-    --color-surface-soft: #0f0f11;
-    --color-surface-card: #18181b;
-    --color-surface-cream-strong: #27272a;
+    --color-page: #09090b; /* zinc-950 */
+    --color-canvas: #18181b; /* zinc-900 */
+    --color-surface-soft: #27272a; /* zinc-800 */
+    --color-surface-card: #27272a; /* zinc-800 */
+    --color-surface-cream-strong: #3f3f46; /* zinc-700 */
     --color-surface-dark: #fafafa;
     --color-surface-dark-elevated: #e4e4e7;
     --color-surface-dark-soft: #d4d4d8;
-    --color-hairline: #27272a;
-    --color-hairline-soft: #1f1f23;
-    --color-primary: #fafafa;
-    --color-primary-active: #d4d4d8;
-    --color-primary-disabled: #27272a;
+    --color-hairline: #3f3f46; /* zinc-700 */
+    --color-hairline-soft: #27272a; /* zinc-800 */
+    --color-primary: #fafafa; /* zinc-50 */
+    --color-primary-active: #e4e4e7; /* zinc-200 */
+    --color-primary-disabled: #3f3f46;
     --color-accent-teal: #2dd4bf;
     --color-accent-amber: #fbbf24;
-    --color-ink: #fafafa;
-    --color-body-strong: #e4e4e7;
-    --color-body: #d4d4d8;
-    --color-muted: #a1a1aa;
-    --color-muted-soft: #71717a;
+    --color-ink: #fafafa; /* zinc-50 */
+    --color-body-strong: #f4f4f5; /* zinc-100 */
+    --color-body: #d4d4d8; /* zinc-300 */
+    --color-muted: #a1a1aa; /* zinc-400 */
+    --color-muted-soft: #71717a; /* zinc-500 */
     --color-on-primary: #09090b;
     --color-on-dark: #09090b;
     --color-on-dark-soft: #52525b;
@@ -108,25 +113,26 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-canvas: #09090b;
-  --color-surface-soft: #0f0f11;
-  --color-surface-card: #18181b;
-  --color-surface-cream-strong: #27272a;
+  --color-page: #09090b; /* zinc-950 */
+  --color-canvas: #18181b; /* zinc-900 */
+  --color-surface-soft: #27272a; /* zinc-800 */
+  --color-surface-card: #27272a; /* zinc-800 */
+  --color-surface-cream-strong: #3f3f46; /* zinc-700 */
   --color-surface-dark: #fafafa;
   --color-surface-dark-elevated: #e4e4e7;
   --color-surface-dark-soft: #d4d4d8;
-  --color-hairline: #27272a;
-  --color-hairline-soft: #1f1f23;
-  --color-primary: #fafafa;
-  --color-primary-active: #d4d4d8;
-  --color-primary-disabled: #27272a;
+  --color-hairline: #3f3f46; /* zinc-700 */
+  --color-hairline-soft: #27272a; /* zinc-800 */
+  --color-primary: #fafafa; /* zinc-50 */
+  --color-primary-active: #e4e4e7; /* zinc-200 */
+  --color-primary-disabled: #3f3f46;
   --color-accent-teal: #2dd4bf;
   --color-accent-amber: #fbbf24;
-  --color-ink: #fafafa;
-  --color-body-strong: #e4e4e7;
-  --color-body: #d4d4d8;
-  --color-muted: #a1a1aa;
-  --color-muted-soft: #71717a;
+  --color-ink: #fafafa; /* zinc-50 */
+  --color-body-strong: #f4f4f5; /* zinc-100 */
+  --color-body: #d4d4d8; /* zinc-300 */
+  --color-muted: #a1a1aa; /* zinc-400 */
+  --color-muted-soft: #71717a; /* zinc-500 */
   --color-on-primary: #09090b;
   --color-on-dark: #09090b;
   --color-on-dark-soft: #52525b;
@@ -212,9 +218,70 @@ h4,
   display: none;
 }
 
+/* Semantic-search loader (mymind-style): an iridescent border that slowly rotates around the
+   "more results are coming" card, and a light sweep along the search underline. */
+@property --loader-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.search-loader-card {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--color-canvas), var(--color-canvas)) padding-box,
+    conic-gradient(from var(--loader-angle), #a78bfa, #38bdf8, #fcd34d, #fb7185, #a78bfa) border-box;
+  animation: loader-rotate 2.6s linear infinite;
+}
+
+.search-loader-sweep {
+  background: linear-gradient(90deg, transparent, #a78bfa, #38bdf8, #fb7185, transparent);
+  background-size: 45% 100%;
+  background-repeat: no-repeat;
+  animation: loader-sweep 1.3s ease-in-out infinite;
+}
+
+.search-loader-text {
+  background: linear-gradient(90deg, var(--color-muted) 0%, var(--color-ink) 50%, var(--color-muted) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: loader-shimmer 1.8s linear infinite;
+}
+
+@keyframes loader-rotate {
+  to {
+    --loader-angle: 360deg;
+  }
+}
+
+@keyframes loader-sweep {
+  from {
+    background-position: -50% 0;
+  }
+  to {
+    background-position: 150% 0;
+  }
+}
+
+@keyframes loader-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .search-loader-card,
+  .search-loader-sweep,
+  .search-loader-text {
+    animation-duration: 6s;
   }
 }
 
