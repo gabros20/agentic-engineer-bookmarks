@@ -752,7 +752,7 @@ export function BookmarksApp() {
           }`}
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <div className={`${shell} flex h-14 items-center gap-2`}>
+          <div className={`${shell} relative flex h-14 items-center gap-2`}>
             <button
               type="button"
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -770,12 +770,14 @@ export function BookmarksApp() {
                   key="compact-search"
                   type="button"
                   onClick={focusSearch}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
+                  // Centered on the header itself, not in the leftover space between logo and
+                  // actions. Motion owns `transform`, so the -50% centering goes through `x`.
+                  initial={{ opacity: 0, y: -6, x: "-50%" }}
+                  animate={{ opacity: 1, y: 0, x: "-50%" }}
+                  exit={{ opacity: 0, y: -6, x: "-50%" }}
                   transition={{ duration: 0.2 }}
                   aria-label={t("nav.searchHint")}
-                  className="mx-auto hidden h-9 w-full max-w-sm items-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-3.5 text-sm text-[color:var(--color-muted)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-[color:var(--color-hairline)]/60 transition hover:text-[color:var(--color-ink)] md:flex"
+                  className="absolute left-1/2 top-1/2 -mt-[18px] hidden h-9 w-[min(26rem,36vw)] items-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-3.5 text-sm text-[color:var(--color-muted)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-[color:var(--color-hairline)]/60 transition hover:text-[color:var(--color-ink)] md:flex"
                 >
                   <Search size={15} />
                   <span className="truncate">{query || t("search.hero", { n: number(posts.length) })}</span>
