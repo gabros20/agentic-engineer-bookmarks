@@ -2,15 +2,13 @@
 
 import { ArrowDownUp, ArrowUp, Bookmark as BookmarkIcon, Layers, ListOrdered, LogOut, MessagesSquare, MoreHorizontal, Search, SearchX, Sparkles, X as XIcon } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookmarkCard } from "@/components/bookmark-card";
-import { BookmarkDetail } from "@/components/bookmark-detail";
-import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
-import { DigestPanel } from "@/components/digest-panel";
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { BookmarkCard, estimateCardHeight } from "@/components/bookmark-card";
+import { MasonryGrid, type MasonryEntry } from "@/components/masonry-grid";
+import type { ChatContextSnapshot } from "@/components/command-k-chat";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { SavedChatsPanel } from "@/components/saved-chats-panel";
-import { SavedDigestsPanel } from "@/components/saved-digests-panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +36,7 @@ import type { DataWorkerMessage } from "@/lib/data-worker";
 import { clearArchiveCache } from "@/lib/archive-cache";
 import { useLanguage, type MessageKey } from "@/lib/i18n";
 import { useTheme, type ThemePref } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@/lib/query-operators";
 import type { UIMessage } from "ai";
 import { type SearchPrecision } from "@/lib/bookmark-search";
@@ -56,7 +55,9 @@ import { searchViaWorker, SearchQuotaError } from "@/lib/search-client";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
-const PAGE_SIZE = 240;
+// Cards rendered per page; infinite scroll adds more well before the end. Kept small because a
+// new result set REMOUNTS every card (motion + images), which is what made typing heavy on phones.
+const PAGE_SIZE = 48;
 // T1 (digest engine upgrade): the digest CTA re-queries the Worker at this depth (deeper +
 // reranked) instead of clustering the 30/PAGE_SIZE-limited posts currently on screen.
 const DIGEST_SOURCE_LIMIT = 50;
@@ -106,6 +107,20 @@ function formatOperatorDate(date: Date) {
   return d === 1 ? `${y}-${m}` : `${y}-${m}-${String(d).padStart(2, "0")}`;
 }
 
+// Open-on-demand panels are split out of the first-load bundle (it was 3.3 MB raw / 916 KB gzip,
+// mostly the chat's Streamdown + mermaid/math/code renderers). The light ones are prefetched
+// when the browser goes idle; the heavy chat on intent (hovering/focusing Ask, or ⌘K).
+const loadDetail = () => import("@/components/bookmark-detail");
+const loadChat = () => import("@/components/command-k-chat");
+const loadDigest = () => import("@/components/digest-panel");
+const loadSavedDigests = () => import("@/components/saved-digests-panel");
+const loadSavedChats = () => import("@/components/saved-chats-panel");
+const BookmarkDetail = dynamic(() => loadDetail().then((m) => m.BookmarkDetail), { ssr: false });
+const CommandKChat = dynamic(() => loadChat().then((m) => m.CommandKChat), { ssr: false });
+const DigestPanel = dynamic(() => loadDigest().then((m) => m.DigestPanel), { ssr: false });
+const SavedDigestsPanel = dynamic(() => loadSavedDigests().then((m) => m.SavedDigestsPanel), { ssr: false });
+const SavedChatsPanel = dynamic(() => loadSavedChats().then((m) => m.SavedChatsPanel), { ssr: false });
+
 // Filter-rail scopes, in display order. ("media" = photos ∪ videos is still a valid `scope`
 // value, it just isn't offered as a chip.)
 const SCOPES: Array<{ value: string; label: MessageKey }> = [
@@ -126,6 +141,9 @@ function inScope(post: BookmarkPost, scope: string, favorites: Set<string>) {
   if (scope === "text") return !post.media?.length && !post.articleTitle;
   return true;
 }
+
+// Header row height (h-16). The filter rail sticks right under it.
+const HEADER_PX = 64;
 
 const compactFormatter = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
@@ -174,8 +192,13 @@ export function BookmarksApp() {
   // Detail sheet: the open post + which way we stepped into it (drives the slide direction).
   const [detail, setDetail] = useState<{ id: string; direction: number } | null>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [heroVisible, setHeroVisible] = useState(true);
+  // True once the big hero search has slid under the header: the floating search takes over.
+  const [condensed, setCondensed] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const floatingRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLElement>(null);
+  const railRef = useRef<HTMLElement>(null);
+  const pinResultsUntil = useRef(0);
   const heroRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { pref: themePref, setPref: setThemePref } = useTheme();
@@ -230,14 +253,38 @@ export function BookmarksApp() {
     void refreshCounts();
   }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen, refreshCounts]);
 
+  // One rAF-throttled scroll reader drives all scroll-dependent chrome. The floating search
+  // condenses when the hero input slides under the header, with a 24px dead zone: the old
+  // IntersectionObserver mount/unmount toggled back and forth at the edge (the flicker).
   useEffect(() => {
-    const onScroll = () => {
-      setShowScrollTop(window.scrollY > 400);
-      setScrolled(window.scrollY > 8);
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY;
+      setShowScrollTop(y > 400);
+      setScrolled(y > 8);
+      const bottom = heroRef.current?.getBoundingClientRect().bottom ?? Number.POSITIVE_INFINITY;
+      setCondensed((current) => (current ? bottom < HEADER_PX + 12 : bottom < HEADER_PX - 12));
     };
-    onScroll();
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    // The user taking over the scroll releases a jump-to-results pin (see the effect below).
+    const release = () => {
+      pinResultsUntil.current = 0;
+    };
+    update();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("wheel", release, { passive: true });
+    window.addEventListener("touchstart", release, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("wheel", release);
+      window.removeEventListener("touchstart", release);
+    };
   }, []);
 
   // ⌘K / Ctrl+K to toggle the chat. The app is behind login, so no extra gate — open directly.
@@ -292,7 +339,12 @@ export function BookmarksApp() {
   // every `from:`/`before:`/`after:` token stripped out — this is what gets debounced below
   // and threaded through the whole rewrite-fetch + embed + hybrid-pipeline + rerank chain in
   // the search effect, so operator tokens never reach the embedder or /api/expand.
-  const parsedQuery = useMemo(() => parseQueryOperators(query), [query]);
+  //
+  // Typing stays urgent and everything derived from the query runs on a DEFERRED copy: React
+  // renders the keystroke first and computes/renders results as an interruptible background
+  // render, so a slow results pass never delays the next character (notably on phones).
+  const deferredQuery = useDeferredValue(query);
+  const parsedQuery = useMemo(() => parseQueryOperators(deferredQuery), [deferredQuery]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(parsedQuery.text), SEARCH_DEBOUNCE_MS);
@@ -327,9 +379,41 @@ export function BookmarksApp() {
 
   useEffect(() => {
     setVisibleLimit(PAGE_SIZE);
-  }, [query, scope, sort]);
+    // Searching/filtering from deep in the grid (floating search): bring the new top results
+    // into view with the filter rail exactly in its stuck position under the header. No-op when
+    // the grid top is already visible.
+    // Measured after layout settles (two frames: rows above the grid, e.g. the AI actions, get
+    // their height from motion a frame after commit) and again at 350ms. A jump "pins" the
+    // results for 600ms so follow-up re-runs (a query auto-switches the sort to relevance) keep
+    // them aligned; any wheel/touch from the user releases the pin.
+    const align = () => {
+      const grid = gridRef.current;
+      if (!grid) return;
+      const rail = railRef.current?.offsetHeight ?? 60;
+      const top = Math.round(grid.getBoundingClientRect().top + window.scrollY - (HEADER_PX + rail));
+      const pinned = performance.now() < pinResultsUntil.current;
+      if (window.scrollY > top + 1 || (pinned && Math.abs(window.scrollY - top) > 1)) {
+        window.scrollTo({ top, behavior: "instant" });
+        pinResultsUntil.current = performance.now() + 600;
+      }
+    };
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(align);
+    });
+    const recheck = window.setTimeout(align, 350);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(recheck);
+    };
+  }, [deferredQuery, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
+
+  // Built once per archive load, not per keystroke: the lowercased substring haystack (it joins
+  // article bodies, so rebuilding it re-processed ~the whole 12 MB archive on every key) and the
+  // post timestamp (the sort comparator used to re-parse date strings ~180k times per pass).
+  const haystacks = useMemo(() => new Map(posts.map((post) => [post.id, searchable(post)])), [posts]);
+  const timestamps = useMemo(() => new Map(posts.map((post) => [post.id, byDate(post)])), [posts]);
 
   // T1 (digest engine upgrade): id -> post lookup used to map the Worker's deep re-query
   // ranked ids (digest CTA) back onto already-loaded posts, same pattern as runChatSearch's
@@ -368,9 +452,12 @@ export function BookmarksApp() {
       .then((rewrites) => searchViaWorker({ query: q, precision, rewrites, signal: controller.signal }))
       .then((results) => {
         if (cancelled) return;
-        setHybridResults(new Map(results.map((result) => [result.id, result.score])));
-        setSettledQuery(q);
-        setSearchStatusKey("status.results");
+        // A results swap re-renders the grid: keep it a transition so typing preempts it.
+        startTransition(() => {
+          setHybridResults(new Map(results.map((result) => [result.id, result.score])));
+          setSettledQuery(q);
+          setSearchStatusKey("status.results");
+        });
       })
       .catch((err) => {
         // Stale/aborted requests (a newer query superseded this one, or unmount) are not
@@ -422,9 +509,9 @@ export function BookmarksApp() {
     return q
       ? activeHybrid
         ? operatorScoped.filter((post) => activeHybrid.has(post.id))
-        : operatorScoped.filter((post) => searchable(post).includes(q))
+        : operatorScoped.filter((post) => haystacks.get(post.id)?.includes(q))
       : operatorScoped;
-  }, [activeHybrid, posts, parsedQuery]);
+  }, [activeHybrid, posts, parsedQuery, haystacks]);
 
   const scopeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -448,12 +535,12 @@ export function BookmarksApp() {
       if (q && activeHybrid && sort === "relevance") {
         return (activeHybrid.get(b.id) ?? 0) - (activeHybrid.get(a.id) ?? 0);
       }
-      if (sort === "oldest") return byDate(a) - byDate(b);
+      if (sort === "oldest") return (timestamps.get(a.id) ?? 0) - (timestamps.get(b.id) ?? 0);
       if (sort === "bookmarks") return (b.metrics?.bookmarks ?? 0) - (a.metrics?.bookmarks ?? 0);
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
-      return byDate(b) - byDate(a);
+      return (timestamps.get(b.id) ?? 0) - (timestamps.get(a.id) ?? 0);
     });
-  }, [favorites, activeHybrid, matchedPosts, parsedQuery, scope, sort]);
+  }, [favorites, activeHybrid, matchedPosts, parsedQuery, scope, sort, timestamps]);
 
   // T4.1: human-readable stand-in for `query` at digest/chat call sites — residual text +
   // a parenthesized operator suffix, e.g. `agents (from:simonw, after:2026-03)`. Keeps
@@ -581,7 +668,7 @@ export function BookmarksApp() {
       // Same graceful degradation as the main search effect: cheap substring filter over
       // loaded posts (score 0 keeps the archive's natural order — good enough offline).
       const ql = q.toLowerCase();
-      ranked = posts.filter((post) => searchable(post).includes(ql)).map((post) => ({ id: post.id, score: 0 }));
+      ranked = posts.filter((post) => haystacks.get(post.id)?.includes(ql)).map((post) => ({ id: post.id, score: 0 }));
     }
     const ids = new Set(ranked.map((r) => r.id));
     const score = new Map(ranked.map((r) => [r.id, r.score]));
@@ -638,10 +725,24 @@ export function BookmarksApp() {
     [t],
   );
 
+  // Focus whichever search is on screen; the floating one searches in place (no jump to top).
   const focusSearch = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    // preventScroll: the smooth scroll above owns the motion; focus would otherwise jump.
-    window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 250);
+    (condensed ? floatingRef : searchRef).current?.focus({ preventScroll: true });
+  }, [condensed]);
+
+  useEffect(() => {
+    const prefetch = () => {
+      void loadDetail();
+      void loadSavedDigests();
+      void loadSavedChats();
+      void loadDigest();
+    };
+    if ("requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(prefetch, { timeout: 5000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(prefetch, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   // "/" focuses the search from anywhere (unless typing or a panel is open).
@@ -657,17 +758,6 @@ export function BookmarksApp() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [detail, chatOpen, digestOpen, savedOpen, chatHistoryOpen, focusSearch]);
-
-  // Once the big search scrolls away, the header offers a compact search shortcut.
-  useEffect(() => {
-    const node = heroRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(([entry]) => setHeroVisible(entry.isIntersecting), {
-      rootMargin: "-56px 0px 0px 0px",
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
 
   // Infinite scroll: grow the rendered page well before the user reaches the end.
   const hasMore = visiblePosts.length > displayedPosts.length;
@@ -741,18 +831,33 @@ export function BookmarksApp() {
 
   const shell = "mx-auto w-full max-w-[1800px] px-3 sm:px-6 lg:px-10";
 
+  const gridEntries: MasonryEntry[] = [
+    ...(semanticPending ? [{ key: "search-loader", estimate: () => 200, render: () => <SearchLoaderCard /> }] : []),
+    ...displayedPosts.map((post) => ({
+      key: post.id,
+      estimate: (width: number) => estimateCardHeight(post, width),
+      render: () => (
+        <BookmarkCard post={post} isFavorite={favorites.has(post.id)} onToggleFavorite={toggleFavorite} onOpen={openDetail} />
+      ),
+    })),
+  ];
+
   return (
     <MotionConfig reducedMotion="user">
       <main className="min-h-screen w-full bg-[color:var(--color-page)] text-[color:var(--color-body)]">
-        <header
-          className={`sticky top-0 z-30 border-b transition-[background-color,border-color] duration-300 ${
-            scrolled
-              ? "border-[color:var(--color-hairline)]/70 bg-[color:var(--color-page)]/80 backdrop-blur-xl"
-              : "border-transparent bg-[color:var(--color-page)]"
-          }`}
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        {/* ONE backdrop behind the header AND the filter rail (they used to blur separately and
+            read as two stacked panels). Fixed under both: page color + blur, fading out downward. */}
+        <div
+          aria-hidden
+          className={`pointer-events-none fixed inset-x-0 top-0 z-20 transition-opacity duration-500 ${scrolled ? "opacity-100" : "opacity-0"}`}
+          style={{ height: "calc(env(safe-area-inset-top) + 9.75rem)" }}
         >
-          <div className={`${shell} flex h-14 items-center gap-2`}>
+          <div className="absolute inset-0 backdrop-blur-xl [-webkit-mask-image:linear-gradient(to_bottom,#000_70%,transparent)] [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,var(--color-page)_0%,color-mix(in_srgb,var(--color-page)_90%,transparent)_55%,transparent_100%)]" />
+        </div>
+
+        <header className="sticky top-0 z-30" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className={`${shell} relative flex h-16 items-center gap-2`}>
             <button
               type="button"
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -761,56 +866,81 @@ export function BookmarksApp() {
               <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]">
                 <BookmarkIcon size={14} fill="currentColor" />
               </span>
-              <span className="truncate font-display text-[21px] leading-none text-[color:var(--color-ink)]">{t("app.title")}</span>
+              <span
+                className={`truncate font-display text-[21px] leading-none text-[color:var(--color-ink)] transition-opacity duration-300 ${
+                  condensed ? "max-sm:opacity-0" : ""
+                }`}
+              >
+                {t("app.title")}
+              </span>
             </button>
 
-            <AnimatePresence>
-              {heroVisible ? null : (
-                <motion.button
-                  key="compact-search"
-                  type="button"
-                  onClick={focusSearch}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.2 }}
-                  aria-label={t("nav.searchHint")}
-                  className="mx-auto hidden h-9 w-full max-w-sm items-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-3.5 text-sm text-[color:var(--color-muted)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-[color:var(--color-hairline)]/60 transition hover:text-[color:var(--color-ink)] md:flex"
-                >
-                  <Search size={15} />
-                  <span className="truncate">{query || t("search.hero", { n: number(posts.length) })}</span>
-                  <kbd className="ml-auto rounded border border-[color:var(--color-hairline)] px-1.5 font-mono text-[10px]">/</kbd>
-                </motion.button>
-              )}
-            </AnimatePresence>
+            {/* Floating search: always mounted, so condensing is a pure opacity/translate/scale
+                transition (compositor-only, no remount). Bound to the same query as the hero. */}
+            <div
+              aria-hidden={!condensed}
+              className={`absolute left-[3.25rem] right-[5.75rem] top-[calc(50%-1.375rem)] h-11 transition-[opacity,translate,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:left-1/2 sm:right-auto sm:top-[calc(50%-1.5rem)] sm:h-12 sm:w-[min(40rem,46vw)] sm:-translate-x-1/2 ${
+                condensed ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-2 scale-[0.97] opacity-0"
+              }`}
+            >
+              <div className="relative flex h-full items-center gap-2.5 overflow-hidden rounded-full bg-[color:var(--color-canvas)] pl-4 pr-1.5 shadow-[var(--shadow-float)] ring-1 ring-[color:var(--color-hairline)]/60 transition-shadow focus-within:ring-[color:var(--color-ink)]/25">
+                <Search size={17} className="shrink-0 text-[color:var(--color-muted)]" />
+                <input
+                  ref={floatingRef}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      if (query) setQuery("");
+                      else event.currentTarget.blur();
+                    }
+                  }}
+                  type="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  tabIndex={condensed ? 0 : -1}
+                  aria-label={t("search.placeholder")}
+                  placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
+                  className="h-full min-w-0 flex-1 appearance-none bg-transparent font-display text-[18px] text-[color:var(--color-ink)] outline-none placeholder:italic placeholder:text-[color:var(--color-muted-soft)] sm:text-[21px] [&::-webkit-search-cancel-button]:hidden"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    tabIndex={condensed ? 0 : -1}
+                    onClick={() => {
+                      setQuery("");
+                      floatingRef.current?.focus();
+                    }}
+                    aria-label={t("search.clear")}
+                    className="grid size-8 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                  >
+                    <XIcon size={15} />
+                  </button>
+                ) : (
+                  <kbd className="mr-2 hidden shrink-0 rounded-md border border-[color:var(--color-hairline)] px-1.5 font-mono text-[11px] text-[color:var(--color-muted)] sm:block">/</kbd>
+                )}
+                <SearchSweep active={semanticPending && condensed} className="inset-x-6 bottom-0 h-[3px]" />
+              </div>
+            </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
-              <AnimatePresence>
-                {heroVisible ? null : (
-                  <motion.button
-                    key="compact-search-mobile"
-                    type="button"
-                    onClick={focusSearch}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    aria-label={t("nav.searchHint")}
-                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)] md:hidden"
-                  >
-                    <Search size={17} />
-                  </motion.button>
-                )}
-              </AnimatePresence>
-
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.95 }}
                 onClick={openChat}
+                onPointerEnter={() => void loadChat()}
+                onFocus={() => void loadChat()}
+                onTouchStart={() => void loadChat()}
                 title={t("chat.openHint")}
-                className="flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--color-primary)] pl-3 pr-3.5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)]"
+                aria-label={t("nav.ask")}
+                className={`flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--color-primary)] pl-3 pr-3.5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] ${
+                  condensed ? "max-sm:px-2.5" : ""
+                }`}
               >
                 <Sparkles size={14} />
-                {t("nav.ask")}
+                <span className={condensed ? "max-sm:hidden" : undefined}>{t("nav.ask")}</span>
                 <kbd className="ml-0.5 hidden rounded bg-[color:var(--color-on-primary)]/15 px-1.5 py-px font-mono text-[10px] lg:inline">⌘K</kbd>
               </motion.button>
 
@@ -893,18 +1023,7 @@ export function BookmarksApp() {
               placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
               className="w-full appearance-none rounded-none border-b border-[color:var(--color-hairline)] bg-transparent pb-3 pr-11 font-display text-[32px] leading-[1.15] text-[color:var(--color-ink)] caret-[color:var(--color-ink)] outline-none transition-colors duration-300 placeholder:italic placeholder:text-[color:var(--color-muted-soft)] focus:border-[color:var(--color-ink)] sm:text-[52px] lg:text-[60px] [&::-webkit-search-cancel-button]:hidden"
             />
-            <AnimatePresence>
-              {semanticPending ? (
-                <motion.span
-                  key="sweep"
-                  aria-hidden
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="search-loader-sweep pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full"
-                />
-              ) : null}
-            </AnimatePresence>
+            <SearchSweep active={semanticPending} className="inset-x-0 -bottom-[2px]" />
             <div className="absolute bottom-3.5 right-0 sm:bottom-5">
               <AnimatePresence mode="wait" initial={false}>
                 {query ? (
@@ -974,41 +1093,19 @@ export function BookmarksApp() {
             <p aria-live="polite" className={`truncate text-[13px] tabular-nums ${error ? "text-[color:var(--color-error)]" : "text-[color:var(--color-muted)]"}`}>
               {semanticPending ? <span className="search-loader-text">{statusLine}</span> : statusLine}
             </p>
-            <div
-              role="group"
-              aria-label={t("search.precision.aria")}
-              className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-cream-strong)]/70 p-0.5 text-xs font-medium"
-            >
-              {(["exact", "broad"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPrecision(value)}
-                  aria-pressed={precision === value}
-                  className={`relative h-7 rounded-full px-3 transition-colors ${
-                    precision === value ? "text-[color:var(--color-ink)]" : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
-                  }`}
-                >
-                  {precision === value ? (
-                    <motion.span
-                      layoutId="precision-active"
-                      className="absolute inset-0 rounded-full bg-[color:var(--color-canvas)] shadow-sm"
-                      transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                    />
-                  ) : null}
-                  <span className="relative">{value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}</span>
-                </button>
-              ))}
-            </div>
+            <PrecisionToggle value={precision} onChange={setPrecision} />
           </div>
 
           <AnimatePresence initial={false}>
             {displayQuery && visiblePosts.length > 0 ? (
               <motion.div
                 key="ai-ctas"
-                initial={{ opacity: 0, height: 0 }}
+                // Scrolled away (floating search in use) it appears/disappears instantly: an
+                // animated height change above the grid would push the results down after the
+                // jump-to-results scroll has already measured them.
+                initial={condensed ? false : { opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
+                exit={condensed ? { opacity: 0, height: 0, transition: { duration: 0 } } : { opacity: 0, height: 0 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="overflow-hidden"
               >
@@ -1045,8 +1142,9 @@ export function BookmarksApp() {
 
         <nav
           aria-label={t("scope.all")}
-          className="sticky z-20 bg-[color:var(--color-page)]/85 backdrop-blur-xl"
-          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+          ref={railRef}
+          className="sticky z-30"
+          style={{ top: "calc(4rem + env(safe-area-inset-top))" }}
         >
           <div className={`${shell} flex items-center gap-2 py-3`}>
             <div className="no-scrollbar -mx-3 flex min-w-0 flex-1 snap-x scroll-px-3 items-center gap-1.5 overflow-x-auto px-3 [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] sm:mx-0 sm:scroll-px-0 sm:px-0 sm:[mask-image:none]">
@@ -1058,19 +1156,14 @@ export function BookmarksApp() {
                     type="button"
                     onClick={() => setScope(value)}
                     aria-pressed={active}
-                    className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
+                    // Plain CSS color transition, not a motion layoutId pill: the counts change on
+                    // every keystroke, and layout projection re-measured the page each time.
+                    className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color] duration-200 ${
                       active
-                        ? "text-[color:var(--color-on-primary)]"
+                        ? "bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]"
                         : "bg-[color:var(--color-canvas)] text-[color:var(--color-body-strong)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:bg-[color:var(--color-surface-cream-strong)]"
                     }`}
                   >
-                    {active ? (
-                      <motion.span
-                        layoutId="scope-active"
-                        className="absolute inset-0 rounded-full bg-[color:var(--color-primary)]"
-                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                      />
-                    ) : null}
                     <span className="relative">{t(label)}</span>
                     {payload !== null ? (
                       <span className="relative text-[11px] tabular-nums opacity-55">{compactFormatter.format(scopeCounts[value] ?? 0)}</span>
@@ -1097,10 +1190,8 @@ export function BookmarksApp() {
         </nav>
 
         {error ? null : payload === null ? (
-          <section aria-busy="true" className={`${shell} columns-2 gap-2.5 pb-10 pt-1 sm:columns-[17.5rem] sm:gap-4`}>
-            {Array.from({ length: 12 }).map((_, i) => (
-              <CardSkeleton key={i} index={i} />
-            ))}
+          <section aria-busy="true" className={`${shell} pb-10 pt-1`}>
+            <MasonryGrid entries={skeletonEntries} />
           </section>
         ) : visiblePosts.length === 0 && !semanticPending ? (
           <motion.section
@@ -1121,17 +1212,8 @@ export function BookmarksApp() {
             </button>
           </motion.section>
         ) : (
-          <section className={`${shell} columns-2 gap-2.5 pb-10 pt-1 sm:columns-[17.5rem] sm:gap-4`}>
-            <AnimatePresence>{semanticPending ? <SearchLoaderCard key="search-loader" /> : null}</AnimatePresence>
-            {displayedPosts.map((post) => (
-              <BookmarkCard
-                key={post.id}
-                post={post}
-                isFavorite={favorites.has(post.id)}
-                onToggleFavorite={toggleFavorite}
-                onOpen={openDetail}
-              />
-            ))}
+          <section ref={gridRef} className={`${shell} pb-10 pt-1`}>
+            <MasonryGrid entries={gridEntries} />
           </section>
         )}
 
@@ -1248,6 +1330,46 @@ export function BookmarksApp() {
   );
 }
 
+// Memoized so its layoutId pill is only measured when the mode actually changes, not on every
+// keystroke re-render of the app shell.
+const PrecisionToggle = memo(function PrecisionToggle({
+  value: current,
+  onChange,
+}: {
+  value: SearchPrecision;
+  onChange: (value: SearchPrecision) => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div
+      role="group"
+      aria-label={t("search.precision.aria")}
+      className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-cream-strong)]/70 p-0.5 text-xs font-medium"
+    >
+      {(["exact", "broad"] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          aria-pressed={current === value}
+          className={`relative h-7 rounded-full px-3 transition-colors ${
+            current === value ? "text-[color:var(--color-ink)]" : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
+          }`}
+        >
+          {current === value ? (
+            <motion.span
+              layoutId="precision-active"
+              className="absolute inset-0 rounded-full bg-[color:var(--color-canvas)] shadow-sm"
+              transition={{ type: "spring", stiffness: 500, damping: 40 }}
+            />
+          ) : null}
+          <span className="relative">{value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}</span>
+        </button>
+      ))}
+    </div>
+  );
+});
+
 function HeaderIconButton({
   label,
   count,
@@ -1285,13 +1407,12 @@ function SearchLoaderCard() {
   const { t } = useLanguage();
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       role="status"
-      className="search-loader-card mb-2.5 inline-grid w-full break-inside-avoid place-items-center gap-1.5 rounded-2xl px-4 py-8 text-center align-top sm:mb-4 sm:py-10"
+      className="search-loader-card grid w-full place-items-center gap-1.5 rounded-2xl px-4 py-8 text-center sm:py-10"
     >
       <motion.span
         animate={{ rotate: [0, 18, -12, 0], scale: [1, 1.12, 1] }}
@@ -1306,21 +1427,52 @@ function SearchLoaderCard() {
   );
 }
 
+const SKELETON_HEIGHTS = [260, 170, 300, 210, 240, 190];
+const skeletonEntries: MasonryEntry[] = Array.from({ length: 12 }, (_, index) => ({
+  key: `skeleton-${index}`,
+  estimate: () => SKELETON_HEIGHTS[index % SKELETON_HEIGHTS.length],
+  render: () => <CardSkeleton index={index} />,
+}));
+
 function CardSkeleton({ index }: { index: number }) {
-  // Varied heights so the masonry columns read as content, not a table.
-  const heights = ["h-56", "h-36", "h-64", "h-44", "h-52", "h-40"];
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: index * 0.035, duration: 0.3 }}
-      className="mb-2.5 inline-block w-full break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-canvas)] align-top sm:mb-4"
+      className="block w-full overflow-hidden rounded-2xl bg-[color:var(--color-canvas)]"
     >
-      <div className={`${heights[index % heights.length]} animate-pulse bg-[color:var(--color-surface-card)]`} />
+      <div className="animate-pulse bg-[color:var(--color-surface-card)]" style={{ height: SKELETON_HEIGHTS[index % SKELETON_HEIGHTS.length] - 70 }} />
       <div className="grid gap-2 p-3 sm:p-4">
         <div className="h-3 w-4/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />
         <div className="h-3 w-3/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />
       </div>
     </motion.div>
+  );
+}
+
+// The semantic-search progress bar: swells from a hairline with scaleY and breathes while the
+// ranking is in flight; the light inside sweeps with translateX. Transform/opacity only (GPU),
+// absolutely positioned, so it never moves layout.
+function SearchSweep({ active, className }: { active: boolean; className?: string }) {
+  return (
+    <AnimatePresence>
+      {active ? (
+        <motion.span
+          key="sweep"
+          aria-hidden
+          initial={{ opacity: 0, scaleY: 0.25 }}
+          animate={{ opacity: 1, scaleY: [1, 0.65, 1] }}
+          exit={{ opacity: 0, scaleY: 0.25, transition: { duration: 0.25, ease: "easeOut" } }}
+          transition={{ opacity: { duration: 0.2 }, scaleY: { duration: 1.4, repeat: Infinity, ease: "easeInOut" } }}
+          className={cn(
+            "pointer-events-none absolute h-1 overflow-hidden rounded-full bg-[color:var(--color-ink)]/10 will-change-transform",
+            className,
+          )}
+        >
+          <span className="search-loader-sweep absolute inset-y-0 left-0 w-[45%] rounded-full" />
+        </motion.span>
+      ) : null}
+    </AnimatePresence>
   );
 }

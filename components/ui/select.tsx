@@ -118,7 +118,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className
     )}
     {...props}
@@ -207,7 +207,7 @@ export function OptionSelect<T extends string>({
           <SelectItem
             key={opt.value}
             value={opt.value}
-            className="min-h-9 cursor-default rounded-sm pl-8 pr-2.5 text-[color:var(--color-ink)] focus:bg-[color:var(--color-surface-card)] data-[state=checked]:font-semibold data-[state=checked]:text-[color:var(--color-primary)]"
+            className="min-h-9 cursor-pointer rounded-sm pl-8 pr-2.5 text-[color:var(--color-ink)] focus:bg-[color:var(--color-surface-card)] data-[state=checked]:font-semibold data-[state=checked]:text-[color:var(--color-primary)]"
           >
             {opt.label}
           </SelectItem>

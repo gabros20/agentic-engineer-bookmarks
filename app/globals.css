@@ -210,6 +210,19 @@ h4,
   letter-spacing: -0.01em;
 }
 
+/* Tailwind v4's preflight resets buttons to cursor: default. Everything clickable gets the
+   pointing hand again (base layer, so a utility like cursor-wait still wins). */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 /* Horizontal chip rails scroll without a visible bar (touch + trackpad). */
 .no-scrollbar {
   scrollbar-width: none;
@@ -236,8 +249,7 @@ h4,
 
 .search-loader-sweep {
   background: linear-gradient(90deg, transparent, #a78bfa, #38bdf8, #fb7185, transparent);
-  background-size: 45% 100%;
-  background-repeat: no-repeat;
+  will-change: transform;
   animation: loader-sweep 1.3s ease-in-out infinite;
 }
 
@@ -256,12 +268,13 @@ h4,
   }
 }
 
+/* transform-only (GPU): the 45%-wide light travels from fully left to fully right of its track. */
 @keyframes loader-sweep {
   from {
-    background-position: -50% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: 150% 0;
+    transform: translateX(222%);
   }
 }
 
