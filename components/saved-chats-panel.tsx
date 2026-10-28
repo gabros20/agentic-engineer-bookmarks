@@ -93,7 +93,7 @@ export function SavedChatsPanel({ onClose, onOpenChat }: Props) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
-        className="fixed inset-0 z-40 bg-[color:var(--color-ink)]/30 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-[color:var(--color-scrim)] backdrop-blur-sm"
         onClick={onClose}
       />
       <motion.aside

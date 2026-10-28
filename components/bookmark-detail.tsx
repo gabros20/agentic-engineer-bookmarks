@@ -1,0 +1,362 @@
+"use client";
+
+import { ArrowUpRight, BadgeCheck, BookOpenText, Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Quote, Sparkles, Star, X } from "lucide-react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { RemoveScroll } from "react-remove-scroll";
+import { Streamdown } from "streamdown";
+import {
+  MediaGrid,
+  cleanText,
+  displayHost,
+  externalLinks,
+  formatCompact,
+  longDate,
+  openOnX,
+  postUrl,
+} from "@/components/bookmark-card";
+import type { BookmarkPost } from "@/lib/bookmark-types";
+import { useLanguage, type MessageKey } from "@/lib/i18n";
+
+type BookmarkDetailProps = {
+  post: BookmarkPost;
+  index: number;
+  total: number;
+  /** +1 when reached with "next", -1 with "previous": the content slides in from that side. */
+  direction: number;
+  isFavorite: boolean;
+  onToggleFavorite: (id: string) => void;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onAsk: (post: BookmarkPost) => void;
+};
+
+const DESKTOP = "(min-width: 640px)";
+
+function useIsDesktop() {
+  return useSyncExternalStore(
+    (notify) => {
+      const query = window.matchMedia(DESKTOP);
+      query.addEventListener("change", notify);
+      return () => query.removeEventListener("change", notify);
+    },
+    () => window.matchMedia(DESKTOP).matches,
+    () => true,
+  );
+}
+
+const METRICS: Array<{ key: keyof NonNullable<BookmarkPost["metrics"]>; label: MessageKey }> = [
+  { key: "replies", label: "metric.replies" },
+  { key: "retweets", label: "metric.reposts" },
+  { key: "likes", label: "metric.likes" },
+  { key: "bookmarks", label: "metric.bookmarks" },
+  { key: "views", label: "metric.views" },
+];
+
+// Reading view for one bookmark: a right-hand sheet on desktop, a bottom sheet on phones
+// (drag the handle down to dismiss). ←/→ (or k/j) step through the current result list.
+export function BookmarkDetail({
+  post,
+  index,
+  total,
+  direction,
+  isFavorite,
+  onToggleFavorite,
+  onClose,
+  onPrev,
+  onNext,
+  onAsk,
+}: BookmarkDetailProps) {
+  const { t, lang } = useLanguage();
+  const desktop = useIsDesktop();
+  const dragControls = useDragControls();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const [articleOpen, setArticleOpen] = useState(false);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+    setArticleOpen(false);
+    setCopied(false);
+  }, [post.id]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input,textarea,video,[contenteditable=true]")) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "Escape") onClose();
+      else if (event.key === "ArrowLeft" || event.key === "k") onPrev();
+      else if (event.key === "ArrowRight" || event.key === "j") onNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onPrev, onNext]);
+
+  const text = cleanText(post.text);
+  const links = externalLinks(post);
+  const metrics = post.metrics ?? {};
+  const quoted = post.quotedTweet;
+  const quotedUrl = quoted?.id ? `https://x.com/${quoted.author?.screenName || "i"}/status/${quoted.id}` : undefined;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(postUrl(post));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard blocked (permissions / insecure context): nothing useful to show.
+    }
+  }
+
+  const hidden = desktop ? { x: "100%" } : { y: "100%" };
+  const shown = desktop ? { x: 0 } : { y: 0 };
+
+  return (
+    <RemoveScroll>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-40 bg-[color:var(--color-scrim)] backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+      <motion.aside
+        initial={hidden}
+        animate={shown}
+        exit={hidden}
+        transition={{ type: "spring", stiffness: 380, damping: 40, mass: 0.8 }}
+        drag={desktop ? false : "y"}
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.7 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 110 || info.velocity.y > 600) onClose();
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={post.author.name || post.author.screenName}
+        className="fixed inset-x-0 bottom-0 top-[max(2.75rem,env(safe-area-inset-top))] z-50 flex flex-col overflow-hidden rounded-t-[1.35rem] bg-[color:var(--color-canvas)] shadow-[var(--shadow-float)] sm:inset-y-0 sm:left-auto sm:right-0 sm:top-0 sm:w-[min(38rem,100vw)] sm:rounded-none sm:border-l sm:border-[color:var(--color-hairline)]"
+      >
+        <div
+          onPointerDown={(event) => {
+            if (!desktop) dragControls.start(event);
+          }}
+          className="shrink-0 touch-none sm:touch-auto"
+        >
+          <div className="flex justify-center pt-2 sm:hidden">
+            <span className="h-1 w-10 rounded-full bg-[color:var(--color-hairline)]" aria-hidden />
+          </div>
+          <div className="flex items-center gap-1 px-3 py-2 sm:px-5 sm:py-3">
+            <span className="text-xs tabular-nums text-[color:var(--color-muted)]">
+              {t("detail.position", { i: index + 1, n: total })}
+            </span>
+            <div className="ml-auto flex items-center gap-0.5">
+              <IconButton label={t("detail.prev")} onClick={onPrev} disabled={index <= 0}>
+                <ChevronLeft size={18} />
+              </IconButton>
+              <IconButton label={t("detail.next")} onClick={onNext} disabled={index >= total - 1}>
+                <ChevronRight size={18} />
+              </IconButton>
+              <span className="mx-1 h-5 w-px bg-[color:var(--color-hairline)]" aria-hidden />
+              <IconButton label={t("detail.close")} onClick={onClose}>
+                <X size={18} />
+              </IconButton>
+            </div>
+          </div>
+        </div>
+
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+            <motion.div
+              key={post.id}
+              custom={direction}
+              initial={{ opacity: 0, x: direction * 28 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: direction * -28 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="px-5 pb-8 pt-2 sm:px-8 sm:pt-4"
+            >
+              <header className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="size-11 shrink-0 rounded-full bg-[color:var(--color-hairline)] object-cover"
+                  src={post.author.profileImageUrl ?? ""}
+                  alt=""
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 font-semibold text-[color:var(--color-ink)]">
+                    <span className="truncate">{post.author.name || post.author.screenName}</span>
+                    {post.author.verified ? <BadgeCheck size={16} className="shrink-0 text-[color:var(--color-muted)]" /> : null}
+                  </div>
+                  <div className="truncate text-sm text-[color:var(--color-muted)]">
+                    @{post.author.screenName} · {longDate(post, lang)}
+                  </div>
+                </div>
+              </header>
+
+              {post.articleTitle ? (
+                <h2 className="mt-6 font-display text-[30px] leading-[1.08] text-[color:var(--color-ink)] sm:text-[38px]">{post.articleTitle}</h2>
+              ) : null}
+
+              {text ? (
+                <p className="mt-5 whitespace-pre-line break-words text-[16px] leading-[1.6] text-[color:var(--color-body-strong)] sm:text-[17px]">
+                  {text}
+                </p>
+              ) : null}
+
+              {post.media?.length ? (
+                <div className="mt-5">
+                  <MediaGrid media={post.media} detail />
+                </div>
+              ) : null}
+
+              {post.articleText ? (
+                <section className="mt-6 rounded-2xl bg-[color:var(--color-surface-soft)] p-4 ring-1 ring-[color:var(--color-hairline-soft)] sm:p-5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]">
+                    <BookOpenText size={13} />
+                    {t("detail.article")}
+                  </div>
+                  <div className={`relative mt-3 ${articleOpen ? "" : "max-h-72 overflow-hidden"}`}>
+                    <div className="text-[15px] leading-[1.65] text-[color:var(--color-body)] [&_a]:underline [&_a]:underline-offset-2 [&_h1]:mb-2 [&_h1]:mt-5 [&_h1]:font-display [&_h1]:text-[24px] [&_h1]:text-[color:var(--color-ink)] [&_h2]:mb-2 [&_h2]:mt-5 [&_h2]:font-display [&_h2]:text-[21px] [&_h2]:text-[color:var(--color-ink)] [&_h3]:mt-4 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5">
+                      <Streamdown>{post.articleText}</Streamdown>
+                    </div>
+                    {articleOpen ? null : (
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[color:var(--color-surface-soft)] to-transparent" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setArticleOpen((open) => !open)}
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-[color:var(--color-ink)] hover:underline"
+                  >
+                    {articleOpen ? t("detail.readLess") : t("detail.readMore")}
+                    <ChevronDown size={15} className={`transition-transform ${articleOpen ? "rotate-180" : ""}`} />
+                  </button>
+                </section>
+              ) : null}
+
+              {quoted?.text ? (
+                <a
+                  href={quotedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-6 block rounded-2xl p-4 ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-soft)]"
+                >
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]">
+                    <Quote size={12} />
+                    {t("detail.quoted")}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-[color:var(--color-ink)]">
+                    {quoted.author?.name}{" "}
+                    <span className="font-normal text-[color:var(--color-muted)]">@{quoted.author?.screenName}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-6 whitespace-pre-line text-[14px] leading-[1.55] text-[color:var(--color-body)]">
+                    {cleanText(quoted.text)}
+                  </p>
+                </a>
+              ) : null}
+
+              {links.length ? (
+                <section className="mt-6">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]" style={{ fontFamily: "inherit" }}>
+                    {t("detail.links")}
+                  </h3>
+                  <ul className="mt-2 grid gap-1">
+                    {links.map((url) => (
+                      <li key={url}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group/link flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 ring-[color:var(--color-hairline-soft)] transition hover:bg-[color:var(--color-surface-card)]"
+                        >
+                          <Link2 size={15} className="shrink-0 text-[color:var(--color-muted)]" />
+                          <span className="min-w-0 flex-1 truncate text-sm text-[color:var(--color-ink)]">{displayHost(url)}</span>
+                          <ArrowUpRight size={15} className="shrink-0 text-[color:var(--color-muted)] transition group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              <dl className="mt-6 grid grid-cols-5 divide-x divide-[color:var(--color-hairline-soft)] rounded-2xl bg-[color:var(--color-surface-soft)] py-3 ring-1 ring-[color:var(--color-hairline-soft)]">
+                {METRICS.map(({ key, label }) => (
+                  <div key={key} className="min-w-0 px-1 text-center" title={new Intl.NumberFormat(lang).format(metrics[key] ?? 0)}>
+                    <dd className="text-[15px] font-semibold tabular-nums text-[color:var(--color-ink)] sm:text-[17px]">
+                      {formatCompact(metrics[key], lang)}
+                    </dd>
+                    <dt className="mt-0.5 truncate text-[10px] text-[color:var(--color-muted)] sm:text-[11px]">{t(label)}</dt>
+                  </div>
+                ))}
+              </dl>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <footer
+          className="flex shrink-0 items-center gap-2 border-t border-[color:var(--color-hairline-soft)] bg-[color:var(--color-canvas)] px-4 pt-3 sm:px-8"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            onClick={() => openOnX(post)}
+            className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)]"
+          >
+            {t("detail.openOnX")}
+            <ArrowUpRight size={16} />
+          </motion.button>
+          <FooterButton
+            label={isFavorite ? t("card.unstar") : t("card.star")}
+            pressed={isFavorite}
+            onClick={() => onToggleFavorite(post.id)}
+          >
+            <Star size={17} strokeWidth={2.1} fill={isFavorite ? "currentColor" : "none"} />
+          </FooterButton>
+          <FooterButton label={copied ? t("detail.copied") : t("detail.copyLink")} onClick={copyLink}>
+            {copied ? <Check size={17} /> : <Link2 size={17} />}
+          </FooterButton>
+          <FooterButton label={t("detail.ask")} onClick={() => onAsk(post)}>
+            <Sparkles size={17} />
+          </FooterButton>
+        </footer>
+      </motion.aside>
+    </RemoveScroll>
+  );
+}
+
+function IconButton({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:pointer-events-none disabled:opacity-30"
+    >
+      {children}
+    </button>
+  );
+}
+
+function FooterButton({ label, onClick, pressed, children }: { label: string; onClick: () => void; pressed?: boolean; children: React.ReactNode }) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.9 }}
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      onClick={onClick}
+      className="grid size-11 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)]"
+    >
+      {children}
+    </motion.button>
+  );
+}

@@ -1,15 +1,26 @@
 "use client";
 
-import { ArrowUp, Bookmark as BookmarkIcon, ListOrdered, LogOut, Menu as MenuIcon, MessagesSquare, Search, SlidersHorizontal, Sparkles, Star, X as XIcon } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { ArrowDownUp, ArrowUp, Bookmark as BookmarkIcon, Layers, ListOrdered, LogOut, MessagesSquare, MoreHorizontal, Search, SearchX, Sparkles, X as XIcon } from "lucide-react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
+import { BookmarkDetail } from "@/components/bookmark-detail";
 import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
 import { DigestPanel } from "@/components/digest-panel";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SavedChatsPanel } from "@/components/saved-chats-panel";
 import { SavedDigestsPanel } from "@/components/saved-digests-panel";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { OptionSelect } from "@/components/ui/select";
 import { fetchSavedChats, readLegacyChats, type SavedChat } from "@/lib/chat-history";
 import type {
@@ -25,7 +36,8 @@ import type { DigestSource } from "@/lib/digest-schema";
 import { fetchQueryRewrites } from "@/lib/expand-client";
 import type { DataWorkerMessage } from "@/lib/data-worker";
 import { clearArchiveCache } from "@/lib/archive-cache";
-import { useLanguage } from "@/lib/i18n";
+import { useLanguage, type MessageKey } from "@/lib/i18n";
+import { useTheme, type ThemePref } from "@/lib/theme";
 import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@/lib/query-operators";
 import type { UIMessage } from "ai";
 import { type SearchPrecision } from "@/lib/bookmark-search";
@@ -94,6 +106,29 @@ function formatOperatorDate(date: Date) {
   return d === 1 ? `${y}-${m}` : `${y}-${m}-${String(d).padStart(2, "0")}`;
 }
 
+// Filter-rail scopes, in display order. ("media" = photos ∪ videos is still a valid `scope`
+// value, it just isn't offered as a chip.)
+const SCOPES: Array<{ value: string; label: MessageKey }> = [
+  { value: "all", label: "chip.all" },
+  { value: "favorites", label: "scope.favorites" },
+  { value: "videos", label: "scope.videos" },
+  { value: "photos", label: "scope.photos" },
+  { value: "articles", label: "scope.articles" },
+  { value: "text", label: "scope.text" },
+];
+
+function inScope(post: BookmarkPost, scope: string, favorites: Set<string>) {
+  if (scope === "favorites") return favorites.has(post.id);
+  if (scope === "articles") return Boolean(post.articleTitle);
+  if (scope === "media") return Boolean(post.media?.length);
+  if (scope === "photos") return Boolean(post.media?.some((item) => item.type === "photo"));
+  if (scope === "videos") return Boolean(post.media?.some((item) => item.type === "video" || item.type === "animated_gif"));
+  if (scope === "text") return !post.media?.length && !post.articleTitle;
+  return true;
+}
+
+const compactFormatter = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
 export function BookmarksApp() {
   const { t, lang } = useLanguage();
   const [payload, setPayload] = useState<unknown>(null);
@@ -131,8 +166,15 @@ export function BookmarksApp() {
   // T6: the previously-generated digest for the current query, fetched from the DB to enrich
   // the chat's context block. Replaces the old synchronous localStorage getDigest() lookup.
   const [contextDigest, setContextDigest] = useState<SavedDigest | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  // Detail sheet: the open post + which way we stepped into it (drives the slide direction).
+  const [detail, setDetail] = useState<{ id: string; direction: number } | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [heroVisible, setHeroVisible] = useState(true);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { pref: themePref, setPref: setThemePref } = useTheme();
   const router = useRouter();
 
   // T3 login wall: sign out clears the Better Auth session, then routes to the
@@ -185,7 +227,10 @@ export function BookmarksApp() {
   }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen, refreshCounts]);
 
   useEffect(() => {
-    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    const onScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+      setScrolled(window.scrollY > 8);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -344,37 +389,44 @@ export function BookmarksApp() {
     };
   }, [debouncedQuery, posts.length, precision, lang]);
 
-  const visiblePosts = useMemo(() => {
+  // Operator + text/hybrid matches, before the scope filter, so the filter rail can show how
+  // many matches each scope holds. Filter steps commute, so this is the same set the old
+  // scope-first pipeline produced.
+  const matchedPosts = useMemo(() => {
     const { text, operators } = parsedQuery;
     const q = text.trim().toLowerCase();
-    const scoped = posts.filter((post) => {
-      if (scope === "favorites") return favorites.has(post.id);
-      if (scope === "articles") return Boolean(post.articleTitle);
-      if (scope === "media") return Boolean(post.media?.length);
-      if (scope === "photos") return post.media?.some((item) => item.type === "photo");
-      if (scope === "videos") return post.media?.some((item) => item.type === "video" || item.type === "animated_gif");
-      if (scope === "text") return !post.media?.length && !post.articleTitle;
-      return true;
-    });
 
     // T4.1: from:/before:/after: apply as hard filters BEFORE the text/hybrid filter below,
     // in BOTH precision modes identically (this step runs regardless of precision). Empty
     // residual text + active operators is a valid state — q is "" here, hybridResults is
-    // null (the search effect below short-circuits on an empty residual), so `filtered`
+    // null (the search effect below short-circuits on an empty residual), so the result
     // falls through to `operatorScoped` unfiltered by text/hybrid, showing every
     // operator-matching post in the current sort order.
     // Filter semantics are shared with the server-side query layer (lib/bookmark-filters.ts).
     const operatorScoped = hasActiveOperators(operators)
-      ? scoped.filter((post) => matchesOperators(post, operators))
-      : scoped;
+      ? posts.filter((post) => matchesOperators(post, operators))
+      : posts;
 
-    const filtered = q
+    return q
       ? hybridResults
         ? operatorScoped.filter((post) => hybridResults.has(post.id))
         : operatorScoped.filter((post) => searchable(post).includes(q))
       : operatorScoped;
+  }, [hybridResults, posts, parsedQuery]);
 
-    return [...filtered].sort((a, b) => {
+  const scopeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const { value } of SCOPES) counts[value] = 0;
+    for (const post of matchedPosts) {
+      for (const { value } of SCOPES) if (inScope(post, value, favorites)) counts[value]++;
+    }
+    return counts;
+  }, [matchedPosts, favorites]);
+
+  const visiblePosts = useMemo(() => {
+    const q = parsedQuery.text.trim();
+    const filtered = matchedPosts.filter((post) => inScope(post, scope, favorites));
+    return filtered.sort((a, b) => {
       // T4.2: "relevance" only means score order while there's an active hybrid ranking to sort
       // by (q non-empty AND hybridResults populated). Every other sort value reorders WITHIN the
       // already-matched set using its own comparator, active search or not. "relevance" with no
@@ -389,7 +441,7 @@ export function BookmarksApp() {
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
       return byDate(b) - byDate(a);
     });
-  }, [favorites, hybridResults, posts, parsedQuery, scope, sort]);
+  }, [favorites, hybridResults, matchedPosts, parsedQuery, scope, sort]);
 
   // T4.1: human-readable stand-in for `query` at digest/chat call sites — residual text +
   // a parenthesized operator suffix, e.g. `agents (from:simonw, after:2026-03)`. Keeps
@@ -533,523 +585,689 @@ export function BookmarksApp() {
     return { found: true, bookmark: toBookmarkDetail(post) };
   }
 
-  function BookmarkCardSkeleton({ index }: { index: number }) {
-    // Vary heights so the masonry column pattern feels organic.
-    const heights = ["h-44", "h-56", "h-36", "h-52", "h-40", "h-60", "h-48", "h-44"];
-    const h = heights[index % heights.length];
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: index * 0.04, duration: 0.25 }}
-        className={`mb-4 inline-block w-full break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] p-4 align-top`}
-      >
-        <div className="flex items-center gap-2">
-          <div className="h-10 w-10 animate-pulse rounded-full bg-[color:var(--color-hairline)]" />
-          <div className="flex flex-1 flex-col gap-1.5">
-            <div className="h-3 w-24 animate-pulse rounded bg-[color:var(--color-hairline)]" />
-            <div className="h-3 w-16 animate-pulse rounded bg-[color:var(--color-hairline-soft)]" />
-          </div>
-        </div>
-        <div className={`mt-3 ${h} animate-pulse rounded-md bg-[color:var(--color-hairline-soft)]`} />
-      </motion.div>
-    );
-  }
-
-  function toggleFavorite(id: string) {
+  const toggleFavorite = useCallback((id: string) => {
     setFavorites((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }, []);
+
+  const openDetail = useCallback((id: string) => setDetail({ id, direction: 0 }), []);
+  const closeDetail = useCallback(() => setDetail(null), []);
+  const detailPost = detail ? postsById.get(detail.id) : undefined;
+  const detailIndex = detail ? visiblePosts.findIndex((post) => post.id === detail.id) : -1;
+
+  const stepDetail = useCallback(
+    (delta: number) => {
+      setDetail((current) => {
+        if (!current) return current;
+        const index = visiblePosts.findIndex((post) => post.id === current.id);
+        const next = visiblePosts[index + delta];
+        if (!next) return current;
+        // Stepping past the rendered page grows it, so closing the sheet lands on a real card.
+        if (index + delta >= visibleLimit) setVisibleLimit((limit) => limit + PAGE_SIZE);
+        return { id: next.id, direction: delta };
+      });
+    },
+    [visiblePosts, visibleLimit],
+  );
+  const prevDetail = useCallback(() => stepDetail(-1), [stepDetail]);
+  const nextDetail = useCallback(() => stepDetail(1), [stepDetail]);
+
+  const askAboutPost = useCallback(
+    (post: BookmarkPost) => {
+      setDetail(null);
+      setChatHistoryMessages(null);
+      setChatInitialPrompt(t("detail.askPrompt", { id: post.id, handle: post.author.screenName }));
+      setChatOpen(true);
+    },
+    [t],
+  );
+
+  const focusSearch = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    // preventScroll: the smooth scroll above owns the motion; focus would otherwise jump.
+    window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 250);
+  }, []);
+
+  // "/" focuses the search from anywhere (unless typing or a panel is open).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input,textarea,[contenteditable=true]")) return;
+      if (detail || chatOpen || digestOpen || savedOpen || chatHistoryOpen) return;
+      event.preventDefault();
+      focusSearch();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detail, chatOpen, digestOpen, savedOpen, chatHistoryOpen, focusSearch]);
+
+  // Once the big search scrolls away, the header offers a compact search shortcut.
+  useEffect(() => {
+    const node = heroRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => setHeroVisible(entry.isIntersecting), {
+      rootMargin: "-56px 0px 0px 0px",
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // Infinite scroll: grow the rendered page well before the user reaches the end.
+  const hasMore = visiblePosts.length > displayedPosts.length;
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisibleLimit((current) => current + PAGE_SIZE);
+      },
+      { rootMargin: "1200px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, displayedPosts.length]);
+
+  function resetFilters() {
+    // T4.2: seed the restore-ref to "newest" too, so the query-transition effect
+    // above (which will also fire from this same setQuery("")) restores "newest"
+    // instead of clobbering this with whatever sort was active before the search.
+    previousSortRef.current = "newest";
+    setQuery("");
+    setSort("newest");
+    setScope("all");
+    setPrecision("exact");
   }
 
+  async function startDigest() {
+    const digestQuery = displayQuery;
+    const fallback = visiblePosts.slice(0, DIGEST_SOURCE_LIMIT).map(toDigestSource);
+    let sources = fallback;
+    setDigestSourcing(true);
+    try {
+      // T1 (digest engine upgrade): re-query the Worker DEEP (limit 50,
+      // reranked) instead of clustering only the visible/on-screen posts —
+      // this is the whole point of the upgrade (actually use the search
+      // engine). Falls back to the visible slice on any failure/empty result.
+      const ranked = await searchViaWorker({ query: digestQuery, precision, limit: DIGEST_SOURCE_LIMIT });
+      const deep = ranked
+        .map((r) => postsById.get(r.id))
+        .filter((post): post is BookmarkPost => Boolean(post))
+        .map(toDigestSource);
+      if (deep.length > 0) sources = deep;
+    } catch (err) {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[digest] worker re-query failed, falling back to visible posts:", err);
+      }
+    } finally {
+      setDigestSourcing(false);
+    }
+    setDigestPayload({ query: digestQuery, sources });
+    setDigestOpen(true);
+  }
+
+  function openChat() {
+    setChatHistoryMessages(null);
+    setChatOpen(true);
+  }
+
+  const statusLine = error
+    ? error
+    : payload === null
+      ? " "
+      : query.trim()
+        ? `${t("status.matches", { n: number(visiblePosts.length) })} · ${statusText}`
+        : scope === "all"
+          ? t("status.count", { n: number(posts.length) })
+          : t("status.matches", { n: number(visiblePosts.length) });
+
+  const shell = "mx-auto w-full max-w-[1800px] px-3 sm:px-6 lg:px-10";
+
   return (
-    <main className="mx-auto min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
-      <header className="sticky top-0 z-20 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)]/90 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
-        <div className="flex w-full items-start justify-between gap-2 sm:gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-1">
-              <h1 className="font-display text-[22px] leading-tight text-[color:var(--color-ink)] sm:text-[36px]">
-                {t("app.title")}
-              </h1>
-              <p className="text-[12px] leading-4 text-[color:var(--color-muted)] sm:text-[13px] sm:leading-5">
-                {t("app.subtitle", { n: number(posts.length) })}
-              </p>
+    <MotionConfig reducedMotion="user">
+      <main className="min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
+        <header
+          className={`sticky top-0 z-30 border-b transition-[background-color,border-color] duration-300 ${
+            scrolled
+              ? "border-[color:var(--color-hairline-soft)] bg-[color:var(--color-canvas)]/80 backdrop-blur-xl"
+              : "border-transparent bg-[color:var(--color-canvas)]"
+          }`}
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <div className={`${shell} flex h-14 items-center gap-2`}>
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="flex min-w-0 items-center gap-2 rounded-lg pr-1"
+            >
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]">
+                <BookmarkIcon size={14} fill="currentColor" />
+              </span>
+              <span className="truncate font-display text-[21px] leading-none text-[color:var(--color-ink)]">{t("app.title")}</span>
+            </button>
+
+            <AnimatePresence>
+              {heroVisible ? null : (
+                <motion.button
+                  key="compact-search"
+                  type="button"
+                  onClick={focusSearch}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  aria-label={t("nav.searchHint")}
+                  className="mx-auto hidden h-9 w-full max-w-sm items-center gap-2 rounded-full bg-[color:var(--color-surface-card)] px-3.5 text-sm text-[color:var(--color-muted)] transition hover:bg-[color:var(--color-surface-cream-strong)] md:flex"
+                >
+                  <Search size={15} />
+                  <span className="truncate">{query || t("search.hero", { n: number(posts.length) })}</span>
+                  <kbd className="ml-auto rounded border border-[color:var(--color-hairline)] px-1.5 font-mono text-[10px]">/</kbd>
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
+              <AnimatePresence>
+                {heroVisible ? null : (
+                  <motion.button
+                    key="compact-search-mobile"
+                    type="button"
+                    onClick={focusSearch}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    aria-label={t("nav.searchHint")}
+                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] md:hidden"
+                  >
+                    <Search size={17} />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.95 }}
+                onClick={openChat}
+                title={t("chat.openHint")}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--color-primary)] pl-3 pr-3.5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)]"
+              >
+                <Sparkles size={14} />
+                {t("nav.ask")}
+                <kbd className="ml-0.5 hidden rounded bg-[color:var(--color-on-primary)]/15 px-1.5 py-px font-mono text-[10px] lg:inline">⌘K</kbd>
+              </motion.button>
+
+              <HeaderIconButton label={t("nav.digests")} count={savedCount} onClick={() => setSavedOpen(true)} className="hidden sm:grid">
+                <Layers size={17} />
+              </HeaderIconButton>
+              <HeaderIconButton label={t("nav.chats")} count={savedChatsCount} onClick={() => setChatHistoryOpen(true)} className="hidden sm:grid">
+                <MessagesSquare size={17} />
+              </HeaderIconButton>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("nav.menu")}
+                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-card)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={8} className="w-56 rounded-xl border-[color:var(--color-hairline)] p-1.5 shadow-[var(--shadow-float)]">
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onSelect={() => setSavedOpen(true)}>
+                    <Layers size={15} />
+                    <span className="flex-1">{t("nav.digests")}</span>
+                    {savedCount ? <span className="text-xs tabular-nums text-[color:var(--color-muted)]">{number(savedCount)}</span> : null}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onSelect={() => setChatHistoryOpen(true)}>
+                    <MessagesSquare size={15} />
+                    <span className="flex-1">{t("nav.chats")}</span>
+                    {savedChatsCount ? <span className="text-xs tabular-nums text-[color:var(--color-muted)]">{number(savedChatsCount)}</span> : null}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="sm:hidden" />
+                  <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[color:var(--color-muted)]">
+                    {t("theme.label")}
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={themePref} onValueChange={(value) => setThemePref(value as ThemePref)}>
+                    {(["system", "light", "dark"] as const).map((value) => (
+                      <DropdownMenuRadioItem key={value} value={value} className="rounded-lg py-2">
+                        {t(`theme.${value}`)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+                    <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[color:var(--color-muted)]">{t("lang.label")}</span>
+                    <LanguageSwitcher />
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2" disabled={signingOut} onSelect={() => void handleSignOut()}>
+                    <LogOut size={15} />
+                    {t("auth.signOut")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        <section className={`${shell} pt-5 sm:pt-10`}>
+          <div ref={heroRef} className="relative">
+            <label htmlFor="hero-search" className="sr-only">
+              {t("search.placeholder")}
+            </label>
+            <input
+              id="hero-search"
+              ref={searchRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  if (query) setQuery("");
+                  else event.currentTarget.blur();
+                }
+              }}
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
+              className="w-full appearance-none rounded-none border-b border-[color:var(--color-hairline)] bg-transparent pb-3 pr-11 font-display text-[32px] leading-[1.15] text-[color:var(--color-ink)] caret-[color:var(--color-ink)] outline-none transition-colors duration-300 placeholder:italic placeholder:text-[color:var(--color-muted-soft)] focus:border-[color:var(--color-ink)] sm:text-[52px] lg:text-[60px] [&::-webkit-search-cancel-button]:hidden"
+            />
+            <div className="absolute bottom-3.5 right-0 sm:bottom-5">
+              <AnimatePresence mode="wait" initial={false}>
+                {query ? (
+                  <motion.button
+                    key="clear"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.7 }}
+                    transition={{ duration: 0.15 }}
+                    onClick={() => {
+                      setQuery("");
+                      searchRef.current?.focus();
+                    }}
+                    aria-label={t("search.clear")}
+                    className="grid size-9 place-items-center rounded-full bg-[color:var(--color-surface-card)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)]"
+                  >
+                    <XIcon size={16} />
+                  </motion.button>
+                ) : (
+                  <motion.kbd
+                    key="slash"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="hidden rounded-md border border-[color:var(--color-hairline)] px-2 py-0.5 font-mono text-xs text-[color:var(--color-muted)] sm:block"
+                  >
+                    /
+                  </motion.kbd>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen((v) => !v)}
-            aria-label="Menu"
-            aria-expanded={mobileMenuOpen}
-            className="grid size-9 shrink-0 place-items-center rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] sm:hidden"
-          >
-            {mobileMenuOpen ? <XIcon size={16} /> : <MenuIcon size={16} />}
-          </button>
-
-          <div className="hidden flex-wrap items-center justify-end gap-2 sm:flex">
-            <button
-              type="button"
-              onClick={() => {
-                setChatHistoryMessages(null);
-                setChatOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-              aria-label={t("chat.title")}
-              title={t("chat.openHint")}
-            >
-              <Sparkles size={14} className="text-[color:var(--color-primary)]" />
-              <span className="hidden sm:inline">{t("chat.title")}</span>
-              <kbd className="hidden rounded border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-card)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[color:var(--color-muted)] sm:inline">
-                ⌘K
-              </kbd>
-            </button>
-            <button
-              type="button"
-              onClick={() => setChatHistoryOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-              aria-label={t("chat.history")}
-              title={t("chat.history")}
-            >
-              <MessagesSquare size={14} className="text-[color:var(--color-primary)]" />
-              {savedChatsCount > 0 ? number(savedChatsCount) : null}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSavedOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-              aria-label={t("app.aria.savedDigests")}
-              title={t("app.saved")}
-            >
-              <BookmarkIcon size={14} className="text-[color:var(--color-primary)]" />
-              {savedCount > 0 ? number(savedCount) : null}
-            </button>
-            {favorites.size > 0 ? (
-              <div
-                className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)]"
-                title={t("app.starred")}
+          <AnimatePresence initial={false}>
+            {operatorChips.length > 0 ? (
+              <motion.div
+                key="operator-chips"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-wrap items-center gap-1.5 overflow-hidden pt-3"
               >
-                <Star size={14} className="fill-[color:var(--color-primary)] text-[color:var(--color-primary)]" />
-                {number(favorites.size)}
-                <span className="hidden sm:inline">{t("app.starred")}</span>
-              </div>
+                {operatorChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.onRemove}
+                    title={chip.title}
+                    aria-label={t("search.operator.aria.remove", { label: chip.label })}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-xs transition ${
+                      chip.invalid
+                        ? "bg-[color:var(--color-warning)]/12 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
+                        : "bg-[color:var(--color-surface-card)] text-[color:var(--color-body)] hover:bg-[color:var(--color-surface-cream-strong)]"
+                    }`}
+                  >
+                    <span>{chip.label}</span>
+                    <XIcon size={11} />
+                  </button>
+                ))}
+              </motion.div>
             ) : null}
-            <LanguageSwitcher />
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={signingOut}
-              className="flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={t("auth.signOut")}
-              title={t("auth.signOut")}
-            >
-              <LogOut size={14} className="text-[color:var(--color-primary)]" />
-              <span className="hidden sm:inline">{t("auth.signOut")}</span>
-            </button>
-          </div>
-        </div>
+          </AnimatePresence>
 
-        <AnimatePresence initial={false}>
-          {mobileMenuOpen ? (
-            <motion.div
-              key="mobile-menu"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="overflow-hidden sm:hidden"
+          <div className="mt-3 flex min-h-8 items-center justify-between gap-3">
+            <p aria-live="polite" className={`truncate text-[13px] tabular-nums ${error ? "text-[color:var(--color-error)]" : "text-[color:var(--color-muted)]"}`}>
+              {searchStatusKey === "status.searching" ? <span className="mr-1.5 inline-block size-1.5 animate-pulse rounded-full bg-[color:var(--color-ink)] align-middle" /> : null}
+              {statusLine}
+            </p>
+            <div
+              role="group"
+              aria-label={t("search.precision.aria")}
+              className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-card)] p-0.5 text-xs font-medium"
             >
-              <div className="mt-3 flex flex-col gap-1 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-1.5">
+              {(["exact", "broad"] as const).map((value) => (
                 <button
+                  key={value}
                   type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setChatHistoryMessages(null);
-                    setChatOpen(true);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                >
-                  <Sparkles size={16} className="text-[color:var(--color-primary)]" />
-                  {t("chat.title")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setChatHistoryOpen(true);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                >
-                  <MessagesSquare size={16} className="text-[color:var(--color-primary)]" />
-                  <span className="flex-1">{t("chat.history")}</span>
-                  {savedChatsCount > 0 ? (
-                    <span className="text-xs text-[color:var(--color-muted)]">{number(savedChatsCount)}</span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setSavedOpen(true);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
-                >
-                  <BookmarkIcon size={16} className="text-[color:var(--color-primary)]" />
-                  <span className="flex-1">{t("app.saved")}</span>
-                  {savedCount > 0 ? (
-                    <span className="text-xs text-[color:var(--color-muted)]">{number(savedCount)}</span>
-                  ) : null}
-                </button>
-                {favorites.size > 0 ? (
-                  <div className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium text-[color:var(--color-ink)]">
-                    <Star size={16} className="fill-[color:var(--color-primary)] text-[color:var(--color-primary)]" />
-                    <span className="flex-1">{t("app.starred")}</span>
-                    <span className="text-xs text-[color:var(--color-muted)]">{number(favorites.size)}</span>
-                  </div>
-                ) : null}
-                <div className="mt-1 flex items-center justify-between gap-3 border-t border-[color:var(--color-hairline)] px-3 pt-2.5">
-                  <span className="text-xs uppercase tracking-wide text-[color:var(--color-muted)]">{t("lang.label")}</span>
-                  <LanguageSwitcher />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    void handleSignOut();
-                  }}
-                  disabled={signingOut}
-                  className="mt-1 flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <LogOut size={16} className="text-[color:var(--color-primary)]" />
-                  {t("auth.signOut")}
-                </button>
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </header>
-
-      <section className="grid w-full gap-2 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3 sm:gap-3 sm:p-4">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)] sm:left-4" size={16} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="min-h-10 w-full rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] pl-9 pr-[112px] text-base text-[color:var(--color-ink)] outline-none transition placeholder:text-[color:var(--color-muted)] focus:border-[color:var(--color-primary)] focus:ring-[3px] focus:ring-[color:var(--color-primary)]/15 sm:min-h-11 sm:pl-11 sm:pr-32"
-            placeholder={t("search.placeholder")}
-            type="search"
-          />
-          <div
-            role="group"
-            aria-label={t("search.precision.aria")}
-            className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 text-[10px] font-semibold sm:right-1.5 sm:text-[11px]"
-          >
-            {(["exact", "broad"] as const).map((value) => (
-              <motion.button
-                key={value}
-                type="button"
-                onClick={() => setPrecision(value)}
-                aria-pressed={precision === value}
-                whileTap={{ scale: 0.94 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className={`relative min-h-7 rounded-sm px-2 sm:min-h-8 sm:px-3 ${
-                  precision === value
-                    ? "text-[color:var(--color-on-primary)]"
-                    : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
-                }`}
-              >
-                {precision === value ? (
-                  <motion.span
-                    layoutId="precision-active"
-                    className="absolute inset-0 rounded-sm bg-[color:var(--color-primary)]"
-                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                  />
-                ) : null}
-                <span className="relative">
-                  {value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}
-                </span>
-              </motion.button>
-            ))}
-          </div>
-        </label>
-
-        <AnimatePresence initial={false}>
-          {operatorChips.length > 0 ? (
-            <motion.div
-              key="operator-chips"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="flex flex-wrap items-center gap-1.5"
-            >
-              {operatorChips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={chip.onRemove}
-                  title={chip.title}
-                  aria-label={t("search.operator.aria.remove", { label: chip.label })}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition ${
-                    chip.invalid
-                      ? "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
-                      : "border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] text-[color:var(--color-muted)] hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)]"
+                  onClick={() => setPrecision(value)}
+                  aria-pressed={precision === value}
+                  className={`relative h-7 rounded-full px-3 transition-colors ${
+                    precision === value ? "text-[color:var(--color-ink)]" : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
                   }`}
                 >
-                  <span>{chip.label}</span>
-                  <XIcon size={10} />
+                  {precision === value ? (
+                    <motion.span
+                      layoutId="precision-active"
+                      className="absolute inset-0 rounded-full bg-[color:var(--color-canvas)] shadow-sm"
+                      transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                    />
+                  ) : null}
+                  <span className="relative">{value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}</span>
                 </button>
               ))}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+            </div>
+          </div>
 
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5 sm:gap-2">
-          <OptionSelect
-            value={sort}
-            onValueChange={setSort}
-            ariaLabel={t("sort.newest")}
-            leadingIcon={<SlidersHorizontal size={14} />}
-            className="h-9 px-2.5 text-[13px] sm:h-10 sm:px-3 sm:text-sm"
-            options={[
-              { value: "relevance", label: t("sort.relevance") },
-              { value: "newest", label: t("sort.newest") },
-              { value: "oldest", label: t("sort.oldest") },
-              { value: "bookmarks", label: t("sort.bookmarks") },
-              { value: "likes", label: t("sort.likes") },
-            ]}
-          />
-
-          <OptionSelect
-            value={scope}
-            onValueChange={setScope}
-            ariaLabel={t("scope.all")}
-            leadingIcon={<Star size={14} />}
-            className="h-9 px-2.5 text-[13px] sm:h-10 sm:px-3 sm:text-sm"
-            options={[
-              { value: "all", label: t("scope.all") },
-              { value: "favorites", label: t("scope.favorites") },
-              { value: "articles", label: t("scope.articles") },
-              { value: "media", label: t("scope.media") },
-              { value: "photos", label: t("scope.photos") },
-              { value: "videos", label: t("scope.videos") },
-              { value: "text", label: t("scope.text") },
-            ]}
-          />
-
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            onClick={() => {
-              // T4.2: seed the restore-ref to "newest" too, so the query-transition effect
-              // above (which will also fire from this same setQuery("")) restores "newest"
-              // instead of clobbering this with whatever sort was active before the search.
-              previousSortRef.current = "newest";
-              setQuery("");
-              setSort("newest");
-              setScope("all");
-              setPrecision("exact");
-            }}
-            className="min-h-9 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 text-[13px] font-medium text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface-card)] sm:min-h-10 sm:px-4 sm:text-sm"
-          >
-            {t("action.clear")}
-          </motion.button>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {displayQuery && visiblePosts.length > 0 ? (
-            <motion.div
-              key="ai-ctas"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="flex flex-col gap-2 sm:flex-row"
-            >
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                disabled={digestSourcing}
-                aria-busy={digestSourcing}
-                onClick={async () => {
-                  const query = displayQuery;
-                  const fallback = visiblePosts.slice(0, DIGEST_SOURCE_LIMIT).map(toDigestSource);
-                  let sources = fallback;
-                  setDigestSourcing(true);
-                  try {
-                    // T1 (digest engine upgrade): re-query the Worker DEEP (limit 50,
-                    // reranked) instead of clustering only the visible/on-screen posts —
-                    // this is the whole point of the upgrade (actually use the search
-                    // engine). Falls back to the visible slice on any failure/empty result.
-                    const ranked = await searchViaWorker({ query, precision, limit: DIGEST_SOURCE_LIMIT });
-                    const deep = ranked
-                      .map((r) => postsById.get(r.id))
-                      .filter((post): post is BookmarkPost => Boolean(post))
-                      .map(toDigestSource);
-                    if (deep.length > 0) sources = deep;
-                  } catch (err) {
-                    if (process.env.NODE_ENV !== "production") {
-                      console.debug("[digest] worker re-query failed, falling back to visible posts:", err);
-                    }
-                  } finally {
-                    setDigestSourcing(false);
-                  }
-                  setDigestPayload({ query, sources });
-                  setDigestOpen(true);
-                }}
-                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[color:var(--color-primary)] px-5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-70"
+          <AnimatePresence initial={false}>
+            {displayQuery && visiblePosts.length > 0 ? (
+              <motion.div
+                key="ai-ctas"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden"
               >
-                <Sparkles size={16} className={digestSourcing ? "animate-pulse" : undefined} />
-                <span>{t("action.aiDigest")}</span>
-              </motion.button>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  if (!displayQuery) return;
-                  const prompt = t("chat.shortlistPrompt", { q: displayQuery });
-                  setChatHistoryMessages(null);
-                  setChatInitialPrompt(prompt);
-                  setChatOpen(true);
-                }}
-                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[color:var(--color-primary)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-primary)] transition-colors hover:bg-[color:var(--color-primary)]/10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
-              >
-                <ListOrdered size={16} />
-                <span>{t("action.aiShortlist")}</span>
-              </motion.button>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </section>
-
-      <p className="w-full border-b border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-3 py-2 text-[12px] leading-4 text-[color:var(--color-muted)] sm:px-4 sm:py-3 sm:text-sm sm:leading-5">
-        {error
-          ? error
-          : t("status.summary", {
-              shown: number(displayedPosts.length),
-              total: number(visiblePosts.length),
-              status: statusText,
-            })}
-      </p>
-
-      {error ? null : payload === null ? (
-        <section aria-busy="true" className="w-full columns-1 gap-3 p-3 sm:gap-4 sm:p-4 sm:columns-[20rem]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <BookmarkCardSkeleton key={i} index={i} />
-          ))}
+                <div className="flex gap-2 pt-3">
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    disabled={digestSourcing}
+                    aria-busy={digestSourcing}
+                    onClick={() => void startDigest()}
+                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] disabled:cursor-wait disabled:opacity-70 sm:flex-none"
+                  >
+                    <Sparkles size={15} className={digestSourcing ? "animate-pulse" : undefined} />
+                    {t("action.aiDigest")}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      setChatHistoryMessages(null);
+                      setChatInitialPrompt(t("chat.shortlistPrompt", { q: displayQuery }));
+                      setChatOpen(true);
+                    }}
+                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)] sm:flex-none"
+                  >
+                    <ListOrdered size={15} />
+                    {t("action.aiShortlist")}
+                  </motion.button>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </section>
-      ) : (
-        <section className="w-full columns-1 gap-3 p-3 sm:gap-4 sm:p-4 sm:columns-[20rem]">
-          {displayedPosts.map((post) => (
-            <BookmarkCard
-              key={post.id}
-              post={post}
-              isFavorite={favorites.has(post.id)}
-              onToggleFavorite={toggleFavorite}
+
+        <nav
+          aria-label={t("scope.all")}
+          className="sticky z-20 bg-[color:var(--color-canvas)]/85 backdrop-blur-xl"
+          style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+        >
+          <div className={`${shell} flex items-center gap-2 py-3`}>
+            <div className="no-scrollbar -mx-3 flex min-w-0 flex-1 snap-x scroll-px-3 items-center gap-1.5 overflow-x-auto px-3 [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] sm:mx-0 sm:scroll-px-0 sm:px-0 sm:[mask-image:none]">
+              {SCOPES.filter(({ value }) => value === "all" || value === scope || scopeCounts[value] > 0).map(({ value, label }) => {
+                const active = scope === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setScope(value)}
+                    aria-pressed={active}
+                    className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
+                      active
+                        ? "text-[color:var(--color-on-primary)]"
+                        : "bg-[color:var(--color-surface-card)] text-[color:var(--color-body-strong)] hover:bg-[color:var(--color-surface-cream-strong)]"
+                    }`}
+                  >
+                    {active ? (
+                      <motion.span
+                        layoutId="scope-active"
+                        className="absolute inset-0 rounded-full bg-[color:var(--color-primary)]"
+                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                      />
+                    ) : null}
+                    <span className="relative">{t(label)}</span>
+                    {payload !== null ? (
+                      <span className="relative text-[11px] tabular-nums opacity-55">{compactFormatter.format(scopeCounts[value] ?? 0)}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            <OptionSelect
+              value={sort}
+              onValueChange={setSort}
+              ariaLabel={t("sort.newest")}
+              leadingIcon={<ArrowDownUp size={14} />}
+              className="h-9 w-auto shrink-0 gap-1.5 rounded-full border-0 bg-[color:var(--color-surface-card)] pl-3 pr-2 text-[13px] font-medium"
+              options={[
+                { value: "relevance", label: t("sort.relevance") },
+                { value: "newest", label: t("sort.newest") },
+                { value: "oldest", label: t("sort.oldest") },
+                { value: "bookmarks", label: t("sort.bookmarks") },
+                { value: "likes", label: t("sort.likes") },
+              ]}
             />
-          ))}
-        </section>
-      )}
+          </div>
+        </nav>
 
-      {!error && visiblePosts.length > displayedPosts.length ? (
-        <div className="grid w-full place-items-center px-4 pb-8">
-          <button
-            type="button"
-            onClick={() => setVisibleLimit((current) => current + PAGE_SIZE)}
-            className="min-h-11 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+        {error ? null : payload === null ? (
+          <section aria-busy="true" className={`${shell} columns-2 gap-2.5 pb-10 pt-1 sm:columns-[17.5rem] sm:gap-4`}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <CardSkeleton key={i} index={i} />
+            ))}
+          </section>
+        ) : visiblePosts.length === 0 ? (
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`${shell} grid justify-items-center gap-3 py-20 text-center`}
           >
-            {t("action.loadMore", { n: number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length)) })}
-          </button>
-        </div>
+            <span className="grid size-12 place-items-center rounded-full bg-[color:var(--color-surface-card)] text-[color:var(--color-muted)]">
+              <SearchX size={20} />
+            </span>
+            <p className="text-[15px] text-[color:var(--color-muted)]">{t("empty.results")}</p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="h-10 rounded-full px-5 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)]"
+            >
+              {t("action.clear")}
+            </button>
+          </motion.section>
+        ) : (
+          <section className={`${shell} columns-2 gap-2.5 pb-10 pt-1 sm:columns-[17.5rem] sm:gap-4`}>
+            {displayedPosts.map((post) => (
+              <BookmarkCard
+                key={post.id}
+                post={post}
+                isFavorite={favorites.has(post.id)}
+                onToggleFavorite={toggleFavorite}
+                onOpen={openDetail}
+              />
+            ))}
+          </section>
+        )}
+
+        {!error && hasMore ? (
+          <div ref={sentinelRef} className="grid w-full place-items-center px-4 pb-12">
+            <button
+              type="button"
+              onClick={() => setVisibleLimit((current) => current + PAGE_SIZE)}
+              className="h-10 rounded-full px-5 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)]"
+            >
+              {t("action.loadMore", { n: number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length)) })}
+            </button>
+          </div>
+        ) : null}
+
+        <AnimatePresence>
+          {detail && detailPost ? (
+            <BookmarkDetail
+              key="detail"
+              post={detailPost}
+              index={detailIndex}
+              total={visiblePosts.length}
+              direction={detail.direction}
+              isFavorite={favorites.has(detailPost.id)}
+              onToggleFavorite={toggleFavorite}
+              onClose={closeDetail}
+              onPrev={prevDetail}
+              onNext={nextDetail}
+              onAsk={askAboutPost}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {digestOpen && digestPayload ? (
+            <DigestPanel
+              key={`${digestPayload.query}::${digestPayload.initialCached?.createdAt ?? "live"}`}
+              query={digestPayload.query}
+              sources={digestPayload.sources}
+              initialCached={digestPayload.initialCached}
+              onClose={() => {
+                setDigestOpen(false);
+                setDigestPayload(null);
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {savedOpen ? (
+            <SavedDigestsPanel
+              onClose={() => setSavedOpen(false)}
+              onOpenDigest={(saved) => {
+                setDigestPayload({ query: saved.query, initialCached: saved });
+                setSavedOpen(false);
+                setDigestOpen(true);
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {chatOpen ? (
+            <CommandKChat
+              key={chatHistoryMessages ? "chat-history" : chatInitialPrompt ? `chat-shortlist-${chatInitialPrompt}` : "chat-live"}
+              context={chatContext}
+              runSearch={runChatSearch}
+              getBookmark={getChatBookmark}
+              initialMessages={chatHistoryMessages ?? undefined}
+              initialPrompt={chatInitialPrompt ?? undefined}
+              onClose={() => {
+                setChatOpen(false);
+                setChatHistoryMessages(null);
+                setChatInitialPrompt(null);
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {chatHistoryOpen ? (
+            <SavedChatsPanel
+              onClose={() => setChatHistoryOpen(false)}
+              onOpenChat={(saved) => {
+                setChatHistoryMessages(saved.messages as UIMessage[]);
+                setChatHistoryOpen(false);
+                setChatOpen(true);
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showScrollTop && !detail ? (
+            <motion.button
+              key="scroll-top"
+              type="button"
+              aria-label={t("action.scrollTop")}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              initial={{ opacity: 0, y: 12, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.9 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+              className="fixed right-4 z-30 grid size-11 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[var(--shadow-float)] transition-colors hover:bg-[color:var(--color-primary-active)] sm:right-6"
+            >
+              <ArrowUp size={18} />
+            </motion.button>
+          ) : null}
+        </AnimatePresence>
+      </main>
+    </MotionConfig>
+  );
+}
+
+function HeaderIconButton({
+  label,
+  count,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  count: number;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={count ? `${label} (${count})` : label}
+      title={label}
+      onClick={onClick}
+      className={`relative size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] ${className ?? "grid"}`}
+    >
+      {children}
+      {count ? (
+        <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[color:var(--color-primary)] px-1 text-[9px] font-semibold tabular-nums text-[color:var(--color-on-primary)]">
+          {count > 99 ? "99+" : count}
+        </span>
       ) : null}
+    </button>
+  );
+}
 
-      {!error && visiblePosts.length === 0 ? (
-        <section className="w-full p-12 text-center text-[color:var(--color-muted)]">
-          {t("empty.results")}
-        </section>
-      ) : null}
-
-      <AnimatePresence>
-        {digestOpen && digestPayload ? (
-          <DigestPanel
-            key={`${digestPayload.query}::${digestPayload.initialCached?.createdAt ?? "live"}`}
-            query={digestPayload.query}
-            sources={digestPayload.sources}
-            initialCached={digestPayload.initialCached}
-            onClose={() => {
-              setDigestOpen(false);
-              setDigestPayload(null);
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {savedOpen ? (
-          <SavedDigestsPanel
-            onClose={() => setSavedOpen(false)}
-            onOpenDigest={(saved) => {
-              setDigestPayload({ query: saved.query, initialCached: saved });
-              setSavedOpen(false);
-              setDigestOpen(true);
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {chatOpen ? (
-          <CommandKChat
-            key={chatHistoryMessages ? "chat-history" : chatInitialPrompt ? `chat-shortlist-${chatInitialPrompt}` : "chat-live"}
-            context={chatContext}
-            runSearch={runChatSearch}
-            getBookmark={getChatBookmark}
-            initialMessages={chatHistoryMessages ?? undefined}
-            initialPrompt={chatInitialPrompt ?? undefined}
-            onClose={() => {
-              setChatOpen(false);
-              setChatHistoryMessages(null);
-              setChatInitialPrompt(null);
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {chatHistoryOpen ? (
-          <SavedChatsPanel
-            onClose={() => setChatHistoryOpen(false)}
-            onOpenChat={(saved) => {
-              setChatHistoryMessages(saved.messages as UIMessage[]);
-              setChatHistoryOpen(false);
-              setChatOpen(true);
-            }}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showScrollTop ? (
-          <motion.button
-            key="scroll-top"
-            type="button"
-            aria-label={t("action.scrollTop")}
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            initial={{ opacity: 0, y: 12, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.9 }}
-            whileTap={{ scale: 0.92 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="fixed bottom-5 right-5 z-30 grid h-12 w-12 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[0_4px_20px_rgba(20,20,19,0.15)] transition-colors hover:bg-[color:var(--color-primary-active)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--color-primary)]/30"
-          >
-            <ArrowUp size={20} />
-          </motion.button>
-        ) : null}
-      </AnimatePresence>
-    </main>
+function CardSkeleton({ index }: { index: number }) {
+  // Varied heights so the masonry columns read as content, not a table.
+  const heights = ["h-56", "h-36", "h-64", "h-44", "h-52", "h-40"];
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: index * 0.035, duration: 0.3 }}
+      className="mb-2.5 inline-block w-full break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-surface-card)] align-top sm:mb-4"
+    >
+      <div className={`${heights[index % heights.length]} animate-pulse bg-[color:var(--color-surface-cream-strong)]/60`} />
+      <div className="grid gap-2 p-3 sm:p-4">
+        <div className="h-3 w-4/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />
+        <div className="h-3 w-3/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />
+      </div>
+    </motion.div>
   );
 }

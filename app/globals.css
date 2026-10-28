@@ -4,35 +4,43 @@
 :root {
   color-scheme: light;
 
-  /* Anthropic-style palette (see DESIGN.md). */
-  --color-canvas: #faf9f5;
-  --color-surface-soft: #f5f0e8;
-  --color-surface-card: #efe9de;
-  --color-surface-cream-strong: #e8e0d2;
-  --color-surface-dark: #181715;
-  --color-surface-dark-elevated: #252320;
-  --color-surface-dark-soft: #1f1e1b;
-  --color-hairline: #e6dfd8;
-  --color-hairline-soft: #ebe6df;
+  /* Neutral monochrome palette (2026-10 redesign). Ink is the accent: active chips, primary
+     buttons and focus all use it. Token NAMES are kept from the earlier warm palette so every
+     panel/component re-themes without per-file edits; dark values are redefined below. */
+  --color-canvas: #ffffff;
+  --color-surface-soft: #fafafa;
+  --color-surface-card: #f4f4f5;
+  --color-surface-cream-strong: #e9e9eb;
+  /* "dark" surfaces are the INVERSE surface (dark on light, light on dark). */
+  --color-surface-dark: #09090b;
+  --color-surface-dark-elevated: #18181b;
+  --color-surface-dark-soft: #27272a;
+  --color-hairline: #e4e4e7;
+  --color-hairline-soft: #efeff1;
 
-  --color-primary: #cc785c;
-  --color-primary-active: #a9583e;
-  --color-primary-disabled: #e6dfd8;
-  --color-accent-teal: #5db8a6;
-  --color-accent-amber: #e8a55a;
+  --color-primary: #09090b;
+  --color-primary-active: #27272a;
+  --color-primary-disabled: #e4e4e7;
+  --color-accent-teal: #0d9488;
+  --color-accent-amber: #d97706;
 
-  --color-ink: #141413;
-  --color-body-strong: #252523;
-  --color-body: #3d3d3a;
-  --color-muted: #6c6a64;
-  --color-muted-soft: #8e8b82;
+  --color-ink: #09090b;
+  --color-body-strong: #18181b;
+  --color-body: #3f3f46;
+  --color-muted: #71717a;
+  --color-muted-soft: #a1a1aa;
   --color-on-primary: #ffffff;
-  --color-on-dark: #faf9f5;
-  --color-on-dark-soft: #a09d96;
+  --color-on-dark: #fafafa;
+  --color-on-dark-soft: #a1a1aa;
 
-  --color-success: #5db872;
-  --color-warning: #d4a017;
-  --color-error: #c64545;
+  --color-success: #16a34a;
+  --color-warning: #ca8a04;
+  --color-error: #dc2626;
+
+  /* Modal backdrops (ink/30 would turn white in dark mode). */
+  --color-scrim: rgb(9 9 11 / 0.32);
+  --shadow-card-hover: 0 1px 2px rgb(9 9 11 / 0.04), 0 12px 32px -12px rgb(9 9 11 / 0.18);
+  --shadow-float: 0 8px 30px rgb(9 9 11 / 0.12);
 
   /* Aliases used by Next defaults. */
   --background: var(--color-canvas);
@@ -60,6 +68,74 @@
   --input: var(--color-hairline);
   --ring: var(--color-primary);
   --radius: 0.5rem;
+}
+
+/* Dark mode: follows the OS unless the user picked a theme (html[data-theme], set before paint
+   by the inline script in app/layout.tsx and by lib/theme.ts). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-canvas: #09090b;
+    --color-surface-soft: #0f0f11;
+    --color-surface-card: #18181b;
+    --color-surface-cream-strong: #27272a;
+    --color-surface-dark: #fafafa;
+    --color-surface-dark-elevated: #e4e4e7;
+    --color-surface-dark-soft: #d4d4d8;
+    --color-hairline: #27272a;
+    --color-hairline-soft: #1f1f23;
+    --color-primary: #fafafa;
+    --color-primary-active: #d4d4d8;
+    --color-primary-disabled: #27272a;
+    --color-accent-teal: #2dd4bf;
+    --color-accent-amber: #fbbf24;
+    --color-ink: #fafafa;
+    --color-body-strong: #e4e4e7;
+    --color-body: #d4d4d8;
+    --color-muted: #a1a1aa;
+    --color-muted-soft: #71717a;
+    --color-on-primary: #09090b;
+    --color-on-dark: #09090b;
+    --color-on-dark-soft: #52525b;
+    --color-success: #4ade80;
+    --color-warning: #facc15;
+    --color-error: #f87171;
+    --color-scrim: rgb(0 0 0 / 0.6);
+    --shadow-card-hover: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+    --shadow-float: 0 8px 30px rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #09090b;
+  --color-surface-soft: #0f0f11;
+  --color-surface-card: #18181b;
+  --color-surface-cream-strong: #27272a;
+  --color-surface-dark: #fafafa;
+  --color-surface-dark-elevated: #e4e4e7;
+  --color-surface-dark-soft: #d4d4d8;
+  --color-hairline: #27272a;
+  --color-hairline-soft: #1f1f23;
+  --color-primary: #fafafa;
+  --color-primary-active: #d4d4d8;
+  --color-primary-disabled: #27272a;
+  --color-accent-teal: #2dd4bf;
+  --color-accent-amber: #fbbf24;
+  --color-ink: #fafafa;
+  --color-body-strong: #e4e4e7;
+  --color-body: #d4d4d8;
+  --color-muted: #a1a1aa;
+  --color-muted-soft: #71717a;
+  --color-on-primary: #09090b;
+  --color-on-dark: #09090b;
+  --color-on-dark-soft: #52525b;
+  --color-success: #4ade80;
+  --color-warning: #facc15;
+  --color-error: #f87171;
+  --color-scrim: rgb(0 0 0 / 0.6);
+  --shadow-card-hover: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 8px 30px rgb(0 0 0 / 0.5);
 }
 
 /* Tailwind v4 lets components written as `bg-background`, `text-foreground`
@@ -119,13 +195,27 @@ h4,
 .font-display {
   font-family:
     var(--font-display),
-    "Cormorant Garamond",
+    "Instrument Serif",
     "Tiempos Headline",
     Garamond,
     "Times New Roman",
     serif;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Horizontal chip rails scroll without a visible bar (touch + trackpad). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 ::selection {
