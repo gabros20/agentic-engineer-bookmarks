@@ -9,7 +9,7 @@ import { enforceQuota, requireUser } from "@/lib/api-guard";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = "google/gemini-3.6-flash";
+const MODEL = "deepseek/deepseek-v4.1-flash-1017";
 
 // T5: per-user chat turns/day. The 41st POST of a UTC day → 429. One POST = one user turn =
 // one increment (the agent may take multiple tool steps internally; that's still one turn).
@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
     stopWhen: stepCountIs(10),
     temperature: 0.2,
     // reasoning.effort is OpenRouter's own unified, provider-agnostic reasoning-effort field
-    // (not OpenAI-specific) — OpenRouter maps it directly onto Gemini's native thinkingLevel
-    // API ("low"/"medium"/"high"), so it applies cleanly to gemini-3.6-flash here. Capped at
-    // "medium" to keep this interactive Cmd-K route from reasoning uncapped on latency/cost.
+    // (not OpenAI-specific) — OpenRouter maps it onto each provider's native thinking control,
+    // so it applies to deepseek-v4.1-flash-1017 here (verified live: tool loop + HU answers).
+    // Capped at "medium" to keep this interactive Cmd-K route from reasoning uncapped on latency/cost.
     providerOptions: {
       openrouter: {
         reasoning: { effort: "medium" },

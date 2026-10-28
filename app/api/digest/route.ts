@@ -8,17 +8,16 @@ import { db } from "@/lib/db";
 import { savedDigests } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
-// The digest now clusters ~50 Worker-reranked sources (up from ~30) with gemini-3.6-flash, so a
+// The digest now clusters ~50 Worker-reranked sources (up from ~30) with deepseek-v4.1-flash-1017, so a
 // single generation can run longer than the old 60s ceiling. Vercel Fluid Compute allows up to
 // 300s; 120s gives comfortable headroom for a large streamed digest without an open-ended cap.
 export const maxDuration = 120;
 
-// T1 (digest engine upgrade): gemini-3.6-flash — stronger synthesis + reliable
-// structured output/HU output than the previous nano tier, still cheap, for a deeper
-// (~50-source) input. Verified live via streamObject through OpenRouter (see
-// .orchestrate/task-1-report.md); no providerOptions needed — this route never set
-// OpenAI-style `reasoning.effort`, so there's nothing Gemini-specific to adapt here.
-const MODEL = "google/gemini-3.6-flash";
+// deepseek-v4.1-flash-1017 (was gemini-3.6-flash): ~5x cheaper on OpenRouter ($0.15/$0.60 vs
+// $0.75/$3.75 per M tokens) and faster. Verified live via streamObject through OpenRouter: valid
+// digestSchema objects in EN + HU, every cited id present in the sources. No providerOptions
+// needed — this route never sets `reasoning.effort`.
+const MODEL = "deepseek/deepseek-v4.1-flash-1017";
 
 // T5: per-user digests/day. The 11th digest of a UTC day → 429. Same atomic ON CONFLICT
 // pattern app/api/search/route.ts established for search; increment happens BEFORE the

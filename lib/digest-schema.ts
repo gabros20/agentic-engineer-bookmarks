@@ -18,7 +18,7 @@ export const digestRequestSchema = z.object({
 
 // T1 (digest engine upgrade): richer output contract. Sourced from a Worker re-query at
 // ~50 (deeper + reranked, not just the 30 on-screen posts) and synthesized by a stronger
-// model (gemini-3.6-flash) — see lib/digest-prompt.ts. Breadth-favoring: the prompt is
+// model (now deepseek-v4.1-flash-1017) — see lib/digest-prompt.ts. Breadth-favoring: the prompt is
 // told to include every relevant source and only drop true noise.
 //
 // `overall` is KEPT (not folded into `tldr`) deliberately: lib/digest-cache.ts's
