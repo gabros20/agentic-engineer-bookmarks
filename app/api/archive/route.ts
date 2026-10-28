@@ -15,8 +15,11 @@ import { requireUser } from "@/lib/api-guard";
 // (invite-only account required) is the control that keeps the archive private.
 export const runtime = "nodejs";
 
-// Hard ceiling on the proxy→Worker round trip, mirroring app/api/search. A hung Worker must not
-// hold this Vercel function open to its maxDuration; on timeout the fetch aborts → generic 502.
+// Ceiling on the Worker answering with response HEADERS (a hung Worker must not hold this Vercel
+// function open to its maxDuration; on timeout the fetch aborts → generic 502). It deliberately
+// does NOT cover the body: a fetch signal also aborts the in-flight body stream, and the ~12 MB
+// archive is piped to the browser with backpressure, so on a slow client connection a whole-
+// request timeout cut the stream mid-JSON → "Unterminated string in JSON" in the data worker.
 const WORKER_TIMEOUT_MS = 15000;
 
 export async function GET(request: NextRequest) {
@@ -33,14 +36,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "archive misconfigured" }, { status: 500 });
   }
 
+  // Headers-only timeout: aborted if the Worker hasn't responded in time, cleared once it has so
+  // the body can stream as long as the client needs. The incoming request signal stays composed
+  // in, so an abandoned page-load still cancels the upstream R2 read mid-stream.
+  const headersTimeout = new AbortController();
+  const timer = setTimeout(() => headersTimeout.abort(), WORKER_TIMEOUT_MS);
   try {
     const res = await fetch(`${endpoint}/archive`, {
       method: "GET",
       headers: { "X-Proxy-Secret": secret },
-      // Compose the timeout with the incoming request signal so an abandoned page-load actually
-      // cancels the upstream R2 read instead of running to the ceiling (mirrors app/api/search).
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(WORKER_TIMEOUT_MS)]),
+      signal: AbortSignal.any([request.signal, headersTimeout.signal]),
     });
+    clearTimeout(timer);
     if (!res.ok || !res.body) {
       // Don't leak the endpoint or internals; the Worker already logged the real cause.
       return NextResponse.json({ error: "archive upstream failed" }, { status: 502 });
@@ -56,6 +63,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch {
+    clearTimeout(timer);
     return NextResponse.json({ error: "archive upstream failed" }, { status: 502 });
   }
 }
