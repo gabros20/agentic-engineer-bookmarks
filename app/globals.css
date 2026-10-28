@@ -210,6 +210,19 @@ h4,
   letter-spacing: -0.01em;
 }
 
+/* Tailwind v4's preflight resets buttons to cursor: default. Everything clickable gets the
+   pointing hand again (base layer, so a utility like cursor-wait still wins). */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 /* Horizontal chip rails scroll without a visible bar (touch + trackpad). */
 .no-scrollbar {
   scrollbar-width: none;
