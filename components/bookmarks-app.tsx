@@ -895,14 +895,23 @@ export function BookmarksApp() {
             />
             <AnimatePresence>
               {semanticPending ? (
+                // Absolutely positioned over the underline, so growing never moves layout: the bar
+                // swells from a hairline to 4px with scaleY (compositor-only), then breathes while
+                // the semantic search runs; the light inside sweeps with translateX.
                 <motion.span
                   key="sweep"
                   aria-hidden
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="search-loader-sweep pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full"
-                />
+                  initial={{ opacity: 0, scaleY: 0.25 }}
+                  animate={{ opacity: 1, scaleY: [1, 0.65, 1] }}
+                  exit={{ opacity: 0, scaleY: 0.25, transition: { duration: 0.25, ease: "easeOut" } }}
+                  transition={{
+                    opacity: { duration: 0.2 },
+                    scaleY: { duration: 1.4, repeat: Infinity, ease: "easeInOut" },
+                  }}
+                  className="pointer-events-none absolute inset-x-0 -bottom-[2px] h-1 overflow-hidden rounded-full bg-[color:var(--color-ink)]/10 will-change-transform"
+                >
+                  <span className="search-loader-sweep absolute inset-y-0 left-0 w-[45%] rounded-full" />
+                </motion.span>
               ) : null}
             </AnimatePresence>
             <div className="absolute bottom-3.5 right-0 sm:bottom-5">

@@ -236,8 +236,7 @@ h4,
 
 .search-loader-sweep {
   background: linear-gradient(90deg, transparent, #a78bfa, #38bdf8, #fb7185, transparent);
-  background-size: 45% 100%;
-  background-repeat: no-repeat;
+  will-change: transform;
   animation: loader-sweep 1.3s ease-in-out infinite;
 }
 
@@ -256,12 +255,13 @@ h4,
   }
 }
 
+/* transform-only (GPU): the 45%-wide light travels from fully left to fully right of its track. */
 @keyframes loader-sweep {
   from {
-    background-position: -50% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: 150% 0;
+    transform: translateX(222%);
   }
 }
 
