@@ -32,6 +32,8 @@ export function archiveTweetToBookmark(t) {
       url: m.url,
       width: m.width,
       height: m.height,
+      thumbnail: m.thumbnail,
+      durationMs: m.durationMs,
     })),
     urls: t.urls,
     isRetweet: t.isRetweet,
@@ -91,6 +93,8 @@ export function bookmarkToArchiveTweet(b) {
       const item = { type: mediaTypeOut(m.type), url: m.url };
       if (m.width !== undefined) item.width = m.width;
       if (m.height !== undefined) item.height = m.height;
+      if (m.thumbnail) item.thumbnail = m.thumbnail;
+      if (m.durationMs !== undefined) item.durationMs = m.durationMs;
       return item;
     });
   }
