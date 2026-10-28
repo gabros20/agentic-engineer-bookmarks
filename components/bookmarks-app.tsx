@@ -140,6 +140,10 @@ export function BookmarksApp() {
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [hybridResults, setHybridResults] = useState<Map<string, number> | null>(null);
+  // The residual query text whose Worker search last finished (ranked OR failed). While the
+  // current text differs, semantic results are still on their way: the grid shows the instant
+  // substring matches plus a loader, and a previous query's ranking is never applied to it.
+  const [settledQuery, setSettledQuery] = useState<string | null>(null);
   const [searchStatusKey, setSearchStatusKey] = useState<
     "status.ready" | "status.searching" | "status.results" | "status.offline" | "status.searchQuota"
   >("status.ready");
@@ -365,6 +369,7 @@ export function BookmarksApp() {
       .then((results) => {
         if (cancelled) return;
         setHybridResults(new Map(results.map((result) => [result.id, result.score])));
+        setSettledQuery(q);
         setSearchStatusKey("status.results");
       })
       .catch((err) => {
@@ -380,6 +385,7 @@ export function BookmarksApp() {
         // distinct "daily limit reached" notice (non-blocking) instead of the generic offline copy,
         // so the user knows WHY results look basic rather than seeing silent degradation.
         setHybridResults(null);
+        setSettledQuery(q);
         setSearchStatusKey(err instanceof SearchQuotaError ? "status.searchQuota" : "status.offline");
       });
 
@@ -392,6 +398,12 @@ export function BookmarksApp() {
   // Operator + text/hybrid matches, before the scope filter, so the filter rail can show how
   // many matches each scope holds. Filter steps commute, so this is the same set the old
   // scope-first pipeline produced.
+  const textQuery = parsedQuery.text.trim();
+  // Only a ranking computed for THIS text counts; a stale one (previous keystrokes) would show
+  // the wrong results until the new search lands.
+  const activeHybrid = hybridResults && settledQuery === textQuery ? hybridResults : null;
+  const semanticPending = textQuery !== "" && payload !== null && settledQuery !== textQuery;
+
   const matchedPosts = useMemo(() => {
     const { text, operators } = parsedQuery;
     const q = text.trim().toLowerCase();
@@ -408,11 +420,11 @@ export function BookmarksApp() {
       : posts;
 
     return q
-      ? hybridResults
-        ? operatorScoped.filter((post) => hybridResults.has(post.id))
+      ? activeHybrid
+        ? operatorScoped.filter((post) => activeHybrid.has(post.id))
         : operatorScoped.filter((post) => searchable(post).includes(q))
       : operatorScoped;
-  }, [hybridResults, posts, parsedQuery]);
+  }, [activeHybrid, posts, parsedQuery]);
 
   const scopeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -433,15 +445,15 @@ export function BookmarksApp() {
       // active hybrid ranking (no search, or an operators-only search with an empty residual —
       // hybridResults is null there per the search effect above) falls through to the final
       // newest-first default below, same as "newest" itself.
-      if (q && hybridResults && sort === "relevance") {
-        return (hybridResults.get(b.id) ?? 0) - (hybridResults.get(a.id) ?? 0);
+      if (q && activeHybrid && sort === "relevance") {
+        return (activeHybrid.get(b.id) ?? 0) - (activeHybrid.get(a.id) ?? 0);
       }
       if (sort === "oldest") return byDate(a) - byDate(b);
       if (sort === "bookmarks") return (b.metrics?.bookmarks ?? 0) - (a.metrics?.bookmarks ?? 0);
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
       return byDate(b) - byDate(a);
     });
-  }, [favorites, hybridResults, matchedPosts, parsedQuery, scope, sort]);
+  }, [favorites, activeHybrid, matchedPosts, parsedQuery, scope, sort]);
 
   // T4.1: human-readable stand-in for `query` at digest/chat call sites — residual text +
   // a parenthesized operator suffix, e.g. `agents (from:simonw, after:2026-03)`. Keeps
@@ -719,7 +731,9 @@ export function BookmarksApp() {
     ? error
     : payload === null
       ? " "
-      : query.trim()
+      : semanticPending
+        ? `${t("status.instant", { n: number(visiblePosts.length) })} · ${t("status.moreComing")}`
+        : query.trim()
         ? `${t("status.matches", { n: number(visiblePosts.length) })} · ${statusText}`
         : scope === "all"
           ? t("status.count", { n: number(posts.length) })
@@ -729,12 +743,12 @@ export function BookmarksApp() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <main className="min-h-screen w-full bg-[color:var(--color-canvas)] text-[color:var(--color-body)]">
+      <main className="min-h-screen w-full bg-[color:var(--color-page)] text-[color:var(--color-body)]">
         <header
           className={`sticky top-0 z-30 border-b transition-[background-color,border-color] duration-300 ${
             scrolled
-              ? "border-[color:var(--color-hairline-soft)] bg-[color:var(--color-canvas)]/80 backdrop-blur-xl"
-              : "border-transparent bg-[color:var(--color-canvas)]"
+              ? "border-[color:var(--color-hairline)]/70 bg-[color:var(--color-page)]/80 backdrop-blur-xl"
+              : "border-transparent bg-[color:var(--color-page)]"
           }`}
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
@@ -761,7 +775,7 @@ export function BookmarksApp() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.2 }}
                   aria-label={t("nav.searchHint")}
-                  className="mx-auto hidden h-9 w-full max-w-sm items-center gap-2 rounded-full bg-[color:var(--color-surface-card)] px-3.5 text-sm text-[color:var(--color-muted)] transition hover:bg-[color:var(--color-surface-cream-strong)] md:flex"
+                  className="mx-auto hidden h-9 w-full max-w-sm items-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-3.5 text-sm text-[color:var(--color-muted)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-[color:var(--color-hairline)]/60 transition hover:text-[color:var(--color-ink)] md:flex"
                 >
                   <Search size={15} />
                   <span className="truncate">{query || t("search.hero", { n: number(posts.length) })}</span>
@@ -781,7 +795,7 @@ export function BookmarksApp() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     aria-label={t("nav.searchHint")}
-                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] md:hidden"
+                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)] md:hidden"
                   >
                     <Search size={17} />
                   </motion.button>
@@ -812,7 +826,7 @@ export function BookmarksApp() {
                   <button
                     type="button"
                     aria-label={t("nav.menu")}
-                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-card)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]"
+                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]"
                   >
                     <MoreHorizontal size={18} />
                   </button>
@@ -879,6 +893,18 @@ export function BookmarksApp() {
               placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
               className="w-full appearance-none rounded-none border-b border-[color:var(--color-hairline)] bg-transparent pb-3 pr-11 font-display text-[32px] leading-[1.15] text-[color:var(--color-ink)] caret-[color:var(--color-ink)] outline-none transition-colors duration-300 placeholder:italic placeholder:text-[color:var(--color-muted-soft)] focus:border-[color:var(--color-ink)] sm:text-[52px] lg:text-[60px] [&::-webkit-search-cancel-button]:hidden"
             />
+            <AnimatePresence>
+              {semanticPending ? (
+                <motion.span
+                  key="sweep"
+                  aria-hidden
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="search-loader-sweep pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full"
+                />
+              ) : null}
+            </AnimatePresence>
             <div className="absolute bottom-3.5 right-0 sm:bottom-5">
               <AnimatePresence mode="wait" initial={false}>
                 {query ? (
@@ -894,7 +920,7 @@ export function BookmarksApp() {
                       searchRef.current?.focus();
                     }}
                     aria-label={t("search.clear")}
-                    className="grid size-9 place-items-center rounded-full bg-[color:var(--color-surface-card)] text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)]"
+                    className="grid size-9 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition hover:bg-[color:var(--color-surface-cream-strong)]"
                   >
                     <XIcon size={16} />
                   </motion.button>
@@ -933,7 +959,7 @@ export function BookmarksApp() {
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-xs transition ${
                       chip.invalid
                         ? "bg-[color:var(--color-warning)]/12 text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning)]/20"
-                        : "bg-[color:var(--color-surface-card)] text-[color:var(--color-body)] hover:bg-[color:var(--color-surface-cream-strong)]"
+                        : "bg-[color:var(--color-canvas)] text-[color:var(--color-body)] hover:bg-[color:var(--color-surface-cream-strong)]"
                     }`}
                   >
                     <span>{chip.label}</span>
@@ -946,13 +972,12 @@ export function BookmarksApp() {
 
           <div className="mt-3 flex min-h-8 items-center justify-between gap-3">
             <p aria-live="polite" className={`truncate text-[13px] tabular-nums ${error ? "text-[color:var(--color-error)]" : "text-[color:var(--color-muted)]"}`}>
-              {searchStatusKey === "status.searching" ? <span className="mr-1.5 inline-block size-1.5 animate-pulse rounded-full bg-[color:var(--color-ink)] align-middle" /> : null}
-              {statusLine}
+              {semanticPending ? <span className="search-loader-text">{statusLine}</span> : statusLine}
             </p>
             <div
               role="group"
               aria-label={t("search.precision.aria")}
-              className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-card)] p-0.5 text-xs font-medium"
+              className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-cream-strong)]/70 p-0.5 text-xs font-medium"
             >
               {(["exact", "broad"] as const).map((value) => (
                 <button
@@ -987,7 +1012,7 @@ export function BookmarksApp() {
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="overflow-hidden"
               >
-                <div className="flex gap-2 pt-3">
+                <div className="flex gap-2 pb-1 pt-4">
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.97 }}
@@ -1007,7 +1032,7 @@ export function BookmarksApp() {
                       setChatInitialPrompt(t("chat.shortlistPrompt", { q: displayQuery }));
                       setChatOpen(true);
                     }}
-                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)] sm:flex-none"
+                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-inset ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-soft)] sm:flex-none"
                   >
                     <ListOrdered size={15} />
                     {t("action.aiShortlist")}
@@ -1020,7 +1045,7 @@ export function BookmarksApp() {
 
         <nav
           aria-label={t("scope.all")}
-          className="sticky z-20 bg-[color:var(--color-canvas)]/85 backdrop-blur-xl"
+          className="sticky z-20 bg-[color:var(--color-page)]/85 backdrop-blur-xl"
           style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
         >
           <div className={`${shell} flex items-center gap-2 py-3`}>
@@ -1036,7 +1061,7 @@ export function BookmarksApp() {
                     className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
                       active
                         ? "text-[color:var(--color-on-primary)]"
-                        : "bg-[color:var(--color-surface-card)] text-[color:var(--color-body-strong)] hover:bg-[color:var(--color-surface-cream-strong)]"
+                        : "bg-[color:var(--color-canvas)] text-[color:var(--color-body-strong)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:bg-[color:var(--color-surface-cream-strong)]"
                     }`}
                   >
                     {active ? (
@@ -1059,7 +1084,7 @@ export function BookmarksApp() {
               onValueChange={setSort}
               ariaLabel={t("sort.newest")}
               leadingIcon={<ArrowDownUp size={14} />}
-              className="h-9 w-auto shrink-0 gap-1.5 rounded-full border-0 bg-[color:var(--color-surface-card)] pl-3 pr-2 text-[13px] font-medium"
+              className="h-9 w-auto shrink-0 gap-1.5 rounded-full border-0 bg-[color:var(--color-canvas)] pl-3 pr-2 text-[13px] font-medium shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:bg-[color:var(--color-canvas)] hover:text-[color:var(--color-ink)]"
               options={[
                 { value: "relevance", label: t("sort.relevance") },
                 { value: "newest", label: t("sort.newest") },
@@ -1077,26 +1102,27 @@ export function BookmarksApp() {
               <CardSkeleton key={i} index={i} />
             ))}
           </section>
-        ) : visiblePosts.length === 0 ? (
+        ) : visiblePosts.length === 0 && !semanticPending ? (
           <motion.section
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className={`${shell} grid justify-items-center gap-3 py-20 text-center`}
           >
-            <span className="grid size-12 place-items-center rounded-full bg-[color:var(--color-surface-card)] text-[color:var(--color-muted)]">
+            <span className="grid size-12 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-muted)]">
               <SearchX size={20} />
             </span>
             <p className="text-[15px] text-[color:var(--color-muted)]">{t("empty.results")}</p>
             <button
               type="button"
               onClick={resetFilters}
-              className="h-10 rounded-full px-5 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)]"
+              className="h-10 rounded-full bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition hover:bg-[color:var(--color-surface-soft)]"
             >
               {t("action.clear")}
             </button>
           </motion.section>
         ) : (
           <section className={`${shell} columns-2 gap-2.5 pb-10 pt-1 sm:columns-[17.5rem] sm:gap-4`}>
+            <AnimatePresence>{semanticPending ? <SearchLoaderCard key="search-loader" /> : null}</AnimatePresence>
             {displayedPosts.map((post) => (
               <BookmarkCard
                 key={post.id}
@@ -1114,7 +1140,7 @@ export function BookmarksApp() {
             <button
               type="button"
               onClick={() => setVisibleLimit((current) => current + PAGE_SIZE)}
-              className="h-10 rounded-full px-5 text-sm font-medium text-[color:var(--color-ink)] ring-1 ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-card)]"
+              className="h-10 rounded-full bg-[color:var(--color-canvas)] px-5 text-sm font-medium text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition hover:bg-[color:var(--color-surface-soft)]"
             >
               {t("action.loadMore", { n: number(Math.min(PAGE_SIZE, visiblePosts.length - displayedPosts.length)) })}
             </button>
@@ -1241,7 +1267,7 @@ function HeaderIconButton({
       aria-label={count ? `${label} (${count})` : label}
       title={label}
       onClick={onClick}
-      className={`relative size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] ${className ?? "grid"}`}
+      className={`relative size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)] ${className ?? "grid"}`}
     >
       {children}
       {count ? (
@@ -1253,6 +1279,33 @@ function HeaderIconButton({
   );
 }
 
+// mymind-style "more is coming" card: sits at the top of the grid while the Worker's semantic
+// ranking is in flight, so the instant substring matches below read as a first pass.
+function SearchLoaderCard() {
+  const { t } = useLanguage();
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      role="status"
+      className="search-loader-card mb-2.5 inline-grid w-full break-inside-avoid place-items-center gap-1.5 rounded-2xl px-4 py-8 text-center align-top sm:mb-4 sm:py-10"
+    >
+      <motion.span
+        animate={{ rotate: [0, 18, -12, 0], scale: [1, 1.12, 1] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        className="text-[color:var(--color-ink)]"
+      >
+        <Sparkles size={20} />
+      </motion.span>
+      <p className="font-display text-[22px] leading-tight text-[color:var(--color-ink)] sm:text-[24px]">{t("loader.title")}</p>
+      <p className="max-w-[15rem] text-[12.5px] leading-[1.45] text-[color:var(--color-muted)]">{t("loader.body")}</p>
+    </motion.div>
+  );
+}
+
 function CardSkeleton({ index }: { index: number }) {
   // Varied heights so the masonry columns read as content, not a table.
   const heights = ["h-56", "h-36", "h-64", "h-44", "h-52", "h-40"];
@@ -1261,9 +1314,9 @@ function CardSkeleton({ index }: { index: number }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: index * 0.035, duration: 0.3 }}
-      className="mb-2.5 inline-block w-full break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-surface-card)] align-top sm:mb-4"
+      className="mb-2.5 inline-block w-full break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-canvas)] align-top sm:mb-4"
     >
-      <div className={`${heights[index % heights.length]} animate-pulse bg-[color:var(--color-surface-cream-strong)]/60`} />
+      <div className={`${heights[index % heights.length]} animate-pulse bg-[color:var(--color-surface-card)]`} />
       <div className="grid gap-2 p-3 sm:p-4">
         <div className="h-3 w-4/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />
         <div className="h-3 w-3/5 animate-pulse rounded-full bg-[color:var(--color-surface-cream-strong)]" />

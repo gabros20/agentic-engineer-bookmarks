@@ -94,6 +94,10 @@ export const messages = {
 
     "status.ready": "Semantic search ready",
     "status.searching": "Searching…",
+    "status.instant": "{n} quick matches",
+    "status.moreComing": "finding related bookmarks…",
+    "loader.title": "One moment.",
+    "loader.body": "Searching your bookmarks by meaning. More results are on the way.",
     "status.results": "Semantic search results",
     "status.offline": "Search offline — basic text match",
     "status.searchQuota": "Daily search limit reached — basic text match",
@@ -257,6 +261,10 @@ export const messages = {
 
     "status.ready": "Szemantikus kereső kész",
     "status.searching": "Keresés…",
+    "status.instant": "{n} gyors találat",
+    "status.moreComing": "kapcsolódó könyvjelzők keresése…",
+    "loader.title": "Egy pillanat.",
+    "loader.body": "Jelentés alapján keresek a könyvjelzőid között, hamarosan további találatok érkeznek.",
     "status.results": "Szemantikus találatok",
     "status.offline": "Kereső nem elérhető — egyszerű szövegtalálat",
     "status.searchQuota": "Elérted a napi keresési limitet — egyszerű szövegtalálat",

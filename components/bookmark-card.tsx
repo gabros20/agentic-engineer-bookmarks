@@ -141,7 +141,7 @@ export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onTog
           onOpen(post.id);
         }
       }}
-      className="group relative mb-2.5 inline-block w-full min-w-0 cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-surface-card)] align-top outline-none transition-[box-shadow,background-color] duration-300 hover:shadow-[var(--shadow-card-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] sm:mb-4"
+      className="group relative mb-2.5 inline-block w-full min-w-0 cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-canvas)] align-top shadow-[0_1px_2px_rgb(0_0_0/0.04)] outline-none transition-[box-shadow,background-color] duration-300 hover:shadow-[var(--shadow-card-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] sm:mb-4"
     >
       {media.length > 0 ? <MediaGrid media={media} /> : null}
 
