@@ -34,9 +34,12 @@ interface R2ObjectBody {
   // Present on both a real R2 object and the dev HTTP-fallback Response, so /archive
   // can stream the raw bookmark archive through without buffering it into memory.
   body: ReadableStream | null;
+  // Quoted ETag (R2 objects only; undefined on the dev HTTP-fallback Response).
+  httpEtag?: string;
 }
 interface R2Bucket {
   get(key: string): Promise<R2ObjectBody | null>;
+  head(key: string): Promise<{ httpEtag: string } | null>;
 }
 interface Env {
   AI: { run: (model: string, input: unknown) => Promise<any> };
@@ -352,21 +355,35 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
 // with the URL. Now it lives only in private R2 and is reachable solely through this secret-gated
 // endpoint behind a session-checked proxy. Streams the body through (no in-memory buffering) via
 // the shared fetchAsset loader, so it transparently uses R2 in prod and the dev HTTP fallback locally.
+function etagMatches(ifNoneMatch: string, etag: string): boolean {
+  const strip = (t: string) => t.trim().replace(/^W\//, "");
+  return ifNoneMatch.split(",").some((t) => strip(t) === strip(etag));
+}
+
 async function handleArchive(request: Request, env: Env): Promise<Response> {
   if (!env.SEARCH_PROXY_SECRET || request.headers.get("X-Proxy-Secret") !== env.SEARCH_PROXY_SECRET) {
     return json({ error: "unauthorized" }, 401);
   }
   try {
+    // Conditional GET: the browser caches the archive in IndexedDB and revalidates with
+    // If-None-Match, so an unchanged archive (the daily sync changes it at most once a day) is a
+    // metadata-only head() + 304 instead of streaming ~12 MB out of R2. Weak/strong forms compare
+    // equal, since a compressing hop can weaken the tag on the way back.
+    const ifNoneMatch = request.headers.get("If-None-Match");
+    if (ifNoneMatch && env.SEARCH_DATA) {
+      const head = await env.SEARCH_DATA.head("all-bookmarks.json");
+      if (head && etagMatches(ifNoneMatch, head.httpEtag)) {
+        return new Response(null, { status: 304, headers: { etag: head.httpEtag, "cache-control": "private, no-cache" } });
+      }
+    }
     const obj = await fetchAsset(env, "all-bookmarks.json");
-    return new Response(obj.body, {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-        // Same archive for every user, and the Vercel proxy re-checks the session on each request,
-        // so a short PRIVATE cache is safe and spares repeat R2 reads on reload/tab restore.
-        "cache-control": "private, max-age=300",
-      },
-    });
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      // Revalidate every time; the browser-side cache is IndexedDB, keyed by this ETag.
+      "cache-control": "private, no-cache",
+    };
+    if (obj.httpEtag) headers.etag = obj.httpEtag;
+    return new Response(obj.body, { status: 200, headers });
   } catch (err) {
     // Don't leak R2 keys / DATA_BASE_URL / internal detail to the caller (mirrors handleSearch).
     console.error("archive failed:", err);

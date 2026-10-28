@@ -24,6 +24,7 @@ import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
 import { fetchQueryRewrites } from "@/lib/expand-client";
 import type { DataWorkerMessage } from "@/lib/data-worker";
+import { clearArchiveCache } from "@/lib/archive-cache";
 import { useLanguage } from "@/lib/i18n";
 import { parseQueryOperators, removeInvalidToken, removeOperatorTokens } from "@/lib/query-operators";
 import type { UIMessage } from "ai";
@@ -141,6 +142,8 @@ export function BookmarksApp() {
     setSigningOut(true);
     try {
       await authClient.signOut();
+      // The archive cached in IndexedDB is private data; don't leave it on the device after sign-out.
+      await clearArchiveCache();
     } finally {
       router.replace("/login");
     }

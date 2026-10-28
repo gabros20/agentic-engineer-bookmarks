@@ -42,12 +42,22 @@ export async function GET(request: NextRequest) {
   const headersTimeout = new AbortController();
   const timer = setTimeout(() => headersTimeout.abort(), WORKER_TIMEOUT_MS);
   try {
+    // Forward the browser's If-None-Match (its IndexedDB copy's ETag, see lib/data-worker.ts) so an
+    // unchanged archive comes back as a body-less 304 instead of ~12 MB.
+    const ifNoneMatch = request.headers.get("if-none-match");
     const res = await fetch(`${endpoint}/archive`, {
       method: "GET",
-      headers: { "X-Proxy-Secret": secret },
+      headers: { "X-Proxy-Secret": secret, ...(ifNoneMatch ? { "If-None-Match": ifNoneMatch } : {}) },
       signal: AbortSignal.any([request.signal, headersTimeout.signal]),
     });
     clearTimeout(timer);
+    const etag = res.headers.get("etag");
+    if (res.status === 304) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: { "cache-control": "private, no-cache", ...(etag ? { etag } : {}) },
+      });
+    }
     if (!res.ok || !res.body) {
       // Don't leak the endpoint or internals; the Worker already logged the real cause.
       return NextResponse.json({ error: "archive upstream failed" }, { status: 502 });
@@ -57,9 +67,10 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "content-type": "application/json",
-        // Same archive for every user; the session gate above re-runs on each request, so a short
-        // private (per-browser) cache is safe and avoids re-fetching on reload/tab restore.
-        "cache-control": "private, max-age=300",
+        // The browser cache is IndexedDB (keyed by this ETag), revalidated on every load; keep the
+        // HTTP cache from holding a second ~12 MB copy that could skip the session gate.
+        "cache-control": "private, no-cache",
+        ...(etag ? { etag } : {}),
       },
     });
   } catch {
