@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart3, BookOpenText, Film, Heart, MessageCircle, PlayCircle, Repeat2, Star } from "lucide-react";
+import { useState } from "react";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 
 type BookmarkCardProps = {
@@ -186,25 +187,7 @@ function MediaItem({
     .filter(Boolean)
     .join(" ");
 
-  if (isVideo) {
-    return (
-      <div
-        className={`${className} flex items-center justify-center`}
-        aria-label={item.type === "animated_gif" ? "Animated GIF on X" : "Video on X"}
-      >
-        <div className="grid justify-items-center gap-1.5 px-3 text-center text-[color:var(--color-muted)]">
-          <div className="grid h-11 w-11 place-items-center rounded-full bg-[color:var(--color-surface-dark)]/90 text-[color:var(--color-on-dark)] shadow-sm">
-            <PlayCircle size={24} strokeWidth={2.2} />
-          </div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-[color:var(--color-ink)]">
-            <Film size={14} />
-            {item.type === "animated_gif" ? "GIF on X" : "Video on X"}
-          </div>
-          <p className="max-w-36 text-[11px] leading-4">Open the post to watch.</p>
-        </div>
-      </div>
-    );
-  }
+  if (isVideo) return <VideoMedia item={item} className={className} />;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -214,5 +197,117 @@ function MediaItem({
       alt=""
       loading="lazy"
     />
+  );
+}
+
+type MediaEntry = NonNullable<BookmarkPost["media"]>[number];
+
+// X's poster CDN only re-encodes when BOTH params are set: format=webp alone still returns the
+// ~107 KB jpg, format=webp&name=small is ~28 KB (fits 680px), name=medium ~69 KB (fits 1200px).
+function posterVariant(url: string, name: "small" | "medium") {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== "pbs.twimg.com") return url;
+    parsed.searchParams.set("format", "webp");
+    parsed.searchParams.set("name", name);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function formatDuration(ms?: number) {
+  if (!ms || ms <= 0) return null;
+  const total = Math.round(ms / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+}
+
+// Poster (X's own still) with a play button; clicking swaps in an inline <video> on the stored mp4.
+// video.twimg.com 403s a foreign Referer — playback relies on the app-wide Referrer-Policy:
+// same-origin header (next.config.ts). If the mp4 is gone (deleted post), fall back to the
+// placeholder; a click there bubbles to the card and opens the post on X.
+function VideoMedia({ item, className }: { item: MediaEntry; className: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
+  const isGif = item.type === "animated_gif";
+  const label = isGif ? "GIF on X" : "Video on X";
+  const poster = item.thumbnail && !posterFailed ? item.thumbnail : undefined;
+  const duration = isGif ? null : formatDuration(item.durationMs);
+
+  if (playing && item.url && !videoFailed) {
+    return (
+      <video
+        className={`${className} bg-black object-contain`}
+        src={item.url}
+        poster={poster ? posterVariant(poster, "medium") : undefined}
+        autoPlay
+        playsInline
+        controls={!isGif}
+        loop={isGif}
+        muted={isGif}
+        onClick={isGif ? (event) => (event.currentTarget.paused ? event.currentTarget.play() : event.currentTarget.pause()) : undefined}
+        onError={() => setVideoFailed(true)}
+      />
+    );
+  }
+
+  const placeholder = (
+    <div className="grid justify-items-center gap-1.5 px-3 text-center text-[color:var(--color-muted)]">
+      <div className="grid h-11 w-11 place-items-center rounded-full bg-[color:var(--color-surface-dark)]/90 text-[color:var(--color-on-dark)] shadow-sm">
+        <PlayCircle size={24} strokeWidth={2.2} />
+      </div>
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-[color:var(--color-ink)]">
+        <Film size={14} />
+        {label}
+      </div>
+      {videoFailed ? <p className="max-w-36 text-[11px] leading-4">Open the post to watch.</p> : null}
+    </div>
+  );
+
+  if (videoFailed || !item.url) {
+    return (
+      <div className={`${className} flex items-center justify-center`} aria-label={label}>
+        {placeholder}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setPlaying(true)}
+      aria-label={`Play ${isGif ? "GIF" : "video"}`}
+      className={`${className} group/video relative flex items-center justify-center overflow-hidden`}
+    >
+      {poster ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="absolute inset-0 h-full w-full object-cover"
+            src={posterVariant(poster, "small")}
+            srcSet={`${posterVariant(poster, "small")} 680w, ${posterVariant(poster, "medium")} 1200w`}
+            sizes="(min-width: 1024px) 34vw, (min-width: 640px) 50vw, 100vw"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setPosterFailed(true)}
+          />
+          <span className="relative grid h-12 w-12 place-items-center rounded-full bg-black/60 text-white shadow-md ring-1 ring-white/30 backdrop-blur-sm transition group-hover/video:scale-105 group-hover/video:bg-black/75">
+            <PlayCircle size={26} strokeWidth={2.2} />
+          </span>
+          {duration || isGif ? (
+            <span className="absolute bottom-2 left-2 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+              {duration ?? "GIF"}
+            </span>
+          ) : null}
+        </>
+      ) : (
+        placeholder
+      )}
+    </button>
   );
 }

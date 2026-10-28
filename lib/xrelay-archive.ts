@@ -85,6 +85,8 @@ export function archiveTweetToBookmark(t: ArchiveTweet): BookmarkPost {
       url: m.url,
       width: m.width,
       height: m.height,
+      thumbnail: m.thumbnail,
+      durationMs: m.durationMs,
     })),
     urls: t.urls,
     isRetweet: t.isRetweet,

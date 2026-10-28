@@ -8,6 +8,7 @@
     "embed:bge": "node scripts/embed-bge.mjs",
     "sync:bge": "node scripts/sync-bge.mjs",
     "upload:r2": "node scripts/upload-r2.mjs",
+    "backfill:posters": "node scripts/backfill-posters.mjs",
     "eval:search": "node scripts/eval-search.mjs",
     "test:search": "node scripts/test-search-core.mjs",
     "test:operators": "node scripts/test-query-operators.mjs",

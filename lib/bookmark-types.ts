@@ -40,6 +40,9 @@ export type BookmarkPost = {
     url?: string;
     width?: number;
     height?: number;
+    /** Poster image for video/GIF items (X's own first-frame still on pbs.twimg.com). */
+    thumbnail?: string;
+    durationMs?: number;
   }>;
   urls?: string[];
   isRetweet?: boolean;
