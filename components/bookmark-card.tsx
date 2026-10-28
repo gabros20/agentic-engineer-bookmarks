@@ -57,8 +57,20 @@ export function displayHost(url: string) {
   }
 }
 
+// Intl constructors are surprisingly expensive; cards format several values each render, so
+// keep one formatter per (kind, lang) instead of constructing them per call.
+const formatters = new Map<string, Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.DateTimeFormat>();
+function cached<T extends Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.DateTimeFormat>(key: string, make: () => T): T {
+  let formatter = formatters.get(key) as T | undefined;
+  if (!formatter) {
+    formatter = make();
+    formatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function formatCompact(value: number | undefined, lang: Lang) {
-  return new Intl.NumberFormat(lang, { notation: "compact", maximumFractionDigits: 1 }).format(value ?? 0);
+  return cached(`compact:${lang}`, () => new Intl.NumberFormat(lang, { notation: "compact", maximumFractionDigits: 1 })).format(value ?? 0);
 }
 
 const HOUR = 3_600_000;
@@ -69,12 +81,14 @@ export function shortDate(post: BookmarkPost, lang: Lang) {
   const time = postTime(post);
   if (!Number.isFinite(time) || time <= 0) return post.createdAtLocal ?? "";
   const diff = Date.now() - time;
-  const relative = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "narrow" });
+  const relative = cached(`relative:${lang}`, () => new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "narrow" }));
   if (diff < DAY) return relative.format(-Math.max(1, Math.round(diff / HOUR)), "hour");
   if (diff < 7 * DAY) return relative.format(-Math.round(diff / DAY), "day");
   const date = new Date(time);
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat(lang, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) }).format(date);
+  return cached(`short:${lang}:${sameYear}`, () =>
+    new Intl.DateTimeFormat(lang, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) }),
+  ).format(date);
 }
 
 export function longDate(post: BookmarkPost, lang: Lang) {

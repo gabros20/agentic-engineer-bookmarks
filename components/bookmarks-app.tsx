@@ -2,15 +2,12 @@
 
 import { ArrowDownUp, ArrowUp, Bookmark as BookmarkIcon, Layers, ListOrdered, LogOut, MessagesSquare, MoreHorizontal, Search, SearchX, Sparkles, X as XIcon } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkCard } from "@/components/bookmark-card";
-import { BookmarkDetail } from "@/components/bookmark-detail";
-import { CommandKChat, type ChatContextSnapshot } from "@/components/command-k-chat";
-import { DigestPanel } from "@/components/digest-panel";
+import type { ChatContextSnapshot } from "@/components/command-k-chat";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { SavedChatsPanel } from "@/components/saved-chats-panel";
-import { SavedDigestsPanel } from "@/components/saved-digests-panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,7 +53,9 @@ import { searchViaWorker, SearchQuotaError } from "@/lib/search-client";
 
 const FAVORITES_KEY = "agentic-engineer-bookmarks:favorites";
 const SEARCH_DEBOUNCE_MS = 350;
-const PAGE_SIZE = 240;
+// Cards rendered per page; infinite scroll adds more well before the end. Kept small because a
+// new result set REMOUNTS every card (motion + images), which is what made typing heavy on phones.
+const PAGE_SIZE = 48;
 // T1 (digest engine upgrade): the digest CTA re-queries the Worker at this depth (deeper +
 // reranked) instead of clustering the 30/PAGE_SIZE-limited posts currently on screen.
 const DIGEST_SOURCE_LIMIT = 50;
@@ -105,6 +104,20 @@ function formatOperatorDate(date: Date) {
   const d = date.getUTCDate();
   return d === 1 ? `${y}-${m}` : `${y}-${m}-${String(d).padStart(2, "0")}`;
 }
+
+// Open-on-demand panels are split out of the first-load bundle (it was 3.3 MB raw / 916 KB gzip,
+// mostly the chat's Streamdown + mermaid/math/code renderers). The light ones are prefetched
+// when the browser goes idle; the heavy chat on intent (hovering/focusing Ask, or ⌘K).
+const loadDetail = () => import("@/components/bookmark-detail");
+const loadChat = () => import("@/components/command-k-chat");
+const loadDigest = () => import("@/components/digest-panel");
+const loadSavedDigests = () => import("@/components/saved-digests-panel");
+const loadSavedChats = () => import("@/components/saved-chats-panel");
+const BookmarkDetail = dynamic(() => loadDetail().then((m) => m.BookmarkDetail), { ssr: false });
+const CommandKChat = dynamic(() => loadChat().then((m) => m.CommandKChat), { ssr: false });
+const DigestPanel = dynamic(() => loadDigest().then((m) => m.DigestPanel), { ssr: false });
+const SavedDigestsPanel = dynamic(() => loadSavedDigests().then((m) => m.SavedDigestsPanel), { ssr: false });
+const SavedChatsPanel = dynamic(() => loadSavedChats().then((m) => m.SavedChatsPanel), { ssr: false });
 
 // Filter-rail scopes, in display order. ("media" = photos ∪ videos is still a valid `scope`
 // value, it just isn't offered as a chip.)
@@ -292,7 +305,12 @@ export function BookmarksApp() {
   // every `from:`/`before:`/`after:` token stripped out — this is what gets debounced below
   // and threaded through the whole rewrite-fetch + embed + hybrid-pipeline + rerank chain in
   // the search effect, so operator tokens never reach the embedder or /api/expand.
-  const parsedQuery = useMemo(() => parseQueryOperators(query), [query]);
+  //
+  // Typing stays urgent and everything derived from the query runs on a DEFERRED copy: React
+  // renders the keystroke first and computes/renders results as an interruptible background
+  // render, so a slow results pass never delays the next character (notably on phones).
+  const deferredQuery = useDeferredValue(query);
+  const parsedQuery = useMemo(() => parseQueryOperators(deferredQuery), [deferredQuery]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(parsedQuery.text), SEARCH_DEBOUNCE_MS);
@@ -327,9 +345,15 @@ export function BookmarksApp() {
 
   useEffect(() => {
     setVisibleLimit(PAGE_SIZE);
-  }, [query, scope, sort]);
+  }, [deferredQuery, scope, sort]);
 
   const posts = useMemo(() => normalizeBookmarkPayload(payload), [payload]);
+
+  // Built once per archive load, not per keystroke: the lowercased substring haystack (it joins
+  // article bodies, so rebuilding it re-processed ~the whole 12 MB archive on every key) and the
+  // post timestamp (the sort comparator used to re-parse date strings ~180k times per pass).
+  const haystacks = useMemo(() => new Map(posts.map((post) => [post.id, searchable(post)])), [posts]);
+  const timestamps = useMemo(() => new Map(posts.map((post) => [post.id, byDate(post)])), [posts]);
 
   // T1 (digest engine upgrade): id -> post lookup used to map the Worker's deep re-query
   // ranked ids (digest CTA) back onto already-loaded posts, same pattern as runChatSearch's
@@ -368,9 +392,12 @@ export function BookmarksApp() {
       .then((rewrites) => searchViaWorker({ query: q, precision, rewrites, signal: controller.signal }))
       .then((results) => {
         if (cancelled) return;
-        setHybridResults(new Map(results.map((result) => [result.id, result.score])));
-        setSettledQuery(q);
-        setSearchStatusKey("status.results");
+        // A results swap re-renders the grid: keep it a transition so typing preempts it.
+        startTransition(() => {
+          setHybridResults(new Map(results.map((result) => [result.id, result.score])));
+          setSettledQuery(q);
+          setSearchStatusKey("status.results");
+        });
       })
       .catch((err) => {
         // Stale/aborted requests (a newer query superseded this one, or unmount) are not
@@ -422,9 +449,9 @@ export function BookmarksApp() {
     return q
       ? activeHybrid
         ? operatorScoped.filter((post) => activeHybrid.has(post.id))
-        : operatorScoped.filter((post) => searchable(post).includes(q))
+        : operatorScoped.filter((post) => haystacks.get(post.id)?.includes(q))
       : operatorScoped;
-  }, [activeHybrid, posts, parsedQuery]);
+  }, [activeHybrid, posts, parsedQuery, haystacks]);
 
   const scopeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -448,12 +475,12 @@ export function BookmarksApp() {
       if (q && activeHybrid && sort === "relevance") {
         return (activeHybrid.get(b.id) ?? 0) - (activeHybrid.get(a.id) ?? 0);
       }
-      if (sort === "oldest") return byDate(a) - byDate(b);
+      if (sort === "oldest") return (timestamps.get(a.id) ?? 0) - (timestamps.get(b.id) ?? 0);
       if (sort === "bookmarks") return (b.metrics?.bookmarks ?? 0) - (a.metrics?.bookmarks ?? 0);
       if (sort === "likes") return (b.metrics?.likes ?? 0) - (a.metrics?.likes ?? 0);
-      return byDate(b) - byDate(a);
+      return (timestamps.get(b.id) ?? 0) - (timestamps.get(a.id) ?? 0);
     });
-  }, [favorites, activeHybrid, matchedPosts, parsedQuery, scope, sort]);
+  }, [favorites, activeHybrid, matchedPosts, parsedQuery, scope, sort, timestamps]);
 
   // T4.1: human-readable stand-in for `query` at digest/chat call sites — residual text +
   // a parenthesized operator suffix, e.g. `agents (from:simonw, after:2026-03)`. Keeps
@@ -581,7 +608,7 @@ export function BookmarksApp() {
       // Same graceful degradation as the main search effect: cheap substring filter over
       // loaded posts (score 0 keeps the archive's natural order — good enough offline).
       const ql = q.toLowerCase();
-      ranked = posts.filter((post) => searchable(post).includes(ql)).map((post) => ({ id: post.id, score: 0 }));
+      ranked = posts.filter((post) => haystacks.get(post.id)?.includes(ql)).map((post) => ({ id: post.id, score: 0 }));
     }
     const ids = new Set(ranked.map((r) => r.id));
     const score = new Map(ranked.map((r) => [r.id, r.score]));
@@ -642,6 +669,21 @@ export function BookmarksApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
     // preventScroll: the smooth scroll above owns the motion; focus would otherwise jump.
     window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 250);
+  }, []);
+
+  useEffect(() => {
+    const prefetch = () => {
+      void loadDetail();
+      void loadSavedDigests();
+      void loadSavedChats();
+      void loadDigest();
+    };
+    if ("requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(prefetch, { timeout: 5000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(prefetch, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   // "/" focuses the search from anywhere (unless typing or a panel is open).
@@ -808,6 +850,9 @@ export function BookmarksApp() {
                 type="button"
                 whileTap={{ scale: 0.95 }}
                 onClick={openChat}
+                onPointerEnter={() => void loadChat()}
+                onFocus={() => void loadChat()}
+                onTouchStart={() => void loadChat()}
                 title={t("chat.openHint")}
                 className="flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--color-primary)] pl-3 pr-3.5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)]"
               >
@@ -985,32 +1030,7 @@ export function BookmarksApp() {
             <p aria-live="polite" className={`truncate text-[13px] tabular-nums ${error ? "text-[color:var(--color-error)]" : "text-[color:var(--color-muted)]"}`}>
               {semanticPending ? <span className="search-loader-text">{statusLine}</span> : statusLine}
             </p>
-            <div
-              role="group"
-              aria-label={t("search.precision.aria")}
-              className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-cream-strong)]/70 p-0.5 text-xs font-medium"
-            >
-              {(["exact", "broad"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPrecision(value)}
-                  aria-pressed={precision === value}
-                  className={`relative h-7 rounded-full px-3 transition-colors ${
-                    precision === value ? "text-[color:var(--color-ink)]" : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
-                  }`}
-                >
-                  {precision === value ? (
-                    <motion.span
-                      layoutId="precision-active"
-                      className="absolute inset-0 rounded-full bg-[color:var(--color-canvas)] shadow-sm"
-                      transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                    />
-                  ) : null}
-                  <span className="relative">{value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}</span>
-                </button>
-              ))}
-            </div>
+            <PrecisionToggle value={precision} onChange={setPrecision} />
           </div>
 
           <AnimatePresence initial={false}>
@@ -1069,19 +1089,14 @@ export function BookmarksApp() {
                     type="button"
                     onClick={() => setScope(value)}
                     aria-pressed={active}
-                    className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors ${
+                    // Plain CSS color transition, not a motion layoutId pill: the counts change on
+                    // every keystroke, and layout projection re-measured the page each time.
+                    className={`relative flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color] duration-200 ${
                       active
-                        ? "text-[color:var(--color-on-primary)]"
+                        ? "bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)]"
                         : "bg-[color:var(--color-canvas)] text-[color:var(--color-body-strong)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:bg-[color:var(--color-surface-cream-strong)]"
                     }`}
                   >
-                    {active ? (
-                      <motion.span
-                        layoutId="scope-active"
-                        className="absolute inset-0 rounded-full bg-[color:var(--color-primary)]"
-                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                      />
-                    ) : null}
                     <span className="relative">{t(label)}</span>
                     {payload !== null ? (
                       <span className="relative text-[11px] tabular-nums opacity-55">{compactFormatter.format(scopeCounts[value] ?? 0)}</span>
@@ -1259,6 +1274,46 @@ export function BookmarksApp() {
   );
 }
 
+// Memoized so its layoutId pill is only measured when the mode actually changes, not on every
+// keystroke re-render of the app shell.
+const PrecisionToggle = memo(function PrecisionToggle({
+  value: current,
+  onChange,
+}: {
+  value: SearchPrecision;
+  onChange: (value: SearchPrecision) => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <div
+      role="group"
+      aria-label={t("search.precision.aria")}
+      className="flex shrink-0 items-center rounded-full bg-[color:var(--color-surface-cream-strong)]/70 p-0.5 text-xs font-medium"
+    >
+      {(["exact", "broad"] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          aria-pressed={current === value}
+          className={`relative h-7 rounded-full px-3 transition-colors ${
+            current === value ? "text-[color:var(--color-ink)]" : "text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
+          }`}
+        >
+          {current === value ? (
+            <motion.span
+              layoutId="precision-active"
+              className="absolute inset-0 rounded-full bg-[color:var(--color-canvas)] shadow-sm"
+              transition={{ type: "spring", stiffness: 500, damping: 40 }}
+            />
+          ) : null}
+          <span className="relative">{value === "exact" ? t("search.precision.exact") : t("search.precision.broad")}</span>
+        </button>
+      ))}
+    </div>
+  );
+});
+
 function HeaderIconButton({
   label,
   count,
@@ -1296,7 +1351,6 @@ function SearchLoaderCard() {
   const { t } = useLanguage();
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}

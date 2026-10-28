@@ -2,8 +2,8 @@
 
 import { ArrowUpRight, BadgeCheck, BookOpenText, Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Quote, Sparkles, Star, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { Streamdown } from "streamdown";
 import {
   MediaGrid,
   cleanText,
@@ -31,6 +31,12 @@ type BookmarkDetailProps = {
   onNext: () => void;
   onAsk: (post: BookmarkPost) => void;
 };
+
+// The markdown renderer is only needed for X Articles; keep it out of the detail chunk.
+const Streamdown = dynamic(() => import("streamdown").then((m) => m.Streamdown), {
+  ssr: false,
+  loading: () => <div className="h-24 animate-pulse rounded-lg bg-[color:var(--color-surface-card)]" />,
+});
 
 const METRICS: Array<{ key: keyof NonNullable<BookmarkPost["metrics"]>; label: MessageKey }> = [
   { key: "replies", label: "metric.replies" },
