@@ -1,210 +1,92 @@
 "use client";
 
-import { BarChart3, BookOpenText, Film, Heart, MessageCircle, PlayCircle, Repeat2, Star } from "lucide-react";
-import { useState } from "react";
+import { BookOpenText, Eye, Film, Heart, Link2, Play, Star } from "lucide-react";
+import { motion } from "motion/react";
+import { memo, useMemo, useState, type CSSProperties } from "react";
+import { postTime } from "@/lib/bookmark-filters";
 import type { BookmarkPost } from "@/lib/bookmark-types";
+import { useLanguage, type Lang } from "@/lib/i18n";
 
 type BookmarkCardProps = {
   post: BookmarkPost;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
+  onOpen: (id: string) => void;
 };
 
-const formatter = new Intl.NumberFormat("en");
+export type MediaEntry = NonNullable<BookmarkPost["media"]>[number];
 
-function formatNumber(value?: number) {
-  return formatter.format(value ?? 0);
-}
-
-function postUrl(post: BookmarkPost) {
+export function postUrl(post: BookmarkPost) {
   return `https://x.com/${post.author.screenName}/status/${post.id}`;
 }
 
-function openPost(post: BookmarkPost) {
+export function openOnX(post: BookmarkPost) {
   window.open(postUrl(post), "_blank", "noopener,noreferrer");
 }
 
-export function BookmarkCard({ post, isFavorite, onToggleFavorite }: BookmarkCardProps) {
-  const metrics = post.metrics ?? {};
-  const date = post.createdAtLocal ?? post.createdAtISO ?? post.createdAt ?? "";
-  const media = post.media ?? [];
-  const articleUrl = (post.urls ?? []).find((url) => url.includes("/i/article/"));
-  const visibleUrls = (post.urls ?? []).filter((url) => url !== articleUrl).slice(0, 2);
+const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" };
 
-  return (
-    <article
-      role="link"
-      tabIndex={0}
-      onClick={(event) => {
-        const target = event.target as HTMLElement;
-        if (target.closest("a,button,video")) return;
-        openPost(post);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") openPost(post);
-      }}
-      className="group mb-3 inline-block w-full min-w-0 cursor-pointer break-inside-avoid rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-soft)] px-3 py-3 align-top transition hover:bg-[color:var(--color-surface-card)] sm:mb-4 sm:px-4"
-    >
-      <div className="min-w-0">
-        <div className="grid min-w-0 grid-cols-[36px_1fr] gap-2 sm:grid-cols-[40px_1fr]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className="size-9 rounded-full bg-[color:var(--color-hairline)] object-cover sm:size-10"
-            src={post.author.profileImageUrl ?? ""}
-            alt=""
-          />
-          <div className="flex min-w-0 flex-wrap items-start gap-x-1 text-[13px] leading-5 sm:text-[14px]">
-            <span className="truncate font-semibold text-[color:var(--color-ink)]">{post.author.name || "Unknown"}</span>
-            <span className="truncate text-[color:var(--color-muted)]">@{post.author.screenName || "unknown"}</span>
-            <span className="text-[color:var(--color-muted-soft)]">·</span>
-            <time className="text-[color:var(--color-muted)]">{date}</time>
-          </div>
-        </div>
-
-        <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-[1.55] text-[color:var(--color-body)] sm:text-[14px]">{post.text}</p>
-
-        {media.length > 0 ? <MediaGrid media={media} /> : null}
-
-        {post.articleTitle ? <ArticlePreview title={post.articleTitle} url={articleUrl} /> : null}
-
-        {visibleUrls.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {visibleUrls.map((url) => (
-              <a
-                key={url}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="max-w-full truncate rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] px-2.5 py-1 text-xs text-[color:var(--color-primary)] hover:bg-[color:var(--color-surface-cream-strong)]"
-              >
-                {url}
-              </a>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-2 flex items-center justify-between text-[color:var(--color-muted)]">
-          <Metric icon={<MessageCircle size={14} />} value={metrics.replies} />
-          <Metric icon={<Repeat2 size={14} />} value={metrics.retweets} />
-          <Metric icon={<Heart size={14} />} value={metrics.likes} />
-          <Metric icon={<BarChart3 size={14} />} value={metrics.views} />
-          <button
-            type="button"
-            aria-pressed={isFavorite}
-            onClick={() => onToggleFavorite(post.id)}
-            className={[
-              "inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-full px-1.5 text-xs transition",
-              isFavorite
-                ? "text-[color:var(--color-primary)] hover:bg-[color:var(--color-primary)]/10"
-                : "text-[color:var(--color-muted)] hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)]",
-            ].join(" ")}
-            title={isFavorite ? "Remove star" : "Star"}
-          >
-            <Star size={16} strokeWidth={2.2} fill={isFavorite ? "currentColor" : "none"} />
-            <span className="sr-only">{isFavorite ? "Starred" : "Star"}</span>
-          </button>
-        </div>
-      </div>
-    </article>
-  );
+// X text arrives HTML-escaped and ends in t.co links for the attached media/cards. Those links
+// carry no information on their own (the media renders, real links are listed from `urls`).
+export function cleanText(text: string) {
+  return text
+    .replace(/&(amp|lt|gt|quot|#39);/g, (m) => ENTITIES[m] ?? m)
+    .replace(/\s*https?:\/\/t\.co\/\w+/g, "")
+    .trim();
 }
 
-function ArticlePreview({ title, url }: { title: string; url?: string }) {
-  const content = (
-    <>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[1.5px] text-[color:var(--color-muted)]">
-        <BookOpenText size={14} />
-        X Article
-      </div>
-      <div className="mt-1 font-display text-[18px] leading-snug text-[color:var(--color-ink)]">{title}</div>
-      {url ? <div className="mt-1 truncate text-xs text-[color:var(--color-primary)]">{url}</div> : null}
-    </>
-  );
+const X_STATUS = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/\w+\/status\/\d+/i;
 
-  if (!url) {
-    return (
-      <div className="mt-3 rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3">
-        {content}
-      </div>
-    );
+// Outbound links worth showing: not the X Article card, not links to other posts (quotes).
+export function externalLinks(post: BookmarkPost) {
+  return (post.urls ?? []).filter((url) => !url.includes("/i/article/") && !X_STATUS.test(url));
+}
+
+export function articleLink(post: BookmarkPost) {
+  return (post.urls ?? []).find((url) => url.includes("/i/article/"));
+}
+
+export function displayHost(url: string) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/$/, "");
+    return path ? `${host}${path}` : host;
+  } catch {
+    return url;
   }
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-3 block rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-3 transition hover:bg-[color:var(--color-surface-cream-strong)]"
-    >
-      {content}
-    </a>
-  );
 }
 
-function Metric({ icon, value }: { icon: React.ReactNode; value?: number }) {
-  return (
-    <span className="inline-flex h-7 items-center gap-1 rounded-full px-1.5 text-[11px] transition hover:bg-[color:var(--color-primary)]/10 hover:text-[color:var(--color-primary)] sm:h-8 sm:text-xs">
-      {icon}
-      <span>{formatNumber(value)}</span>
-    </span>
-  );
+export function formatCompact(value: number | undefined, lang: Lang) {
+  return new Intl.NumberFormat(lang, { notation: "compact", maximumFractionDigits: 1 }).format(value ?? 0);
 }
 
-function MediaGrid({ media }: { media: NonNullable<BookmarkPost["media"]> }) {
-  const items = media.slice(0, 4);
-  const count = items.length;
-  const gridClass = count === 1 ? "grid-cols-1" : "grid-cols-2";
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
-  return (
-    <div className={`mt-3 grid overflow-hidden rounded-lg border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-cream-strong)] ${gridClass}`}>
-      {items.map((item, index) => (
-        <MediaItem key={`${item.url}-${index}`} item={item} count={count} index={index} />
-      ))}
-    </div>
-  );
+// "3h", "2d", then "Oct 21" (this year) / "Oct 21, 2025".
+export function shortDate(post: BookmarkPost, lang: Lang) {
+  const time = postTime(post);
+  if (!Number.isFinite(time) || time <= 0) return post.createdAtLocal ?? "";
+  const diff = Date.now() - time;
+  const relative = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "narrow" });
+  if (diff < DAY) return relative.format(-Math.max(1, Math.round(diff / HOUR)), "hour");
+  if (diff < 7 * DAY) return relative.format(-Math.round(diff / DAY), "day");
+  const date = new Date(time);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(lang, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) }).format(date);
 }
 
-function MediaItem({
-  item,
-  count,
-  index,
-}: {
-  item: NonNullable<BookmarkPost["media"]>[number];
-  count: number;
-  index: number;
-}) {
-  const isVideo = item.type === "video" || item.type === "animated_gif";
-  const single = count === 1;
-  const tallThird = count === 3 && index === 0;
-
-  const className = [
-    "min-h-0 w-full bg-[color:var(--color-surface-cream-strong)] object-cover",
-    single ? "max-h-[360px] aspect-video" : "aspect-square border-[color:var(--color-hairline)]",
-    count > 1 && index % 2 === 1 ? "border-l" : "",
-    count > 2 && index > 1 ? "border-t" : "",
-    tallThird ? "row-span-2 h-full" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  if (isVideo) return <VideoMedia item={item} className={className} />;
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      className={className}
-      src={item.url}
-      alt=""
-      loading="lazy"
-    />
-  );
+export function longDate(post: BookmarkPost, lang: Lang) {
+  const time = postTime(post);
+  if (!Number.isFinite(time) || time <= 0) return post.createdAtLocal ?? "";
+  return new Intl.DateTimeFormat(lang, { dateStyle: "long", timeStyle: "short" }).format(new Date(time));
 }
 
-type MediaEntry = NonNullable<BookmarkPost["media"]>[number];
-
-// X's poster CDN only re-encodes when BOTH params are set: format=webp alone still returns the
-// ~107 KB jpg, format=webp&name=small is ~28 KB (fits 680px), name=medium ~69 KB (fits 1200px).
-function posterVariant(url: string, name: "small" | "medium") {
+// pbs.twimg.com re-encodes only when BOTH params are set: format=webp alone still returns the
+// original jpg. Measured: photo 124 KB jpg → small 32 KB / medium 80 KB / large 190 KB webp;
+// video poster 107 KB → small 28 KB / medium 69 KB. small fits 680px, medium 1200, large 2048.
+export function pbsVariant(url: string, name: "small" | "medium" | "large") {
   try {
     const parsed = new URL(url);
     if (parsed.hostname !== "pbs.twimg.com") return url;
@@ -214,6 +96,204 @@ function posterVariant(url: string, name: "small" | "medium") {
   } catch {
     return url;
   }
+}
+
+function pbsSrcSet(url: string, large = false) {
+  const set = [`${pbsVariant(url, "small")} 680w`, `${pbsVariant(url, "medium")} 1200w`];
+  if (large) set.push(`${pbsVariant(url, "large")} 2048w`);
+  return set.join(", ");
+}
+
+// Natural aspect ratio from the stored dimensions, clamped so a panorama or a tall phone
+// screenshot doesn't dominate the column.
+export function mediaAspect(item: MediaEntry, min = 0.8, max = 1.91) {
+  if (!item.width || !item.height) return 16 / 9;
+  return Math.min(max, Math.max(min, item.width / item.height));
+}
+
+export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onToggleFavorite, onOpen }: BookmarkCardProps) {
+  const { t, lang } = useLanguage();
+  const media = post.media ?? [];
+  const text = useMemo(() => cleanText(post.text), [post.text]);
+  const link = externalLinks(post)[0];
+  const metrics = post.metrics ?? {};
+  const compact = Boolean(media.length || post.articleTitle);
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${t("card.open")}: ${post.author.name || post.author.screenName}`}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("a,button,video")) return;
+        // ⌘/Ctrl-click keeps the old jump-straight-to-X behaviour for power users.
+        if (event.metaKey || event.ctrlKey) openOnX(post);
+        else onOpen(post.id);
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(post.id);
+        }
+      }}
+      className="group relative mb-2.5 inline-block w-full min-w-0 cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-surface-card)] align-top outline-none transition-[box-shadow,background-color] duration-300 hover:shadow-[var(--shadow-card-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] sm:mb-4"
+    >
+      {media.length > 0 ? <MediaGrid media={media} /> : null}
+
+      <div className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-3.5 sm:pt-3">
+        {post.articleTitle ? (
+          <div className="mb-1.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]">
+              <BookOpenText size={12} />
+              {t("detail.article")}
+            </div>
+            <h3 className="mt-1 font-display text-[19px] leading-[1.12] text-[color:var(--color-ink)] sm:text-[23px]">{post.articleTitle}</h3>
+          </div>
+        ) : null}
+
+        {text ? (
+          <p
+            className={`whitespace-pre-line break-words text-[color:var(--color-body)] ${
+              compact
+                ? "line-clamp-3 text-[13px] leading-[1.45]"
+                : "line-clamp-[7] text-[13.5px] leading-[1.5] text-[color:var(--color-body-strong)] sm:line-clamp-[9] sm:text-[15px]"
+            }`}
+          >
+            {text}
+          </p>
+        ) : null}
+
+        {link ? (
+          <span className="mt-2 flex max-w-full items-center gap-1 text-[11px] text-[color:var(--color-muted)] sm:text-xs">
+            <Link2 size={12} className="shrink-0" />
+            <span className="truncate">{displayHost(link)}</span>
+          </span>
+        ) : null}
+
+        <footer className="mt-2.5 flex min-w-0 items-center gap-1.5 text-[11px] text-[color:var(--color-muted)] sm:gap-2 sm:text-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="size-[18px] shrink-0 rounded-full bg-[color:var(--color-hairline)] object-cover sm:size-5"
+            src={post.author.profileImageUrl ?? ""}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="min-w-0 truncate font-medium text-[color:var(--color-body-strong)]">
+            {post.author.name || post.author.screenName || "Unknown"}
+          </span>
+          <span className="ml-auto shrink-0 tabular-nums">{shortDate(post, lang)}</span>
+        </footer>
+
+        {metrics.likes || metrics.views ? (
+          <div className="mt-1.5 flex items-center gap-3 text-[11px] tabular-nums text-[color:var(--color-muted-soft)]">
+            {metrics.likes ? (
+              <span className="inline-flex items-center gap-1" title={t("metric.likes")}>
+                <Heart size={11} />
+                {formatCompact(metrics.likes, lang)}
+              </span>
+            ) : null}
+            {metrics.views ? (
+              <span className="inline-flex items-center gap-1" title={t("metric.views")}>
+                <Eye size={11} />
+                {formatCompact(metrics.views, lang)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.85 }}
+        aria-pressed={isFavorite}
+        aria-label={isFavorite ? t("card.unstar") : t("card.star")}
+        title={isFavorite ? t("card.unstar") : t("card.star")}
+        onClick={() => onToggleFavorite(post.id)}
+        className={`absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[color:var(--color-canvas)]/85 text-[color:var(--color-ink)] shadow-sm backdrop-blur transition-opacity duration-200 focus-visible:opacity-100 ${
+          isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:hidden"
+        }`}
+      >
+        <Star size={15} strokeWidth={2.2} fill={isFavorite ? "currentColor" : "none"} />
+      </motion.button>
+    </motion.article>
+  );
+});
+
+// Card media: one item at its natural (clamped) aspect, several in a tight 2-up grid.
+// `detail` stacks every item full width, uncropped, at a larger size.
+export function MediaGrid({ media, detail = false }: { media: MediaEntry[]; detail?: boolean }) {
+  if (detail) {
+    return (
+      <div className="grid gap-2">
+        {media.map((item, index) => {
+          const style: CSSProperties = { aspectRatio: mediaAspect(item, 0.56, 2.4) };
+          const className = "w-full rounded-xl bg-[color:var(--color-surface-card)] object-contain";
+          if (item.type === "video" || item.type === "animated_gif") {
+            return <VideoMedia key={`${item.url}-${index}`} item={item} className={className} style={style} sizes="(min-width: 640px) 36rem, 100vw" />;
+          }
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${item.url}-${index}`}
+              className={className}
+              style={style}
+              src={pbsVariant(item.url ?? "", "medium")}
+              srcSet={item.url ? pbsSrcSet(item.url, true) : undefined}
+              sizes="(min-width: 640px) 36rem, 100vw"
+              alt=""
+              decoding="async"
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  const items = media.slice(0, 4);
+  const count = items.length;
+  if (count === 1) {
+    const item = items[0];
+    const style: CSSProperties = { aspectRatio: mediaAspect(item) };
+    return <MediaTile item={item} className="w-full" style={style} sizes="(min-width: 640px) 22rem, 50vw" />;
+  }
+  return (
+    <div className="grid grid-cols-2 gap-0.5">
+      {items.map((item, index) => (
+        <MediaTile
+          key={`${item.url}-${index}`}
+          item={item}
+          className={`w-full ${count === 3 && index === 0 ? "row-span-2 h-full" : "aspect-square"}`}
+          sizes="(min-width: 640px) 11rem, 25vw"
+        />
+      ))}
+    </div>
+  );
+}
+
+function MediaTile({ item, className, style, sizes }: { item: MediaEntry; className: string; style?: CSSProperties; sizes: string }) {
+  const base = `${className} min-h-0 bg-[color:var(--color-surface-cream-strong)] object-cover`;
+  if (item.type === "video" || item.type === "animated_gif") {
+    return <VideoMedia item={item} className={base} style={style} sizes={sizes} />;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={`${base} transition-transform duration-500 ease-out group-hover:scale-[1.02]`}
+      style={style}
+      src={pbsVariant(item.url ?? "", "small")}
+      srcSet={item.url ? pbsSrcSet(item.url) : undefined}
+      sizes={sizes}
+      alt=""
+      loading="lazy"
+      decoding="async"
+    />
+  );
 }
 
 function formatDuration(ms?: number) {
@@ -227,14 +307,24 @@ function formatDuration(ms?: number) {
 
 // Poster (X's own still) with a play button; clicking swaps in an inline <video> on the stored mp4.
 // video.twimg.com 403s a foreign Referer — playback relies on the app-wide Referrer-Policy:
-// same-origin header (next.config.ts). If the mp4 is gone (deleted post), fall back to the
-// placeholder; a click there bubbles to the card and opens the post on X.
-function VideoMedia({ item, className }: { item: MediaEntry; className: string }) {
+// same-origin header (next.config.ts). If the mp4 is gone (deleted post), fall back to a
+// placeholder; a click there bubbles to the card, which opens the detail view.
+export function VideoMedia({
+  item,
+  className,
+  style,
+  sizes,
+}: {
+  item: MediaEntry;
+  className: string;
+  style?: CSSProperties;
+  sizes: string;
+}) {
+  const { t } = useLanguage();
   const [playing, setPlaying] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const isGif = item.type === "animated_gif";
-  const label = isGif ? "GIF on X" : "Video on X";
   const poster = item.thumbnail && !posterFailed ? item.thumbnail : undefined;
   const duration = isGif ? null : formatDuration(item.durationMs);
 
@@ -242,8 +332,9 @@ function VideoMedia({ item, className }: { item: MediaEntry; className: string }
     return (
       <video
         className={`${className} bg-black object-contain`}
+        style={style}
         src={item.url}
-        poster={poster ? posterVariant(poster, "medium") : undefined}
+        poster={poster ? pbsVariant(poster, "medium") : undefined}
         autoPlay
         playsInline
         controls={!isGif}
@@ -255,23 +346,13 @@ function VideoMedia({ item, className }: { item: MediaEntry; className: string }
     );
   }
 
-  const placeholder = (
-    <div className="grid justify-items-center gap-1.5 px-3 text-center text-[color:var(--color-muted)]">
-      <div className="grid h-11 w-11 place-items-center rounded-full bg-[color:var(--color-surface-dark)]/90 text-[color:var(--color-on-dark)] shadow-sm">
-        <PlayCircle size={24} strokeWidth={2.2} />
-      </div>
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-[color:var(--color-ink)]">
-        <Film size={14} />
-        {label}
-      </div>
-      {videoFailed ? <p className="max-w-36 text-[11px] leading-4">Open the post to watch.</p> : null}
-    </div>
-  );
-
   if (videoFailed || !item.url) {
     return (
-      <div className={`${className} flex items-center justify-center`} aria-label={label}>
-        {placeholder}
+      <div className={`${className} grid place-items-center`} style={style}>
+        <div className="grid justify-items-center gap-1.5 px-3 text-center text-[color:var(--color-muted)]">
+          <Film size={18} />
+          <p className="max-w-40 text-[11px] leading-4">{t("media.unavailable")}</p>
+        </div>
       </div>
     );
   }
@@ -280,34 +361,31 @@ function VideoMedia({ item, className }: { item: MediaEntry; className: string }
     <button
       type="button"
       onClick={() => setPlaying(true)}
-      aria-label={`Play ${isGif ? "GIF" : "video"}`}
-      className={`${className} group/video relative flex items-center justify-center overflow-hidden`}
+      aria-label={isGif ? t("media.playGif") : t("media.playVideo")}
+      className={`${className} group/video relative grid place-items-center overflow-hidden`}
+      style={style}
     >
       {poster ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className="absolute inset-0 h-full w-full object-cover"
-            src={posterVariant(poster, "small")}
-            srcSet={`${posterVariant(poster, "small")} 680w, ${posterVariant(poster, "medium")} 1200w`}
-            sizes="(min-width: 1024px) 34vw, (min-width: 640px) 50vw, 100vw"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={() => setPosterFailed(true)}
-          />
-          <span className="relative grid h-12 w-12 place-items-center rounded-full bg-black/60 text-white shadow-md ring-1 ring-white/30 backdrop-blur-sm transition group-hover/video:scale-105 group-hover/video:bg-black/75">
-            <PlayCircle size={26} strokeWidth={2.2} />
-          </span>
-          {duration || isGif ? (
-            <span className="absolute bottom-2 left-2 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
-              {duration ?? "GIF"}
-            </span>
-          ) : null}
-        </>
-      ) : (
-        placeholder
-      )}
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/video:scale-[1.03]"
+          src={pbsVariant(poster, "small")}
+          srcSet={pbsSrcSet(poster)}
+          sizes={sizes}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setPosterFailed(true)}
+        />
+      ) : null}
+      <span className="relative grid size-11 place-items-center rounded-full bg-black/55 text-white ring-1 ring-white/25 backdrop-blur-md transition duration-300 group-hover/video:scale-110 group-hover/video:bg-black/70">
+        <Play size={18} fill="currentColor" className="translate-x-px" />
+      </span>
+      {duration || isGif ? (
+        <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white backdrop-blur-sm">
+          {duration ?? "GIF"}
+        </span>
+      ) : null}
     </button>
   );
 }
