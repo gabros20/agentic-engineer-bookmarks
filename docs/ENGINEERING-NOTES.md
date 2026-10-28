@@ -22,7 +22,7 @@ type query ─► lib/search-client.ts ──────► /api/search (sessio
 render ranked ids from local posts                                              data from Vercel /data, per-isolate cache
                                                                                 @cf/baai/bge-m3 + bge-reranker-base
 AI Digest / ⌘K chat ──► /api/digest,        session-gated + per-user daily
-  /api/chat, /api/expand                     quota (lib/api-guard.ts) ──────────► google/gemini-3.6-flash (OpenRouter)
+  /api/chat, /api/expand                     quota (lib/api-guard.ts) ──────────► deepseek-v4.1-flash-1017 (OpenRouter)
   digest re-queries the Worker at ~50        digests + chats persist to Neon (user-scoped, cross-device)
 ```
 
@@ -48,7 +48,7 @@ Live: worker `bookmark-search.t-gabor880312.workers.dev`, app `agentic-engineer-
 | Embedding model | `@cf/baai/bge-m3` (multilingual, 1024-dim) | bge-small-en (English-only); had to re-embed corpus anyway (query+doc vectors must be same model). |
 | Vector store | Ship packed int8 `.bin` on Vercel, Worker fetches + dot-products in-memory | Vectorize free tier (5M stored dims) too small for 6,840×1024=7M dims; not worth it for a brute-force scan over ~7k vectors. |
 | Semantic-only vs hybrid | **Keyword+semantic hybrid** (restored after eval FAIL) | Semantic-only lost handle (0.08) + article-title classes — see P→S→V #3. |
-| Digest/chat model | `google/gemini-3.6-flash` | Chinese/open-weight (Qwen/DeepSeek/GLM) are cheaper+smart but weaker on **Hungarian** and **strict streamed structured output / tool-calling** — the two constraints that actually bind this app. Cost is pennies on occasional use, so quality wins. |
+| Digest/chat model | `deepseek/deepseek-v4.1-flash-1017` (2026-10-28; was `google/gemini-3.6-flash`) | The original objection to open-weight models — weaker **Hungarian** + **strict streamed structured output / tool-calling** — was re-tested live on 2026-10-28 through the real `streamObject`/`streamText` paths: valid `digestSchema` in EN + HU (34/34 cited ids real), a 10-step tool loop, fluent HU. ~5x cheaper ($0.15/$0.60 vs $0.75/$3.75 per M) and faster (digest 10s vs 24s). Revert = one `MODEL` constant per route. |
 | Digest sourcing | Re-query the Worker at limit ~50 | Clustering the 30 on-screen results left the great search engine unused. |
 
 Guiding principle that recurred: **keep the pure ranking logic single-sourced** (`lib/bookmark-search.ts`,
