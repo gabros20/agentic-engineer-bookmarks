@@ -125,6 +125,41 @@ export function mediaAspect(item: MediaEntry, min = 0.8, max = 1.91) {
   return Math.min(max, Math.max(min, item.width / item.height));
 }
 
+// Rough rendered height of a card at a column width, for masonry placement (components/
+// masonry-grid.tsx). It mirrors the card layout below: media at its clamped aspect, clamped
+// text lines, article title, link row, footer + metrics. Cached per post and width.
+const heightCache = new WeakMap<BookmarkPost, { width: number; height: number }>();
+export function estimateCardHeight(post: BookmarkPost, width: number) {
+  const hit = heightCache.get(post);
+  if (hit && Math.abs(hit.width - width) < 1) return hit.height;
+
+  const media = post.media ?? [];
+  const compact = Boolean(media.length || post.articleTitle);
+  const textWidth = width - (width < 300 ? 24 : 32);
+  let height = 0;
+  if (media.length === 1) height += width / mediaAspect(media[0]);
+  else if (media.length === 2) height += width / 2;
+  else if (media.length > 2) height += width;
+
+  if (post.articleTitle) {
+    const titleLines = Math.min(4, Math.ceil(post.articleTitle.length / Math.max(10, textWidth / 10)));
+    height += 24 + titleLines * (width < 300 ? 21 : 25);
+  }
+  const text = cleanText(post.text);
+  if (text) {
+    const charsPerLine = Math.max(14, textWidth / (compact ? 6.6 : 7.4));
+    const wrapped = text.split("\n").reduce((lines, line) => lines + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+    const maxLines = compact ? 3 : width < 300 ? 7 : 9;
+    height += Math.min(maxLines, wrapped) * (compact ? 19 : 22);
+  }
+  if (externalLinks(post).length) height += 24;
+  height += 26 + 30; // padding + author row
+  if (post.metrics?.likes || post.metrics?.views) height += 22;
+
+  heightCache.set(post, { width, height });
+  return height;
+}
+
 export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onToggleFavorite, onOpen }: BookmarkCardProps) {
   const { t, lang } = useLanguage();
   const media = post.media ?? [];
@@ -155,7 +190,7 @@ export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onTog
           onOpen(post.id);
         }
       }}
-      className="group relative mb-2.5 inline-block w-full min-w-0 cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[color:var(--color-canvas)] align-top shadow-[0_1px_2px_rgb(0_0_0/0.04)] outline-none transition-[box-shadow,background-color] duration-300 hover:shadow-[var(--shadow-card-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] sm:mb-4"
+      className="group relative block w-full min-w-0 cursor-pointer overflow-hidden rounded-2xl bg-[color:var(--color-canvas)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] outline-none transition-[box-shadow,background-color] duration-300 hover:shadow-[var(--shadow-card-hover)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]"
     >
       {media.length > 0 ? <MediaGrid media={media} /> : null}
 
