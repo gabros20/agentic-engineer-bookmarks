@@ -100,7 +100,7 @@ export function longDate(post: BookmarkPost, lang: Lang) {
 // pbs.twimg.com re-encodes only when BOTH params are set: format=webp alone still returns the
 // original jpg. Measured: photo 124 KB jpg → small 32 KB / medium 80 KB / large 190 KB webp;
 // video poster 107 KB → small 28 KB / medium 69 KB. small fits 680px, medium 1200, large 2048.
-export function pbsVariant(url: string, name: "small" | "medium" | "large") {
+export function pbsVariant(url: string, name: "small" | "medium" | "large" | "4096x4096") {
   try {
     const parsed = new URL(url);
     if (parsed.hostname !== "pbs.twimg.com") return url;
@@ -112,10 +112,19 @@ export function pbsVariant(url: string, name: "small" | "medium" | "large") {
   }
 }
 
-function pbsSrcSet(url: string, large = false) {
+export function pbsSrcSet(url: string, large = false) {
   const set = [`${pbsVariant(url, "small")} 680w`, `${pbsVariant(url, "medium")} 1200w`];
   if (large) set.push(`${pbsVariant(url, "large")} 2048w`);
   return set.join(", ");
+}
+
+/** Video or GIF (both play an mp4; GIFs loop muted without controls). */
+export function isMotionMedia(item: MediaEntry) {
+  return item.type === "video" || isGifMedia(item);
+}
+
+export function isGifMedia(item: MediaEntry) {
+  return item.type === "animated_gif" || item.type === "gif";
 }
 
 // Natural aspect ratio from the stored dimensions, clamped so a panorama or a tall phone
@@ -274,36 +283,9 @@ export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onTog
   );
 });
 
-// Card media: one item at its natural (clamped) aspect, several in a tight 2-up grid.
-// `detail` stacks every item full width, uncropped, at a larger size.
-export function MediaGrid({ media, detail = false }: { media: MediaEntry[]; detail?: boolean }) {
-  if (detail) {
-    return (
-      <div className="grid gap-2">
-        {media.map((item, index) => {
-          const style: CSSProperties = { aspectRatio: mediaAspect(item, 0.56, 2.4) };
-          const className = "w-full rounded-xl bg-[color:var(--color-surface-card)] object-contain";
-          if (item.type === "video" || item.type === "animated_gif") {
-            return <VideoMedia key={`${item.url}-${index}`} item={item} className={className} style={style} sizes="(min-width: 640px) 36rem, 100vw" />;
-          }
-          return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={`${item.url}-${index}`}
-              className={className}
-              style={style}
-              src={pbsVariant(item.url ?? "", "medium")}
-              srcSet={item.url ? pbsSrcSet(item.url, true) : undefined}
-              sizes="(min-width: 640px) 36rem, 100vw"
-              alt=""
-              decoding="async"
-            />
-          );
-        })}
-      </div>
-    );
-  }
-
+// Card media: one item at its natural (clamped) aspect, several in a tight 2-up grid. The detail
+// view lays media out differently (components/detail-media.tsx).
+export function MediaGrid({ media }: { media: MediaEntry[] }) {
   const items = media.slice(0, 4);
   const count = items.length;
   if (count === 1) {
@@ -327,7 +309,7 @@ export function MediaGrid({ media, detail = false }: { media: MediaEntry[]; deta
 
 function MediaTile({ item, className, style, sizes }: { item: MediaEntry; className: string; style?: CSSProperties; sizes: string }) {
   const base = `${className} min-h-0 bg-[color:var(--color-surface-cream-strong)] object-cover`;
-  if (item.type === "video" || item.type === "animated_gif") {
+  if (isMotionMedia(item)) {
     return <VideoMedia item={item} className={base} style={style} sizes={sizes} />;
   }
   return (
@@ -354,7 +336,8 @@ function formatDuration(ms?: number) {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
 }
 
-// Poster (X's own still) with a play button; clicking swaps in an inline <video> on the stored mp4.
+// Poster (X's own still) with a play button; clicking swaps in an inline <video> on the stored mp4
+// (cards), or hands off to the full-screen viewer when `onOpen` is given (detail view).
 // video.twimg.com 403s a foreign Referer — playback relies on the app-wide Referrer-Policy:
 // same-origin header (next.config.ts). If the mp4 is gone (deleted post), fall back to a
 // placeholder; a click there bubbles to the card, which opens the detail view.
@@ -363,17 +346,19 @@ export function VideoMedia({
   className,
   style,
   sizes,
+  onOpen,
 }: {
   item: MediaEntry;
   className: string;
   style?: CSSProperties;
   sizes: string;
+  onOpen?: () => void;
 }) {
   const { t } = useLanguage();
   const [playing, setPlaying] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
-  const isGif = item.type === "animated_gif";
+  const isGif = isGifMedia(item);
   const poster = item.thumbnail && !posterFailed ? item.thumbnail : undefined;
   const duration = isGif ? null : formatDuration(item.durationMs);
 
@@ -409,7 +394,7 @@ export function VideoMedia({
   return (
     <button
       type="button"
-      onClick={() => setPlaying(true)}
+      onClick={onOpen ?? (() => setPlaying(true))}
       aria-label={isGif ? t("media.playGif") : t("media.playVideo")}
       className={`${className} group/video relative grid place-items-center overflow-hidden`}
       style={style}

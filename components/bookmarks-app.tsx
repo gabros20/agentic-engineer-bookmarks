@@ -5,7 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { BookmarkCard, estimateCardHeight } from "@/components/bookmark-card";
+import { BookmarkCard, estimateCardHeight, isMotionMedia } from "@/components/bookmark-card";
 import { MasonryGrid, type MasonryEntry } from "@/components/masonry-grid";
 import type { ChatContextSnapshot } from "@/components/command-k-chat";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -137,7 +137,7 @@ function inScope(post: BookmarkPost, scope: string, favorites: Set<string>) {
   if (scope === "articles") return Boolean(post.articleTitle);
   if (scope === "media") return Boolean(post.media?.length);
   if (scope === "photos") return Boolean(post.media?.some((item) => item.type === "photo"));
-  if (scope === "videos") return Boolean(post.media?.some((item) => item.type === "video" || item.type === "animated_gif"));
+  if (scope === "videos") return Boolean(post.media?.some(isMotionMedia));
   if (scope === "text") return !post.media?.length && !post.articleTitle;
   return true;
 }
