@@ -19,7 +19,7 @@ Browser (Vercel static, ML-FREE)          Vercel /api (session-gated)          C
 ────────────────────────────────          ───────────────────────────          ─────────────────────────────
 type query ─► lib/search-client.ts ──────► /api/search (session + quota) ──────► worker/src/index.ts /search
   (debounced, AbortController+timeout)       fail-closed X-Proxy-Secret          keyword (lunr) ⊕ bge-m3 ⊕ rerank
-render ranked ids from local posts                                              data from Vercel /data, per-isolate cache
+render ranked ids from local posts                                              data from private R2 via manifest.json (versioned)
                                                                                 @cf/baai/bge-m3 + bge-reranker-base
 AI Digest / ⌘K chat ──► /api/digest,        session-gated + per-user daily
   /api/chat, /api/expand                     quota (lib/api-guard.ts) ──────────► deepseek-v4.1-flash-1017 (OpenRouter)
@@ -31,8 +31,8 @@ only `/api/search` (holding `SEARCH_PROXY_SECRET`) can call it. See §8 for the 
 
 - **Client ships zero ML** (no transformers.js/onnx/lunr in the bundle). It sends the query to the Worker and renders `{id,score}`.
 - **Worker** owns the whole hybrid pipeline; reuses the *same* ranking math as the (now-removed) client path via `lib/bookmark-search.ts` + `lib/rerank-core.ts` bundled into the Worker.
-- **Data** = static JSON in `public/data/`, served by Vercel's CDN and fetched by the Worker (no R2 needed; R2 is an optional future swap).
-- **Deploy split:** client/docs ship via `git push` → Vercel; **Worker ranking/data changes need `npm run deploy:worker` (wrangler deploy)** — a Vercel push alone does NOT reach Cloudflare.
+- **Data** = JSON in the private R2 bucket (§9). The four search files are published versioned (`v/<hash>/…`) with `manifest.json` switched last; the Worker loads via the manifest, caches per isolate and re-checks it once a minute (`x-data-version` on `/search`).
+- **Deploy split:** client/docs ship via `git push` → Vercel; **Worker code/ranking changes need `npm run deploy:worker`**; **data** reaches the Worker via `npm run upload:r2` (no redeploy).
 
 Live: worker `bookmark-search.t-gabor880312.workers.dev`, app `agentic-engineer-bookmarks.vercel.app`.
 
@@ -50,6 +50,9 @@ Live: worker `bookmark-search.t-gabor880312.workers.dev`, app `agentic-engineer-
 | Semantic-only vs hybrid | **Keyword+semantic hybrid** (restored after eval FAIL) | Semantic-only lost handle (0.08) + article-title classes — see P→S→V #3. |
 | Digest/chat model | `deepseek/deepseek-v4.1-flash-1017` (2026-10-28; was `google/gemini-3.6-flash`) | The original objection to open-weight models — weaker **Hungarian** + **strict streamed structured output / tool-calling** — was re-tested live on 2026-10-28 through the real `streamObject`/`streamText` paths: valid `digestSchema` in EN + HU (34/34 cited ids real), a 10-step tool loop, fluent HU. ~5x cheaper ($0.15/$0.60 vs $0.75/$3.75 per M) and faster (digest 10s vs 24s). Revert = one `MODEL` constant per route. |
 | Video posters + inline playback | Render X's own poster (`media.thumbnail`, `pbs.twimg.com/*_video_thumb`, as `?format=webp&name=small|medium` — both params needed, ~28 KB vs ~107 KB jpg) with a click-to-play `<video>` on the stored mp4. App-wide `Referrer-Policy: same-origin` (`next.config.ts`) because `video.twimg.com` 403s any foreign Referer and `<video>` has no per-element policy (verified in headless Chrome: plays with it, media error 4 without); not `no-referrer`, which nulls a same-origin POST's Origin and breaks Better Auth. The ~2k legacy-import posts with no poster were backfilled once (2026-10-28, 1979/2001; 22 deleted) by `npm run backfill:posters` via X's cookie-less syndication endpoint; xrelay captures posters for every new bookmark. | No frame extraction needed — X already produces the poster. |
+| Sync embeddings over the Workers AI REST API (2026-10-29) | `scripts/lib/embed-transport.mjs`: `POST /accounts/{id}/ai/run/@cf/baai/bge-m3` with the sync's `CLOUDFLARE_API_TOKEN` instead of a throwaway `wrangler dev` + `/embed`. Same model/billing (the AI binding was remote even under wrangler dev); vectors match the stored index to cosine ≥ 0.9996 (int8 rounding). Fallback: local `wrangler dev` on OS-assigned free ports (+ inspector port), probed before use. `FatalEmbedError` (401/403/4xx, ECONNREFUSED) stops at once instead of hours of retries; 429/5xx/3030 back off with Retry-After. | Root cause of the 2026-10-29 failure: fixed port 8799 owned by another app. Embed step 60 s → 4 s. |
+| Versioned R2 publish (2026-10-29) | `upload-r2.mjs` puts the four Worker-loaded files under `v/<sha256-12>/…` and writes `manifest.json` LAST; last 3 versions kept, older pruned. Worker reads the manifest (legacy flat keys if absent), re-checks its ETag inline at most once a minute per isolate (on the request path — with one user and long idle gaps a background check served the first post-publish search stale data). The autopilot publishes when the local fingerprint ≠ the LAST PUBLISHED one (not ≠ run start), so a failed upload is retried, then polls `x-data-version` until the live Worker serves it. | Before: sequential flat uploads (`meta` before `bin`) could map vectors onto the wrong posts in a cold isolate; live isolates never reloaded. |
+| Sync autopilot v2 (2026-10-29) | launchd ticks hourly + `RunAtLoad`; `scripts/lib/sync-state.mjs` `shouldRun()` (daily slot, 2 h retries ×4/day, >26 h catch-up, offline doesn't count). O_EXCL lock with age check, `caffeinate`, preflights via API (token verify ~1 s vs 22 s `npx wrangler whoami`), weekly xrelay update only if newer + rollback. Failures classified (`sync-errors.mjs`) → one notification per cause per day from a branded applet (`notifier.mjs`, osacompile + iconutil + ad-hoc codesign; click → status page). `setup`/`doctor` commands. | Unit-tested decision table (`npm run test:autosync`). |
 | UI: editorial catalog (2026-10-28) | Mobbin-referenced (mymind-style) redesign: hero serif search (Instrument Serif), sticky scope rail with live per-scope counts, media-first masonry (2 cols on phones), click → detail sheet (right panel / draggable bottom sheet, ←/→ to step, Open on X / star / copy / Ask AI); ⌘/Ctrl-click still jumps to X. Neutral monochrome tokens with OS-following dark mode + manual override (`html[data-theme]`, `lib/theme.ts`, pre-paint script in `app/layout.tsx`); token NAMES unchanged so every panel re-themes; backdrops use `--color-scrim`. Grid images load `pbs` webp `small`/`medium` via srcset (~4x smaller than the original jpg). | Search/filter semantics unchanged (scope now applied after operators+text so the rail can count; filters commute). |
 | Digest sourcing | Re-query the Worker at limit ~50 | Clustering the 30 on-screen results left the great search engine unused. |
 
@@ -118,6 +121,8 @@ baseline never silently shifts.
 
 **P6. Non-destructive sync.** Wiring the bge chain into `npm run sync` risked corrupting committed artifacts. → Gate: a sync on current data must be a clean no-op. **Validation:** dry-run embedded 0/changed 0, `git diff --stat public/data/` clean; F1 (backfilled-article stale main vector) fixed via a per-item content fingerprint and simulated. *Lesson: for any "rebuild in place" pipeline, make "no new input → byte-identical output" an explicit, tested acceptance criterion.*
 
+
+**P7. The daily sync died on a port another app owned (2026-10-29).** The notification said only "wrangler dev exited early". → Log: `Address already in use (127.0.0.1:8799)`; `lsof` showed an unrelated app (OpenMaus) listening there; the "SIGKILL" line was a red herring (teardown waited on a process that had already exited). A pipeline review then found that a failed upload could be skipped forever, that publishes weren't atomic, and that there were no same-day retries. → Fix: Workers AI REST embeddings (no local server), versioned manifest publish, publish-vs-last-published, hourly self-retrying schedule, classified branded notifications, `setup`/`doctor`. **Validation:** REST vectors vs stored cosine ≥ 0.9996; with 8799 still occupied, sync-bge finished in 4 s via REST and via the forced local fallback (free port 58682, clean teardown, re-embedded vectors cosine ≥ 0.9996); first launchd run published v`c6baf7cd0581` and the live Worker confirmed it; a forced X-auth failure was classified `X_AUTH` with the fix and left the archive untouched; `test:autosync` 28/28.
 ---
 
 ## 5. Methodologies worth reusing
@@ -132,9 +137,10 @@ baseline never silently shifts.
 ## 6. Gotchas checklist (bit us or nearly did)
 
 - [ ] All secrets are server-only — **no `NEXT_PUBLIC_*`** (Worker URL + `SEARCH_PROXY_SECRET` included). Set the server env vars in Vercel **before the build**.
-- [ ] A Vercel push does NOT update the Cloudflare Worker → run `npm run deploy:worker` after data/ranking changes — and it must go live **together** with the app merge now (secret-gated Worker).
+- [ ] A Vercel push does NOT update the Cloudflare Worker → run `npm run deploy:worker` after Worker code/ranking changes — and it must go live **together** with the app merge (secret-gated Worker). Data changes need only `npm run upload:r2` (versioned manifest).
 - [ ] neon-http has **no `db.transaction()`** → use `db.batch([...])` for multi-statement atomicity.
-- [ ] Worker isolates cache data → same redeploy requirement; a load-promise must reset on rejection.
+- [ ] Worker isolates cache data → they re-check `manifest.json` once a minute; a load-promise must reset on rejection. Never upload the search files under fixed keys again (a half-finished upload would be served as a mismatched set).
+- [ ] Never hard-code a local port for tooling: another app owned 8799 and broke the sync. Ask the OS (`listen(0)`) — or avoid the local server entirely (REST).
 - [ ] bge-m3 rejects empty/oversized/lone-surrogate input → sanitize at the source.
 - [ ] wrangler OAuth ≠ token; non-interactive commands want `CLOUDFLARE_API_TOKEN` (gitignored `worker/.env`).
 - [ ] `reasoning.effort` is OpenRouter-unified, not OpenAI-only.

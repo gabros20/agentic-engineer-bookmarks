@@ -206,8 +206,9 @@ cd worker && npx wrangler login && cd ..     # browser OAuth
 export CLOUDFLARE_API_TOKEN=<your-token>       # this shell only
 ```
 
-(Only needed when a sync actually embeds new posts, or when you deploy. A no-op sync needs nothing.
-If it's missing when required, the sync fails fast with these exact instructions.) See
+(Needed to embed new posts — over the Workers AI REST API — and to publish to R2. The token needs
+*Workers R2 Storage: Edit*, *Workers AI: Read* and *Account Settings: Read*. For hands-off syncing use
+the autopilot below, which keeps the token outside the repo.) See
 **[docs/SYNC-AND-DEPLOY.md](docs/SYNC-AND-DEPLOY.md)** for the complete runbook.
 
 Then, from the project root:
@@ -219,9 +220,11 @@ npm run sync
 `sync` runs:
 
 ```bash
-xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 5000
+node scripts/prepare-sync.mjs        # restore the incremental inputs from R2 if they're missing locally
+xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000
 node scripts/backfill-articles.mjs
-node scripts/sync-bge.mjs
+node scripts/sync-bge.mjs            # embed new posts + rebuild the search artifacts
+node scripts/upload-r2.mjs           # versioned publish to R2 (the live site picks it up within a minute)
 ```
 
 - `xrelay archive bookmarks` fetches your bookmarks newest-first and stops once it hits already-archived IDs, prepending only the new ones. `--limit 5000` ensures the stop condition (not the default `40` cap) is what halts the pull.
@@ -234,21 +237,11 @@ node scripts/sync-bge.mjs
 
   Manual fallback, if you ever need it: in one terminal `cd worker && npx wrangler dev --port 8787`; in another, `export EMBED_SECRET="$(grep -E '^EMBED_SECRET' worker/.dev.vars | cut -d= -f2- | tr -d '\"')"` (the `/embed` route is gated on it — skip this and you'll get confusing 403 retry-storms, not a clear error), then `EMBED_URL=http://localhost:8787/embed node scripts/embed-bge.mjs` followed by `node scripts/build-lunr-index.mjs` / `build-rerank-docs.mjs` / `pack-bge-index.mjs`.
 
-Then commit and push (Vercel redeploys on push to `main`):
-
-```bash
-git add public/data/all-bookmarks.json public/data/search-index-bge.json \
-        public/data/search-index-bge.bin public/data/search-index-bge.meta.json \
-        public/data/lunr-index.json public/data/rerank-docs.json
-git commit -m "Sync fresh bookmarks"
-git push
-```
-
-**The deployed Worker caches its data per isolate, so it does NOT pick up a fresh sync automatically** — after committing/pushing, redeploy it:
-
-```bash
-npm run deploy:worker   # cd worker && wrangler deploy — needs Cloudflare auth (wrangler login or CLOUDFLARE_API_TOKEN; see above)
-```
+That's it — nothing to commit and nothing to redeploy. `public/data/*` is gitignored (the data lives in
+the private R2 bucket), and `upload-r2.mjs` publishes **versioned**: the four search files go to
+`v/<hash>/…` and `manifest.json` is switched last, so the site never serves a half-uploaded mix. The
+deployed Worker re-checks the manifest once a minute and serves the new version (its `/search`
+responses carry an `x-data-version` header). `npm run deploy:worker` is only for Worker **code** changes.
 
 ### Autopilot: unattended sync with launchd
 
@@ -286,27 +279,29 @@ The env file is designed for this case: no Keychain to unlock, no 1Password pass
 
 ```bash
 git clone <repo> && cd agentic-engineer-bookmarks && npm install
-npm i -g x-relay-mcp@latest                  # the xrelay CLI
-npm run autosync -- set-token --env-file     # Cloudflare API token
+npm run autosync -- set-token --env-file     # Cloudflare API token → ~/.config/xbookmarks-sync/env (chmod 600)
 npm run autosync -- set-cookies              # X auth_token + ct0, from a browser that's logged into x.com
-npm run autosync -- install --hour 14 --minute 0 --notify failure
+npm run autosync -- setup                    # installs xrelay, schedule, notifier; runs the health check
 npm run autosync -- run && npm run autosync -- status
 ```
 
-- **No local data needed.** On the first run, `prepare-sync` restores `all-bookmarks.json` and the embedding base from R2, and the autopilot creates the local-only `EMBED_SECRET` in `worker/.dev.vars`.
+- **No local data needed.** On the first run, `prepare-sync` restores `all-bookmarks.json` and the embedding base from R2. Embedding runs over the Workers AI REST API, so no local server or port is involved.
+- **Check it remotely.** `npm run autosync -- doctor` over SSH shows ✓/✖ for every dependency with the fix; `status` shows the last success and the next attempt.
 - **The agent needs a logged-in user.** A LaunchAgent only runs while that user is logged in, so turn on **automatic login** for it (System Settings → Users & Groups) so that runs resume after a reboot or power cut.
 - **Don't run it on both machines.** Two Macs pulling into two separate local archives is harmless, because each run is incremental and R2 just gets the latest upload. But it's pointless: uninstall the agent on the laptop (`npm run autosync -- uninstall`) once the mini is running it.
-- **Expired X cookies.** The cookies last until that X session is logged out. When `xrelay whoami` starts failing, the run stops at preflight and notifies you; then run `set-cookies` again.
+- **Expired X cookies.** The cookies last until that X session is logged out. When they expire, the run stops at preflight and notifies you ("X login expired"); run `set-cookies` again and it retries on its own.
 
 After a Node upgrade (fnm/nvm), run `install` again: the agent pins the real path of the Node binary it was installed with. macOS may ask once more for Documents access.
 
 ### Related scripts
 
 ```bash
-npm run autosync -- status   # the daily autopilot (see above)
-npm run sync:bge         # the bge chain alone (embed-bge + wrangler-dev automation + lunr/rerank/pack), no xrelay fetch
+npm run autosync -- status   # the autopilot (see above); also: doctor · open · run
+npm run test:autosync    # unit tests for the autopilot's scheduling / error classification / lock / publish decision
+npm run sync:bge         # the bge chain alone (embed new posts + lunr/rerank/pack), no xrelay fetch; EMBED_TRANSPORT=rest|local
 npm run embed:bge        # embed-bge.mjs directly — add --dry-run (report only) or --full (from-scratch rebuild)
-npm run deploy:worker    # redeploy the Cloudflare Worker so it picks up freshly-synced data
+npm run upload:r2        # versioned publish of the local data to R2 (add -- --force to re-upload an unchanged version)
+npm run deploy:worker    # redeploy the Cloudflare Worker after Worker CODE changes (data reaches it via upload:r2)
 npm run build:search     # LEGACY: full rebuild of the unused e5 search-index.json from all-bookmarks.json
 npm run embed:new        # LEGACY: incremental e5 embeddings only (no fetch) — kept for scripts/eval-search.mjs's baseline
 npm run migrate:archive  # one-time: convert a legacy {data:[...]} export to ArchiveFile shape
