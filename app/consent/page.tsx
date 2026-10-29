@@ -39,9 +39,16 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
   }
 
   let redirectHost: string | null = null;
+  // A native app's loopback listener (RFC 8252: http://localhost:<port>/callback, how Claude Code,
+  // Cursor, … receive the result): it only exists on the computer that started the connection.
+  let loopback = false;
   try {
     const redirectUri = first(params.redirect_uri);
-    if (redirectUri) redirectHost = new URL(redirectUri).host;
+    if (redirectUri) {
+      const url = new URL(redirectUri);
+      redirectHost = url.host;
+      loopback = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    }
   } catch {
     redirectHost = null;
   }
@@ -54,6 +61,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
         clientName={clientName}
         clientUri={clientUri}
         redirectHost={redirectHost}
+        loopback={loopback}
         scopes={scopes}
         email={session.user.email}
       />

@@ -4,9 +4,10 @@ import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { createAuthClient } from "better-auth/react";
 import { Check, Loader2, PlugZap, X as XIcon } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { OtherDeviceNotice, isHandheld } from "@/components/other-device-notice";
 import { MCP_SCOPE } from "@/lib/mcp-scope";
 import { type MessageKey, useLanguage } from "@/lib/i18n";
 
@@ -29,14 +30,23 @@ type Props = {
   clientName: string | null;
   clientUri: string | null;
   redirectHost: string | null;
+  /** The app receives the result on a localhost listener — i.e. on the computer that started it. */
+  loopback: boolean;
   scopes: string[];
   email: string;
 };
 
-export function ConsentForm({ clientName, clientUri, redirectHost, scopes, email }: Props) {
+export function ConsentForm({ clientName, clientUri, redirectHost, loopback, scopes, email }: Props) {
   const { t } = useLanguage();
   const [busy, setBusy] = useState<"allow" | "deny" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // An app waiting on a localhost listener can't be reached from a phone: Allow/Deny would
+  // redirect the PHONE to its own localhost and fail ("Safari can't open the page"). Happens when
+  // the sign-in email is opened on the phone while the app runs on a computer. Explain instead.
+  const [wrongDevice, setWrongDevice] = useState(false);
+  useEffect(() => {
+    if (loopback && isHandheld()) setWrongDevice(true);
+  }, [loopback]);
 
   // One line per distinct capability (profile + email share a label); `openid` needs no line.
   const scopeLines = Array.from(new Set(scopes.map((s) => SCOPE_LABELS[s]).filter(Boolean)));
@@ -58,6 +68,8 @@ export function ConsentForm({ clientName, clientUri, redirectHost, scopes, email
   }
 
   const name = clientName || t("consent.unknownClient");
+
+  if (wrongDevice) return <OtherDeviceNotice clientName={clientName} onOverride={() => setWrongDevice(false)} />;
 
   return (
     <main className="relative flex min-h-[100svh] items-center justify-center bg-[color:var(--color-canvas)] px-4 py-10">

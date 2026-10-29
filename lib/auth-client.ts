@@ -1,5 +1,5 @@
 import { createAuthClient } from "better-auth/react";
-import { magicLinkClient } from "better-auth/client/plugins";
+import { emailOTPClient, magicLinkClient } from "better-auth/client/plugins";
 
 // ---------------------------------------------------------------------------
 // Client-usable Better Auth instance (React hooks). Uses only the PUBLIC base
@@ -10,5 +10,5 @@ import { magicLinkClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
-  plugins: [magicLinkClient()],
+  plugins: [magicLinkClient(), emailOTPClient()],
 });

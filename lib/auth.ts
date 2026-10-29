@@ -1,13 +1,14 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { jwt, magicLink } from "better-auth/plugins";
+import { emailOTP, jwt, magicLink } from "better-auth/plugins";
 import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { mcp } from "@better-auth/mcp";
 
 import { db } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/email";
+import { activeSignInEmail } from "@/lib/sign-in-email";
 import { MCP_SCOPE } from "@/lib/mcp-scope";
 import {
   consumeInvite,
@@ -68,6 +69,42 @@ function isNativeRedirectUri(uri: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+/** Magic link and sign-in code lifetime: long enough to type a code read on another device. */
+const SIGN_IN_TTL_SECONDS = 10 * 60;
+
+/**
+ * I2 send-gate, shared by the magic link and the sign-in code: `signIn.magicLink` /
+ * `emailOtp.sendVerificationOtp` can be called directly, so without this an unauthenticated
+ * caller could make us email ARBITRARY third-party addresses (send/Resend-cost + reputation
+ * abuse). Account creation is still separately invite-gated (`user.create.before`); this only
+ * bounds the SEND. Email only an already-known address: an existing user (returning login) OR a
+ * valid unexpired invite reservation (invited signup). Otherwise skip silently — log without the
+ * address, and do NOT throw (don't leak whether an email is known, and don't 500 the caller). On
+ * a DB read error, fail SAFE: skip the send rather than fan out to strangers.
+ */
+async function mayEmail(email: string, what: string): Promise<boolean> {
+  try {
+    if (await emailMayReceiveMagicLink(email)) return true;
+    console.warn(`[auth] ${what} send skipped: address not invited or known`);
+  } catch (err) {
+    console.error(`[auth] ${what} eligibility check failed; skipping send`, err);
+  }
+  return false;
+}
+
+/**
+ * Test seam — NEVER set in production. When MAGIC_LINK_SINK points at a file, capture the raw
+ * link / code there (under hashed storage they exist only in the email) and skip email, so
+ * integration tests don't depend on inbox delivery. Hard-gated on NODE_ENV !== "production" too,
+ * so even if the env var leaks into prod config the sink stays inert.
+ */
+async function sinkForTests(entry: Record<string, string>): Promise<boolean> {
+  if (!process.env.MAGIC_LINK_SINK || process.env.NODE_ENV === "production") return false;
+  const { appendFile } = await import("node:fs/promises");
+  await appendFile(process.env.MAGIC_LINK_SINK, JSON.stringify(entry) + "\n");
+  return true;
 }
 
 export const auth = betterAuth({
@@ -141,48 +178,39 @@ export const auth = betterAuth({
       // Store only a hash of the token in `verification.value`; the raw token
       // lives solely in the emailed URL.
       storeToken: "hashed",
+      expiresIn: SIGN_IN_TTL_SECONDS,
       sendMagicLink: async ({ email, url }) => {
-        // I2 send-gate: `signIn.magicLink` can be called directly (outside the
-        // /api/invite/verify → link flow), so without this an unauthenticated
-        // caller could make us email magic links to ARBITRARY third-party
-        // addresses (send/Resend-cost + reputation abuse). Account creation is
-        // still separately invite-gated (`user.create.before`); this only bounds
-        // the SEND. Email only an already-known address: an existing user
-        // (returning-login) OR a valid unexpired invite reservation
-        // (invited-signup). Otherwise skip silently — log without the address, and
-        // do NOT throw (don't leak whether an email is known, and don't 500 the
-        // caller). On a DB read error, fail SAFE: skip the send rather than fan
-        // out to strangers.
-        let mayReceive = false;
-        try {
-          mayReceive = await emailMayReceiveMagicLink(email);
-        } catch (err) {
-          console.error("[auth] magic-link eligibility check failed; skipping send", err);
-          return;
-        }
-        if (!mayReceive) {
-          console.warn("[auth] magic-link send skipped: address not invited or known");
-          return;
-        }
-        // Test seam — NEVER set in production. When MAGIC_LINK_SINK points at a
-        // file, capture the raw link there (the token is only in the URL under
-        // hashed storage) and skip email, so integration tests don't depend on
-        // inbox delivery. Unset in prod → always emails via Resend. Hard-gated
-        // on NODE_ENV !== "production" too, so even if the env var leaks into
-        // prod config the sink stays inert (never suppresses email / captures
-        // live tokens in prod).
-        if (
-          process.env.MAGIC_LINK_SINK &&
-          process.env.NODE_ENV !== "production"
-        ) {
-          const { appendFile } = await import("node:fs/promises");
-          await appendFile(
-            process.env.MAGIC_LINK_SINK,
-            JSON.stringify({ email, url }) + "\n",
-          );
+        if (!(await mayEmail(email, "magic-link"))) return;
+        if (await sinkForTests({ email, url })) return;
+        // Inside POST /api/login/send: hand the link over; it goes out with the code in ONE email.
+        const collecting = activeSignInEmail();
+        if (collecting) {
+          collecting.url = url;
           return;
         }
         await sendMagicLinkEmail({ email, url });
+      },
+    }),
+    // The 6-digit sign-in code that travels with the magic link: typed on the device where
+    // sign-in STARTED (components/login-form.tsx), so reading the email on a phone can finish a
+    // sign-in begun on a computer — the case that matters for MCP clients like Claude Code, whose
+    // OAuth redirect is a loopback listener on that computer. Same send-gate as the link; a
+    // brand-new email still hits the invite gate (`user.create.before`) on verify.
+    emailOTP({
+      otpLength: 6,
+      expiresIn: SIGN_IN_TTL_SECONDS,
+      allowedAttempts: 5,
+      storeOTP: "hashed",
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type !== "sign-in") return; // only sign-in codes are used here
+        if (!(await mayEmail(email, "sign-in code"))) return;
+        if (await sinkForTests({ email, otp })) return;
+        const collecting = activeSignInEmail();
+        if (collecting) {
+          collecting.otp = otp;
+          return;
+        }
+        await sendMagicLinkEmail({ email, otp });
       },
     }),
     jwt(),
