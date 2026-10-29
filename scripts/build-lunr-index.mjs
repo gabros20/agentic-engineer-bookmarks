@@ -11,7 +11,7 @@
 // lunr.Index.load warns on a version mismatch, so the Worker (Task 2) must load with the
 // same lunr major/minor.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
@@ -24,5 +24,7 @@ const outputPath = join(root, "public/data/lunr-index.json");
 const payload = JSON.parse(await readFile(sourcePath, "utf8"));
 const posts = normalizeBookmarkPayload(payload);
 const index = buildKeywordIndex(posts);
-await writeFile(outputPath, JSON.stringify(index.toJSON()));
+// Atomic (temp + rename): a killed sync never leaves a torn file behind.
+await writeFile(`${outputPath}.tmp`, JSON.stringify(index.toJSON()));
+await rename(`${outputPath}.tmp`, outputPath);
 console.log(`Wrote ${outputPath} — serialized lunr index over ${posts.length} posts.`);

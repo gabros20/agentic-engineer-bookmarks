@@ -61,25 +61,41 @@ Why worker-first: with the Worker already serving `/archive`, the Vercel swap is
 order (push first) would 404 `/data/*` while the old Worker still lacks `/archive` — a broken-archive
 window until the deploy. Populate R2 **before** either step.
 
-## Autopilot (daily unattended sync)
+## Autopilot (unattended sync)
 
-`scripts/auto-sync.mjs` runs the same five steps as `npm run sync`, scheduled by a per-user launchd agent
-(`scripts/autosync.mjs` installs and manages it). Full usage is in the README ("Autopilot"). Operational notes:
+`scripts/auto-sync.mjs` runs the same five steps as `npm run sync`, driven by a per-user launchd agent
+(`scripts/autosync.mjs` installs and manages it).
 
-- **Auth:** unattended runs need a Cloudflare **API token**, from the env file `~/.config/xbookmarks-sync/env`
-  (`set-token --env-file`; the right choice for a headless Mac mini, together with `set-cookies` for `XRELAY_COOKIES`),
-  from 1Password (`set-token --1password op://…`,
-  plus `set-token --op-service-account` to avoid a daily Touch ID prompt) or the Keychain (`set-token`).
-  If 1Password can't be read, the run falls back to the Keychain token, then to `wrangler login`, and logs a warning.
-  Without one they fall back to `wrangler login`, which expires, and the next run then fails at preflight with a
-  notification. X auth is xrelay's browser cookies: log into x.com in that browser again if `xrelay whoami` fails.
+**Setup (one command, safe to re-run to repair):** `npm run autosync -- setup` installs xrelay if missing,
+checks X auth, stores/verifies the Cloudflare token (and caches the account id), infers the Worker/site
+URLs, builds the branded notifier app, installs the launchd agent, sends a test notification (allow it
+when macOS asks) and runs the health check. Then `npm run autosync -- run` for the first sync.
+
+**Day to day:** `status` (last success, next attempt, auth, last run) · `doctor` (✓/⚠/✖ per dependency
+with the fix) · `open` (status page — also what clicking any notification opens) · `run` (sync now,
+ignoring the schedule once) · `logs` · `notify-test`.
+
+- **Schedule:** launchd ticks every hour (at the configured minute) and at login; each tick is a no-op
+  unless a sync is due (`scripts/lib/sync-state.mjs`): once a day from `hour:minute` (default 14:00), a
+  failed run retried every `retryHours` (2) up to `maxAttemptsPerDay` (4), a missed day (Mac off/asleep)
+  caught up at the next tick, offline ticks retried hourly without using attempts. `caffeinate` keeps the
+  Mac awake during a run. State: `~/.config/xbookmarks-sync/state.json`; history: `runs.jsonl` in the logs dir.
+- **Notifications** come from `~/Applications/X Bookmarks Sync.app` (own name + icon). Success: "+N new
+  bookmarks". Failures are classified (`scripts/lib/sync-errors.mjs`) and name the fix; retryable ones stay
+  quiet until the day's last attempt, auth problems notify at once, one per cause per day; "No bookmark sync
+  for N days" after `staleDays` (3).
+- **Auth:** a Cloudflare **API token** (Workers R2 Storage: Edit + Workers AI: Read + Account Settings:
+  Read) from the env file `~/.config/xbookmarks-sync/env` (`set-token --env-file`; best for a headless Mac
+  mini, together with `set-cookies` for `XRELAY_COOKIES`), 1Password (`set-token --1password op://…` +
+  `--op-service-account` to avoid Touch ID) or the Keychain (`set-token`). It's verified via the API (~1 s).
+  X auth is xrelay's browser cookies: log into x.com again if `X login expired` is reported.
+- **xrelay updates:** at most weekly, only when npm has a newer version, rolled back if X auth breaks after.
 - **macOS privacy (TCC):** the repo lives under `~/Documents`, so the first launchd run makes macOS ask whether
   `node` may access Documents. Allow it. The grant is tied to the node binary path, so after a Node upgrade
-  run `install` again and allow once more. Until then the job sits idle in state `running` with an empty log.
-- **Safety:** a pull that would shrink `all-bookmarks.json` is rolled back from a pre-pull backup and nothing is
-  uploaded; the upload is skipped when nothing changed; one run at a time (lock in `~/.config/xbookmarks-sync/`).
-- **Diagnose:** `npm run autosync -- status` (last run, warnings, log path), `npm run autosync -- logs`,
-  `~/Library/Logs/xbookmarks-sync/launchd.err.log`.
+  run `install` again and allow once more.
+- **Safety:** a pull that would shrink `all-bookmarks.json` is rolled back and nothing is published; data
+  is published whenever it differs from what was **last published** (so a failed upload is retried); one
+  run at a time (atomic lock in `~/.config/xbookmarks-sync/`).
 
 ## MCP server rollout (docs/MCP-PLAN.md)
 
@@ -152,16 +168,23 @@ When both files are present (the common case) it's a pure no-op needing no auth.
 **`sync-bge.mjs`:**
 1. runs an incremental **dry-run** to see what's pending (content-fingerprinted, so a backfilled article's
    stale main vector is re-embedded, not skipped-by-id);
-2. **if nothing is pending → stops** (no `wrangler dev`, no auth needed) — the common case;
-3. if pending → starts a throwaway `wrangler dev` (port **8799**, override `SYNC_BGE_WRANGLER_PORT`),
-   embeds the new posts with bge-m3 via its gated `/embed` route, tears it down (even on error/Ctrl-C);
-4. rebuilds `lunr-index.json`, `rerank-docs.json`, and repacks `search-index-bge.bin`/`.meta.json` so the
-   Worker-served artifacts stay aligned with the corpus.
+2. **if nothing is pending → no embedding at all** — the common case;
+3. if pending → embeds the new posts with bge-m3 over the **Workers AI REST API** using
+   `CLOUDFLARE_API_TOKEN` (no local server, no port; `scripts/lib/embed-transport.mjs`). Only if the token
+   lacks Workers AI permission does it fall back to a throwaway `wrangler dev` on an OS-assigned free port
+   (probed before use, torn down on success/error/Ctrl-C). Force either with `EMBED_TRANSPORT=rest|local`.
+   Bad token / dead server fail fast; 429/5xx/transient Workers AI errors back off (honoring Retry-After);
+   progress is flushed atomically, so any re-run resumes;
+4. rebuilds `lunr-index.json`, `rerank-docs.json`, and repacks `search-index-bge.bin`/`.meta.json`
+   (all written atomically) so the Worker-served artifacts stay aligned with the corpus.
 
-Then **`upload-r2.mjs`** pushes to the `bookmark-search-data` R2 bucket (needs Cloudflare auth): the 4
-Worker-served search assets + `all-bookmarks.json`, **plus `search-index-bge.json` as a BACKUP-only
-object** (the Worker never fetches it — it exists so the preflight above can restore the embed base after
-a lost/fresh disk). Six objects total; prod picks up the new corpus immediately.
+Then **`upload-r2.mjs`** publishes to the `bookmark-search-data` R2 bucket, **versioned and atomic**: the
+four files the Worker loads together go to `v/<version>/…` (version = their content hash), then
+`manifest.json` is switched to the new version **last** — the Worker reads the manifest, so it never sees a
+half-uploaded mix, and every isolate re-checks it each minute (`x-data-version` on `/search` responses shows
+what it serves). The last 3 versions are kept (rollback = point the manifest back); older ones are pruned.
+`all-bookmarks.json` (for `/archive`) and the backup-only `search-index-bge.json` keep fixed keys. The
+autopilot then polls the live Worker until it serves the new version (needs `workerUrl` in the config).
 
 ## Troubleshooting
 
@@ -171,8 +194,14 @@ a lost/fresh disk). Six objects total; prod picks up the new corpus immediately.
 - **Prod archive/cards fail to load; `/api/archive` 502s** → R2 is empty or missing `all-bookmarks.json`. Run `npm run upload:r2`. Verify with `cd worker && npx wrangler r2 object get bookmark-search-data/all-bookmarks.json --remote --pipe | wc -c`.
 - **`Please enable R2 … [code: 10042]`** → R2 isn't enabled on the Cloudflare account. Enable it in the dashboard (R2 Object Storage → enable), then `npm run upload:r2`.
 - **`[prepare-sync] REFUSING to continue`** → the sync preflight found a missing input file and couldn't reach R2 to restore it (usually Cloudflare auth). This is the safety net doing its job — it stopped rather than let xrelay truncate your archive. Fix auth (`wrangler login` / `CLOUDFLARE_API_TOKEN`) and re-run `npm run sync`.
-- **Port 8799 in use** → `SYNC_BGE_WRANGLER_PORT=<free port> npm run sync`.
-- **wrangler dev automation misbehaves** → the manual two-terminal fallback is documented in the README's Syncing section.
+- **Autopilot failure codes** (shown in the notification, `status`, and the status page):
+  `X_AUTH` → log into x.com in your browser (or `set-cookies`) · `CF_AUTH` → `npm run autosync -- set-token` ·
+  `OFFLINE` → nothing to do, it retries hourly · `AI_RATE_LIMIT` / `EMBED` / `UPLOAD` → transient, it retries
+  automatically · `TRUNCATED` → the pull looked wrong, nothing was published, check xrelay · `DISK` → free 1 GB.
+  `npm run autosync -- doctor` pinpoints which dependency is broken.
+- **"live Worker still answers … instead of v…"** warning → the deployed Worker predates versioned data;
+  `npm run deploy:worker`.
+- **Embedding falls back to `wrangler dev`** → the token lacks "Workers AI: Read"; add it (`doctor` says so).
 - **`rm` deletes to Trash** on this machine (`rm` aliased to `trash`) → use `/bin/rm` in scripts.
 
 ## Related

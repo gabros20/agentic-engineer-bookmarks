@@ -11,7 +11,7 @@
 //
 // Run from repo root: node scripts/pack-bge-index.mjs
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const SRC = resolve("public/data/search-index-bge.json");
@@ -46,8 +46,13 @@ for (let r = 0; r < items.length; r += 1) {
   metaItems[r] = it.part === undefined ? { id: it.id } : { id: it.id, part: it.part };
 }
 
-writeFileSync(BIN, Buffer.from(bin.buffer, bin.byteOffset, bin.byteLength));
-writeFileSync(META, JSON.stringify({ model, dimensions, count, vector_count, items: metaItems }));
+// Atomic (temp + rename): a sync killed mid-write must never leave a torn .bin or .meta behind.
+function writeAtomic(path, data) {
+  writeFileSync(`${path}.tmp`, data);
+  renameSync(`${path}.tmp`, path);
+}
+writeAtomic(BIN, Buffer.from(bin.buffer, bin.byteOffset, bin.byteLength));
+writeAtomic(META, JSON.stringify({ model, dimensions, count, vector_count, items: metaItems }));
 
 console.log(
   `packed ${items.length} vectors × ${dimensions} dims → ${BIN} (${(bin.byteLength / 1e6).toFixed(1)} MB), ` +

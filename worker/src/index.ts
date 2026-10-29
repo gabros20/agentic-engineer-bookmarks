@@ -63,9 +63,16 @@ interface Env {
   EMBED_SECRET?: string;
 }
 
-// ============================ Data loading (once per isolate) ==============================
-// Cached in module scope behind a single init promise: the first request triggers the load,
+// ============================ Data loading (per isolate, versioned) ========================
+// Cached in module scope behind a single in-flight promise: the first request triggers the load,
 // concurrent requests await the same promise. Swappable prod source = R2 (T5); DEV = HTTP.
+//
+// Versioned publish (scripts/upload-r2.mjs): the four search files live under `v/<version>/…` and
+// `manifest.json` (written LAST) names the live version — so an isolate either sees the old set or
+// the new set, never a half-uploaded mix (a new .meta with an old .bin used to be able to map
+// vectors onto the wrong posts). Without a manifest (before the first versioned publish, or in
+// dev) the legacy flat keys are read. Each isolate re-checks the manifest ETag at most once a
+// minute and reloads when it changed, so new data goes live without waiting for isolate eviction.
 
 type PackedMeta = {
   model: string;
@@ -80,7 +87,13 @@ type LoadedData = {
   keywordIndex: lunr.Index;
 };
 
-let dataPromise: Promise<LoadedData> | null = null;
+type Manifest = { version: string; files: Record<string, string> };
+type DataCache = { data: LoadedData; version: string; manifestEtag: string | null; checkedAt: number };
+
+const MANIFEST_KEY = "manifest.json";
+const MANIFEST_RECHECK_MS = 60_000;
+let dataCache: DataCache | null = null;
+let dataPromise: Promise<DataCache> | null = null;
 
 async function fetchAsset(env: Env, name: string): Promise<R2ObjectBody> {
   if (env.SEARCH_DATA) {
@@ -98,15 +111,15 @@ async function fetchAsset(env: Env, name: string): Promise<R2ObjectBody> {
   return res as unknown as R2ObjectBody;
 }
 
-async function loadData(env: Env): Promise<LoadedData> {
+async function loadData(env: Env, key: (name: string) => string): Promise<LoadedData> {
   const [meta, binBuf, rerankDocs, lunrJson] = await Promise.all([
-    fetchAsset(env, "search-index-bge.meta.json").then((a) => a.json<PackedMeta>()),
-    fetchAsset(env, "search-index-bge.bin").then((a) => a.arrayBuffer()),
-    fetchAsset(env, "rerank-docs.json").then((a) => a.json<Record<string, string>>()),
+    fetchAsset(env, key("search-index-bge.meta.json")).then((a) => a.json<PackedMeta>()),
+    fetchAsset(env, key("search-index-bge.bin")).then((a) => a.arrayBuffer()),
+    fetchAsset(env, key("rerank-docs.json")).then((a) => a.json<Record<string, string>>()),
     // Serialized lunr keyword index (T1, build-lunr-index.mjs), same field/boost config as
     // lib buildKeywordIndex. ~13MB parsed lazily on the FIRST request per isolate (NOT at
     // module top-level), so it stays out of the startup phase — see `wrangler check startup`.
-    fetchAsset(env, "lunr-index.json").then((a) => a.json<object>()),
+    fetchAsset(env, key("lunr-index.json")).then((a) => a.json<object>()),
   ]);
 
   const int8 = new Int8Array(binBuf);
@@ -144,16 +157,48 @@ async function loadData(env: Env): Promise<LoadedData> {
   return { index, rerankDocs, keywordIndex };
 }
 
-function initData(env: Env): Promise<LoadedData> {
+async function loadVersioned(env: Env): Promise<DataCache> {
+  let manifest: Manifest | null = null;
+  let manifestEtag: string | null = null;
+  if (env.SEARCH_DATA) {
+    const obj = await env.SEARCH_DATA.get(MANIFEST_KEY);
+    if (obj) {
+      manifest = await obj.json<Manifest>();
+      manifestEtag = obj.httpEtag ?? null;
+    }
+  }
+  const data = await loadData(env, (name) => manifest?.files?.[name] ?? name);
+  return { data, version: manifest?.version ?? "legacy", manifestEtag, checkedAt: Date.now() };
+}
+
+async function initData(env: Env): Promise<DataCache> {
+  // At most once a minute per isolate, a metadata-only head() of the manifest (one R2 round trip,
+  // on the request path so THIS request already gets fresh data — with one user and long idle gaps,
+  // a background check would hand the first search after a publish the old data). Changed → drop
+  // the old set FIRST (rather than holding two copies in memory) and reload.
+  if (dataCache && env.SEARCH_DATA && Date.now() - dataCache.checkedAt > MANIFEST_RECHECK_MS) {
+    dataCache.checkedAt = Date.now();
+    try {
+      const head = await env.SEARCH_DATA.head(MANIFEST_KEY);
+      if ((head?.httpEtag ?? null) !== dataCache.manifestEtag) dataCache = null;
+    } catch {
+      // R2 blip: keep serving the cached set; the next check is a minute away.
+    }
+  }
+  if (dataCache) return dataCache;
   // `??=` alone would memoize a REJECTED promise forever (a transient R2/dev-server blip on the
   // first request would 500 every subsequent /search until the isolate is evicted). On failure,
-  // reset dataPromise to null so the NEXT request retries a fresh load; the success path still
-  // caches the one in-flight/resolved promise so concurrent requests share it (see P1 above).
+  // reset dataPromise to null so the NEXT request retries a fresh load; concurrent requests share
+  // the one in-flight promise.
   if (!dataPromise) {
-    dataPromise = loadData(env).catch((err) => {
-      dataPromise = null;
-      throw err;
-    });
+    dataPromise = loadVersioned(env)
+      .then((cache) => {
+        dataCache = cache;
+        return cache;
+      })
+      .finally(() => {
+        dataPromise = null;
+      });
   }
   return dataPromise;
 }
@@ -293,7 +338,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   const limit = typeof body.limit === "number" && body.limit > 0 ? Math.floor(body.limit) : DEFAULT_LIMIT;
 
   try {
-    const { index, rerankDocs, keywordIndex } = await initData(env);
+    const loaded = await initData(env);
+    const { index, rerankDocs, keywordIndex } = loaded.data;
 
     // 1. Static synonym expansions (lib) + LLM rewrites -> the set of query strings to embed.
     //    exact -> [normalized query]; broad -> up to 8 synonym-expanded variants.
@@ -339,7 +385,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
 
     // 5. Cap and return final reranked order (single round trip).
     const results = reranked.slice(0, limit).map((r) => ({ id: r.id, score: r.score }));
-    return json({ results, phase: "reranked" }, 200);
+    // x-data-version lets the sync confirm a fresh publish is actually being served.
+    return json({ results, phase: "reranked" }, 200, { ...CORS_HEADERS, "x-data-version": loaded.version });
   } catch (err) {
     // /search is public; don't echo internal detail (R2 keys, DATA_BASE_URL, bin-size mismatches)
     // to the client. Log server-side (Workers logs) and return a generic message instead.

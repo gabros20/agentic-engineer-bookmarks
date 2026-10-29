@@ -9,9 +9,10 @@
 // public/data/search-index-bge.json (1024-dim, int8_normalized, schema_version "3.0", NO
 // prefix_scheme field).
 //
-// Inference runs through the worker's POST /embed route (Workers AI runs remotely even
-// under `wrangler dev`): start `npx wrangler dev --port 8787` in worker/, wait for "Ready
-// on", then run this (scripts/sync-bge.mjs automates that dance for `npm run sync`).
+// Inference goes through scripts/lib/embed-transport.mjs: by default the Workers AI REST API
+// with CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (EMBED_TRANSPORT=rest); with
+// EMBED_TRANSPORT=local, the worker's POST /embed on a `wrangler dev` at EMBED_URL (that is what
+// scripts/sync-bge.mjs falls back to when the token lacks the Workers AI permission).
 //
 // INCREMENTAL + F1 fix (Task 3): resuming used to key purely on (id,part) presence, so an
 // already-embedded id whose underlying TEXT changed later (e.g. an X Article backfilled
@@ -48,6 +49,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import { searchText, chunkArticle, quantizeEmbedding } from "./lib/embed.mjs";
+import { FatalEmbedError, localTransport, restTransport } from "./lib/embed-transport.mjs";
 
 const MODEL = "@cf/baai/bge-m3";
 const DIMENSIONS = 1024;
@@ -69,6 +71,7 @@ const MAX_BATCH_COUNT = 64;
 const PER_TEXT_CHAR_CAP = 6000;
 const FLUSH_EVERY = 10; // save progress every N batches (atomic temp+rename)
 const EMBED_URL = process.env.EMBED_URL ?? "http://localhost:8787/embed";
+const TRANSPORT = process.env.EMBED_TRANSPORT ?? (process.env.EMBED_URL ? "local" : "rest");
 // Workers AI occasionally returns a transient "3030: invalid input" for a few seconds even
 // on valid text; ride it out with more retries + longer backoff (up to ~31s per batch).
 const MAX_RETRIES = 8;
@@ -173,23 +176,18 @@ async function flush(specs, embMap) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** One HTTP call to /embed; throws on any non-happy response. */
+let transport;
+function getTransport() {
+  transport ??=
+    TRANSPORT === "local"
+      ? localTransport({ url: EMBED_URL, secret: process.env.EMBED_SECRET })
+      : restTransport({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID, token: process.env.CLOUDFLARE_API_TOKEN });
+  return transport;
+}
+
+/** One embed call; throws on any non-happy response (FatalEmbedError = retrying can't help). */
 async function embedRequest(texts) {
-  const res = await fetch(EMBED_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      // The worker /embed route is gated behind EMBED_SECRET (must match worker/.dev.vars).
-      ...(process.env.EMBED_SECRET ? { "X-Embed-Secret": process.env.EMBED_SECRET } : {}),
-    },
-    body: JSON.stringify({ texts }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const { vectors, error } = await res.json();
-  if (error) throw new Error(`worker error: ${error}`);
-  if (!Array.isArray(vectors) || vectors.length !== texts.length) {
-    throw new Error(`expected ${texts.length} vectors, got ${Array.isArray(vectors) ? vectors.length : typeof vectors}`);
-  }
+  const vectors = await getTransport()(texts);
   if (vectors[0]?.length !== DIMENSIONS) {
     throw new Error(`expected ${DIMENSIONS}-dim vectors, got ${vectors[0]?.length}`);
   }
@@ -202,8 +200,9 @@ async function embedWithRetries(texts, maxRetries) {
     try {
       return await embedRequest(texts);
     } catch (err) {
+      if (err instanceof FatalEmbedError) throw err; // bad token / dead server: stop, don't grind
       lastErr = err;
-      const backoff = Math.min(16000, 500 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 400);
+      const backoff = err.retryAfterMs ?? Math.min(16000, 500 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 400);
       await sleep(backoff);
     }
   }
@@ -223,6 +222,7 @@ async function embedBatch(texts) {
   try {
     return await embedWithRetries(texts, MAX_RETRIES);
   } catch (err) {
+    if (err instanceof FatalEmbedError) throw err;
     if (texts.length === 1) {
       throw new Error(`single text failed after ${MAX_RETRIES} attempts (len ${texts[0].length}): ${err}`);
     }
@@ -238,6 +238,7 @@ async function main() {
   const payload = JSON.parse(await readFile(sourcePath, "utf8"));
   const posts = normalizeBookmarkPayload(payload);
 
+  if (!DRY_RUN) console.log(`Embedding via ${TRANSPORT === "local" ? `local /embed (${EMBED_URL})` : "Workers AI REST"}.`);
   const specs = posts.flatMap(rawItemsForPost).map((spec) => ({ ...spec, fp: fingerprint(spec.text) }));
   console.log(`Corpus: ${posts.length} posts → ${specs.length} vectors (main + article chunks).`);
 
@@ -347,6 +348,7 @@ async function main() {
       await embedPass();
     } catch (err) {
       await flush(specs, embMap);
+      if (err instanceof FatalEmbedError) throw err; // progress is saved; a re-run resumes
       const remaining = specs.filter((s) => !embMap.has(specKey(s.id, s.part))).length;
       console.warn(`Pass ${pass} interrupted (${err}); flushed. ${remaining} vectors remain; retrying after backoff.`);
       await sleep(10000);

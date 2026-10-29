@@ -11,7 +11,7 @@
 // lone surrogates) but the Worker's remote Workers AI call does not. Output:
 // public/data/rerank-docs.json as { [id]: docText } for every post.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
@@ -47,5 +47,7 @@ const docs = {};
 for (const post of posts) {
   docs[post.id] = buildRerankDocText(post);
 }
-await writeFile(outputPath, JSON.stringify(docs));
+// Atomic (temp + rename): a killed sync never leaves a torn file behind.
+await writeFile(`${outputPath}.tmp`, JSON.stringify(docs));
+await rename(`${outputPath}.tmp`, outputPath);
 console.log(`Wrote ${outputPath} — rerank doc text for ${Object.keys(docs).length} posts.`);

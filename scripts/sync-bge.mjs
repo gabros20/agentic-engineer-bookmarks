@@ -1,48 +1,38 @@
-// Orchestrates the bge Worker-data refresh step of `npm run sync` (Task 3). embed-bge.mjs
-// needs the local `wrangler dev` (worker/) POST /embed route for Workers AI inference — this
-// script brings that up just long enough to run the incremental embed, then tears it down,
-// so `npm run sync` itself stays a single command with no manual wrangler-dev babysitting.
+// Orchestrates the bge Worker-data refresh step of `npm run sync`: embed whatever is new/changed,
+// then rebuild the Worker-served artifacts.
 //
 // Flow:
-//   1. `node embed-bge.mjs --dry-run` (local only, no network) to see what's actually
-//      pending. On the common case — nothing new/changed since the last sync — wrangler dev
-//      is never started at all: a no-op sync stays genuinely zero-network-traffic.
-//   2. If something IS pending: spawn `wrangler dev` in worker/ (its own process group),
-//      wait for its "Ready on http://..." line, run embed-bge.mjs against that URL with
-//      EMBED_SECRET read from worker/.dev.vars, then kill the whole wrangler process group
-//      (SIGTERM, SIGKILL after a grace period) — also on error, and on this script's own
-//      SIGINT/SIGTERM/uncaught exit, so a crash never leaves an orphaned wrangler dev.
-//   3. Always (whether or not anything was embedded): rebuild lunr-index.json and
-//      rerank-docs.json and repack search-index-bge.{bin,meta.json} from the current source,
-//      so the three Worker-served artifacts stay aligned with search-index-bge.json/the
-//      corpus even when this run's embed step touched nothing.
+//   1. `node embed-bge.mjs --dry-run` (local only, no network) to see what's pending. Nothing
+//      pending (the common case) → no embedding at all.
+//   2. Pick the embed transport (scripts/lib/embed-transport.mjs):
+//        rest  — Workers AI REST with CLOUDFLARE_API_TOKEN (default; probed with one tiny embed).
+//                No local server, so nothing can collide with other apps' ports.
+//        local — fallback when there's no token or it lacks the Workers AI permission (or
+//                EMBED_TRANSPORT=local): a throwaway `wrangler dev` in worker/ on a FREE port
+//                (OS-assigned, inspector too), probed for real before use, its whole process group
+//                torn down on success, error, SIGINT/SIGTERM or exit.
+//      EMBED_TRANSPORT=rest|local forces one.
+//   3. Always: rebuild lunr-index.json + rerank-docs.json and repack search-index-bge.{bin,meta.json}
+//      (all written atomically) so the Worker artifacts stay aligned with the corpus.
 //
-// Fallback: if wrangler-dev automation ever proves too brittle in some environment, the
-// two-command manual path still works (see README "Syncing Fresh Bookmarks"):
-//   1) cd worker && npx wrangler dev --port 8787        # leave running in one terminal
-//   2) node scripts/embed-bge.mjs                       # in another terminal
-//   3) node scripts/build-lunr-index.mjs && node scripts/build-rerank-docs.mjs \
-//        && node scripts/pack-bge-index.mjs
-//
-// Any extra CLI args (e.g. `--full` for a from-scratch re-embed) are forwarded to both the
-// dry-run and real embed-bge.mjs invocations.
+// Extra CLI args (e.g. `--full`) are forwarded to both embed-bge.mjs invocations.
 
 import { spawn } from "node:child_process";
-import { readFile, mkdir, appendFile } from "node:fs/promises";
+import { readFile, mkdir, appendFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { localTransport, probeRest, resolveAccountId } from "./lib/embed-transport.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const workerDir = join(root, "worker");
 const rawLogDir = join(root, ".orchestrate/raw");
 const wranglerLogPath = join(rawLogDir, "sync-bge-wrangler.log");
 
-// Default to 8799 (not 8787) so this script's own throwaway `wrangler dev` never collides with
-// a worker you're running manually on the conventional 8787 (wrangler hard-fails "Address in
-// use" on collision — it does not auto-pick another port). Override with SYNC_BGE_WRANGLER_PORT.
-const WRANGLER_PORT = Number(process.env.SYNC_BGE_WRANGLER_PORT ?? 8799);
-const WRANGLER_READY_TIMEOUT_MS = 60_000;
+// The local fallback asks the OS for free ports (wrangler hard-fails "Address in use" and never picks
+// another one — a fixed 8799 broke the 2026-10-29 sync when another app owned it).
+const WRANGLER_READY_TIMEOUT_MS = 120_000;
 const WRANGLER_SHUTDOWN_GRACE_MS = 5_000;
 
 const forwardedArgs = process.argv.slice(2);
@@ -98,14 +88,37 @@ function parseDryRunSummary(stdout) {
   throw new Error("embed-bge.mjs --dry-run produced no parseable JSON summary line");
 }
 
+/** An OS-assigned free TCP port on 127.0.0.1. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+/** The repo-pinned wrangler (worker/package.json), not whatever `npx` would resolve today. */
+function wranglerCommand() {
+  const pinned = join(workerDir, "node_modules", ".bin", "wrangler");
+  return existsSync(pinned) ? { cmd: pinned, args: [] } : { cmd: "npx", args: ["wrangler"] };
+}
+
 let wranglerProc = null;
 
 async function startWranglerDev() {
   await mkdir(rawLogDir, { recursive: true });
-  log(`starting wrangler dev on :${WRANGLER_PORT} (worker/) — log: ${wranglerLogPath}`);
+  const port = await freePort();
+  const inspectorPort = await freePort();
+  await writeFile(wranglerLogPath, ""); // one run per log: it used to grow forever
+  log(`starting wrangler dev on 127.0.0.1:${port} (inspector ${inspectorPort}) — log: ${wranglerLogPath}`);
+  const { cmd, args } = wranglerCommand();
 
   return new Promise((resolve, reject) => {
-    const child = spawn("npx", ["wrangler", "dev", "--port", String(WRANGLER_PORT)], {
+    const child = spawn(cmd, [...args, "dev", "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort)], {
       cwd: workerDir,
       env: process.env, // wrangler reads Cloudflare auth from `wrangler login`, CLOUDFLARE_API_TOKEN, or worker/.dev.vars itself
       detached: true, // own process group, so teardown can signal wrangler's own child processes too
@@ -170,8 +183,16 @@ async function startWranglerDev() {
   });
 }
 
+const hasExited = (proc) => proc.exitCode !== null || proc.signalCode !== null;
+
 async function stopWranglerDev() {
   if (!wranglerProc || wranglerProc.killed) return;
+  if (hasExited(wranglerProc)) {
+    // Already gone (e.g. it exited early): its "exit" event fired long ago, so waiting for it again
+    // would just burn the grace period and log a misleading SIGKILL.
+    wranglerProc = null;
+    return;
+  }
   const pid = wranglerProc.pid;
   log(`stopping wrangler dev (pid ${pid})`);
   try {
@@ -211,7 +232,7 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   });
 }
 process.on("exit", () => {
-  if (wranglerProc && !wranglerProc.killed && wranglerProc.pid) {
+  if (wranglerProc && !wranglerProc.killed && wranglerProc.pid && !hasExited(wranglerProc)) {
     try {
       process.kill(-wranglerProc.pid, "SIGKILL");
     } catch {
@@ -219,6 +240,25 @@ process.on("exit", () => {
     }
   }
 });
+
+/** rest when the token can call Workers AI, else the local wrangler dev fallback. */
+async function chooseTransport() {
+  const forced = process.env.EMBED_TRANSPORT;
+  if (forced === "local") return { kind: "local" };
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  const fallback = (why) => {
+    if (forced === "rest") throw new Error(`EMBED_TRANSPORT=rest but ${why}`);
+    log(`⚠ ${why} — falling back to a local wrangler dev`);
+    return { kind: "local" };
+  };
+  if (!token) return fallback("no CLOUDFLARE_API_TOKEN for the Workers AI REST API");
+  const account = await resolveAccountId(token, process.env.CLOUDFLARE_ACCOUNT_ID);
+  if (account.error) return fallback(account.error);
+  const probe = await probeRest({ accountId: account.accountId, token });
+  // A transient probe failure (429/5xx) still means REST is the right transport; embed-bge retries.
+  if (probe.ok || !probe.fatal) return { kind: "rest", accountId: account.accountId };
+  return fallback(`Workers AI REST unavailable (${probe.error})`);
+}
 
 async function main() {
   const embedScript = join(root, "scripts/embed-bge.mjs");
@@ -232,22 +272,29 @@ async function main() {
   );
 
   if (summary.pending > 0) {
-    const embedSecret = (await readDevVar("EMBED_SECRET")) ?? process.env.EMBED_SECRET;
-    if (!embedSecret) {
-      throw new Error(
-        "EMBED_SECRET not found in worker/.dev.vars (or the EMBED_SECRET env var) — cannot call the gated /embed route",
-      );
-    }
-
-    const readyUrl = await startWranglerDev();
-    log(`wrangler dev ready at ${readyUrl}`);
-    try {
-      await runNode(embedScript, forwardedArgs, { EMBED_URL: `${readyUrl}/embed`, EMBED_SECRET: embedSecret });
-    } finally {
-      await stopWranglerDev();
+    const choice = await chooseTransport();
+    if (choice.kind === "rest") {
+      log("embedding via Workers AI REST (no local server)");
+      await runNode(embedScript, forwardedArgs, { EMBED_TRANSPORT: "rest", CLOUDFLARE_ACCOUNT_ID: choice.accountId });
+    } else {
+      const embedSecret = (await readDevVar("EMBED_SECRET")) ?? process.env.EMBED_SECRET;
+      if (!embedSecret) {
+        throw new Error(
+          "EMBED_SECRET not found in worker/.dev.vars (or the EMBED_SECRET env var) — cannot call the gated /embed route",
+        );
+      }
+      const readyUrl = await startWranglerDev();
+      try {
+        // "Ready on" only means the HTTP server is up: prove /embed actually answers before the run.
+        await localTransport({ url: `${readyUrl}/embed`, secret: embedSecret })(["ping"]);
+        log(`wrangler dev ready at ${readyUrl} (/embed answered)`);
+        await runNode(embedScript, forwardedArgs, { EMBED_TRANSPORT: "local", EMBED_URL: `${readyUrl}/embed`, EMBED_SECRET: embedSecret });
+      } finally {
+        await stopWranglerDev();
+      }
     }
   } else {
-    log("nothing pending — skipping wrangler dev entirely (true no-op sync, zero network traffic).");
+    log("nothing pending — no embedding needed.");
   }
 
   log("building lunr index...");

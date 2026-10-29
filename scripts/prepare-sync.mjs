@@ -16,7 +16,7 @@
 // "object not found" is treated as a genuine first-ever run and allowed through.
 //
 // No auth is needed when both files are already present (the common case) — it's a pure no-op then.
-import { existsSync, statSync, rmSync } from "node:fs";
+import { existsSync, renameSync, rmSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -31,6 +31,12 @@ const INPUTS = ["all-bookmarks.json", "search-index-bge.json"];
 // A valid download is far larger than this; guards against an empty/partial/error-body file that
 // existsSync would otherwise accept as "present".
 const MIN_VALID_BYTES = 1024;
+
+/** The repo-pinned wrangler (worker/package.json), not whatever `npx` would download today. */
+function wranglerCmd() {
+  const pinned = join(root, "worker", "node_modules", ".bin", "wrangler");
+  return existsSync(pinned) ? [pinned, []] : ["npx", ["wrangler"]];
+}
 
 function log(m) {
   console.log(`[prepare-sync] ${m}`);
@@ -59,21 +65,26 @@ for (const name of INPUTS) {
   }
 
   log(`${name} missing locally — restoring from r2://${BUCKET}/${name} …`);
-  const res = spawnSync(
-    "npx",
-    ["wrangler", "r2", "object", "get", `${BUCKET}/${name}`, "--file", filePath, "--remote"],
-    { cwd: root, encoding: "utf8", env: process.env },
-  );
+  // Download to a temp file and rename only a complete, plausible download into place: a killed or
+  // failed transfer must never leave a partial file at the real path (it would pass existsSync next run).
+  const tmpPath = `${filePath}.download`;
+  const [cmd, pre] = wranglerCmd();
+  const res = spawnSync(cmd, [...pre, "r2", "object", "get", `${BUCKET}/${name}`, "--file", tmpPath, "--remote"], {
+    cwd: root,
+    encoding: "utf8",
+    env: process.env,
+  });
   const out = `${res.stdout || ""}${res.stderr || ""}`;
 
-  if (res.status === 0 && existsSync(filePath) && statSync(filePath).size >= MIN_VALID_BYTES) {
+  if (res.status === 0 && existsSync(tmpPath) && statSync(tmpPath).size >= MIN_VALID_BYTES) {
+    renameSync(tmpPath, filePath);
     log(`restored ${name} from R2 (${(statSync(filePath).size / 1e6).toFixed(1)} MB).`);
     continue;
   }
 
-  // Failure: clean up any empty/partial file wrangler may have created, then decide.
+  // Failure: clean up any empty/partial download, then decide.
   try {
-    if (existsSync(filePath)) rmSync(filePath);
+    if (existsSync(tmpPath)) rmSync(tmpPath);
   } catch {
     /* ignore */
   }
