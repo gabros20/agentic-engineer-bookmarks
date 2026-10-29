@@ -24,6 +24,9 @@ export const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 export const LOG_DIR = join(homedir(), "Library", "Logs", "xbookmarks-sync");
 export const LAST_RUN_PATH = join(LOG_DIR, "last-run.json");
 export const LOCK_PATH = join(CONFIG_DIR, "sync.lock");
+export const STATE_PATH = join(CONFIG_DIR, "state.json"); // scheduling + last-published state (lib/sync-state.mjs)
+export const RUN_NOW_MARKER = join(CONFIG_DIR, "run-now"); // one-shot "ignore the schedule" (autosync -- run)
+export const RUNS_PATH = join(LOG_DIR, "runs.jsonl"); // run history for status + the status page
 export const ENV_FILE_PATH = join(CONFIG_DIR, "env");
 export const PLIST_PATH = join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
 export const KEYCHAIN_SERVICE = "xbookmarks-sync";
@@ -31,10 +34,15 @@ export const KEYCHAIN_TOKEN_ACCOUNT = "CLOUDFLARE_API_TOKEN";
 export const KEYCHAIN_OP_SA_ACCOUNT = "OP_SERVICE_ACCOUNT_TOKEN";
 
 export const DEFAULT_CONFIG = {
-  hour: 14, // local time — midday, when the laptop is most likely awake; launchd runs a missed slot on wake if the Mac was asleep
+  hour: 14, // local time — the daily slot; launchd ticks hourly, so a missed slot (asleep/off) is caught up later
   minute: 0,
+  maxAttemptsPerDay: 4, // failed runs are retried the same day…
+  retryHours: 2, // …this many hours apart (offline: every tick, without using up attempts)
+  staleDays: 3, // notify when there has been no successful sync for this long
   notify: "changes", // "always" | "changes" (new bookmarks or failure) | "failure" | "never"
-  updateXrelay: false, // `npm i -g x-relay-mcp@latest` before each run (off: unattended upgrades can break auth)
+  updateXrelay: true, // weekly: install a newer x-relay-mcp only if npm has one; rolled back if X auth breaks
+  workerUrl: null, // deployed search Worker, e.g. https://bookmark-search.<sub>.workers.dev — enables publish verification
+  siteUrl: null, // the app, linked from the status page
   cloudflareAccountId: null, // set if your API token can see more than one account (wrangler would prompt)
   cloudflareTokenRef: null, // 1Password secret reference, e.g. "op://Automation/Cloudflare xbookmarks/credential"
   xrelayBrowser: null, // XRELAY_BROWSER passthrough, e.g. "chrome" — which browser xrelay reads X cookies from
@@ -53,6 +61,18 @@ export function loadConfig() {
 export function saveConfig(config) {
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+/** KEY=VALUE pairs from the repo's .env.local (the app's own secrets, e.g. SEARCH_PROXY_SECRET). */
+export function readRepoEnvLocal() {
+  const path = join(REPO_ROOT, ".env.local");
+  if (!existsSync(path)) return {};
+  const vars = {};
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !line.trim().startsWith("#")) vars[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+  return vars;
 }
 
 /** Parse the env file into { vars, warning }. Missing file → no vars. Group/world-readable → warning. */
