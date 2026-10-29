@@ -51,7 +51,8 @@ localStorage["agentic-engineer-bookmarks:lang"]
 - Exact / Broad precision toggle, with a **Relevance** sort option that reflects the live hybrid/rerank ranking (auto-selected when you start typing a search, restoring your previous sort when you clear it)
 - Query operators typed straight into the search box: `from:handle`, `before:YYYY-MM[-DD]`, `after:YYYY-MM[-DD]` — parsed out as removable chips and applied as hard filters alongside the text search
 - Relevance floors drop low-confidence broad-mode matches instead of padding results out to a fixed count, so a narrow query returns a short, high-precision list rather than a long tail of noise
-- Search by post text, author, handle, URL, article title (with full article body for X Article bookmarks), and quoted-post text
+- Search by post text, author, handle, URL, article title (with full article body for X Article bookmarks), quoted-post text, and the author's **thread** (their 🧵 follow-up posts)
+- **Post viewer** — a full-screen lightbox for photos and videos (pinch / trackpad zoom, swipe down to close, native fullscreen video that rotates on iOS), media laid out the way x.com does it (2-up rows, a scroll-snap carousel for 3+), and the author's whole **thread** under the post (🧵 N on the card)
 - **LLM query expansion** (`/api/expand`, session-gated): broad-precision searches get up to 3 short LLM rewrites — an English translation for non-English queries, a synonym-rich rephrase, and a narrower variant — merged with the static synonym expansions before embedding, so Hungarian-language searches match English-language saved content
 - Sort by relevance, newest, oldest, most bookmarked, or most liked; filter to starred / article / media / photo / video / text-only
 - **AI Digest** — summarize the top search results into themes via OpenRouter (`google/gemini-3.6-flash`), persisted server-side to the database and reopenable from a saved list on any device
@@ -221,13 +222,14 @@ npm run sync
 
 ```bash
 node scripts/prepare-sync.mjs        # restore the incremental inputs from R2 if they're missing locally
-xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000
+xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000 --threads
 node scripts/backfill-articles.mjs
 node scripts/sync-bge.mjs            # embed new posts + rebuild the search artifacts
 node scripts/upload-r2.mjs           # versioned publish to R2 (the live site picks it up within a minute)
 ```
 
 - `xrelay archive bookmarks` fetches your bookmarks newest-first and stops once it hits already-archived IDs, prepending only the new ones. `--limit 5000` ensures the stop condition (not the default `40` cap) is what halts the pull.
+- `--threads` (xrelay ≥ 1.7) also stores the **author's thread** of each new bookmark — their own follow-up posts ("🧵 1/12 …"), not other people's replies — as `thread` on the post (one gentle logged-in lookup per new post with replies). Older bookmarks are backfilled by the autopilot in chunks (`xrelay archive repair public/data/all-bookmarks.json --threads --limit 300`, resumable). Thread text is searchable (keyword field, extra embedding chunks, rerank excerpt) and the post viewer shows the whole thread.
 - `scripts/backfill-articles.mjs` fetches the full article body (title + markdown) for any X Article bookmark that doesn't have one yet, via `xrelay`, and writes it into the archive in place. Idempotent — re-running only touches bookmarks with a still-empty article body — and exits `0` on ordinary single-item flakiness so it never fails a routine sync. This runs **before** embedding: a freshly-synced X Article has no body yet.
 - `scripts/sync-bge.mjs` brings the Worker's server-side search artifacts up to date with the (possibly just-changed) archive, end to end, as a single command:
   1. Runs `embed-bge.mjs --dry-run` (local only, no network) to see what's actually pending. `embed-bge.mjs` is **incremental**: it embeds a post's main vector / article-chunk vectors only when they're new, or when a content fingerprint (a hash of the exact text last embedded) no longer matches the current text — which is what catches an X Article backfilled with its body *after* its main vector was first embedded (the classic stale-vector trap: skip-by-id alone would miss that the text changed). Unchanged (id, part) pairs are always skipped.

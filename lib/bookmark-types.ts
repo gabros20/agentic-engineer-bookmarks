@@ -51,6 +51,12 @@ export type BookmarkPost = {
   score?: number | null;
   articleTitle?: string;
   articleText?: string;
+  /**
+   * The author's own continuation of this post (their 🧵 reply chain), oldest first —
+   * captured by `xrelay archive --threads` / `archive repair --threads`. Absent when there
+   * is none (or it was not looked up yet).
+   */
+  thread?: BookmarkPost[];
   quotedTweet?: {
     id?: string;
     text?: string;

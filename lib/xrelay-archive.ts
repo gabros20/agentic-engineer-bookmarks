@@ -47,6 +47,8 @@ export type ArchiveTweet = {
   retweetedBy?: string;
   quoted?: ArchiveTweet;
   article?: { title?: string; markdown?: string };
+  /** The author's own continuation (xrelay archive --threads), oldest first. */
+  thread?: ArchiveTweet[];
 };
 
 export type ArchiveFile = {
@@ -107,6 +109,7 @@ export function archiveTweetToBookmark(t: ArchiveTweet): BookmarkPost {
       },
     };
   }
+  if (t.thread?.length) post.thread = t.thread.map(archiveTweetToBookmark);
   return post;
 }
 

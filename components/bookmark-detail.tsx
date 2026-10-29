@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, BadgeCheck, BookOpenText, Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Quote, Sparkles, Star, X } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, BookOpenText, Check, ChevronDown, ChevronLeft, ChevronRight, Link2, ListTree, Quote, Sparkles, Star, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -65,8 +65,9 @@ export function BookmarkDetail({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [articleOpen, setArticleOpen] = useState(false);
-  // Index of the media item open in the full-screen viewer.
-  const [viewing, setViewing] = useState<number | null>(null);
+  // The media item open in the full-screen viewer: which gallery ("main" = the post itself,
+  // else a thread post's id) and which item in it.
+  const [viewing, setViewing] = useState<{ scope: string; index: number } | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
@@ -75,10 +76,16 @@ export function BookmarkDetail({
     setViewing(null);
   }, [post.id]);
 
+  const viewingScope = viewing?.scope;
   const mediaSource = useCallback(
-    (i: number) => scrollRef.current?.querySelector<HTMLElement>(`[data-post-id="${post.id}"] [data-media-index="${i}"]`) ?? null,
-    [post.id],
+    (i: number) =>
+      scrollRef.current?.querySelector<HTMLElement>(
+        `[data-post-id="${post.id}"] [data-media-scope="${viewingScope}"] [data-media-index="${i}"]`,
+      ) ?? null,
+    [post.id, viewingScope],
   );
+  const viewingMedia =
+    viewing === null ? undefined : viewing.scope === "main" ? post.media : post.thread?.find((p) => p.id === viewing.scope)?.media;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -178,7 +185,7 @@ export function BookmarkDetail({
 
                 {post.media?.length ? (
                   <div className="mt-5">
-                    <DetailMedia media={post.media} onOpenMedia={setViewing} />
+                    <DetailMedia media={post.media} scope="main" onOpenMedia={(index) => setViewing({ scope: "main", index })} />
                   </div>
                 ) : null}
 
@@ -226,6 +233,14 @@ export function BookmarkDetail({
                       {cleanText(quoted.text)}
                     </p>
                   </a>
+                ) : null}
+
+                {post.thread?.length ? (
+                  <ThreadSection
+                    thread={post.thread}
+                    label={t("detail.thread", { n: post.thread.length + 1 })}
+                    onOpenMedia={(scope, index) => setViewing({ scope, index })}
+                  />
                 ) : null}
 
                 {links.length ? (
@@ -294,12 +309,66 @@ export function BookmarkDetail({
             </FooterButton>
           </footer>
 
-          {viewing !== null && post.media?.length ? (
-            <MediaLightbox media={post.media} initialIndex={viewing} getSource={mediaSource} onClose={() => setViewing(null)} />
+          {viewing !== null && viewingMedia?.length ? (
+            <MediaLightbox
+              key={viewing.scope}
+              media={viewingMedia}
+              initialIndex={viewing.index}
+              getSource={mediaSource}
+              onClose={() => setViewing(null)}
+            />
           ) : null}
         </>
       )}
     </ResponsivePanel>
+  );
+}
+
+/**
+ * The author's own continuation of the post (xrelay archive --threads), read like X shows
+ * it: one post after another on a thin rail, each with its own media (same layout + viewer).
+ */
+function ThreadSection({
+  thread,
+  label,
+  onOpenMedia,
+}: {
+  thread: BookmarkPost[];
+  label: string;
+  onOpenMedia: (scope: string, index: number) => void;
+}) {
+  return (
+    <section className="mt-7" aria-label={label}>
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]">
+        <ListTree size={13} />
+        {label}
+      </div>
+      <ol className="mt-4">
+        {thread.map((item, i) => {
+          const body = cleanText(item.text);
+          const last = i === thread.length - 1;
+          return (
+            <li key={item.id} className={`relative pl-7 ${last ? "" : "pb-7"}`}>
+              {last ? null : <span aria-hidden className="absolute bottom-0 left-[4px] top-4 w-px bg-[color:var(--color-hairline)]" />}
+              <span aria-hidden className="absolute left-0 top-[9px] size-[9px] rounded-full bg-[color:var(--color-muted-soft)] ring-4 ring-[color:var(--color-canvas)]" />
+              {body ? (
+                <p className="whitespace-pre-line break-words text-[16px] leading-[1.6] text-[color:var(--color-body-strong)] sm:text-[17px]">{body}</p>
+              ) : null}
+              {item.media?.length ? (
+                <div className={body ? "mt-4" : ""}>
+                  <DetailMedia media={item.media} scope={item.id} bleed={false} onOpenMedia={(index) => onOpenMedia(item.id, index)} />
+                </div>
+              ) : null}
+              {item.quotedTweet?.text ? (
+                <p className="mt-3 line-clamp-4 whitespace-pre-line rounded-xl px-3 py-2 text-[14px] leading-[1.5] text-[color:var(--color-body)] ring-1 ring-[color:var(--color-hairline)]">
+                  <span className="font-semibold text-[color:var(--color-ink)]">@{item.quotedTweet.author?.screenName}</span> {cleanText(item.quotedTweet.text)}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 

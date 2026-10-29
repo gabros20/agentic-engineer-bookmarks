@@ -51,6 +51,8 @@ export function archiveTweetToBookmark(t) {
       author: { screenName: t.quoted.author?.handle, name: t.quoted.author?.name },
     };
   }
+  // The author's own continuation (xrelay archive --threads), mapped like a post.
+  if (t.thread?.length) post.thread = t.thread.map(archiveTweetToBookmark);
   return post;
 }
 

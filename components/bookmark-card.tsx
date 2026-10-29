@@ -245,7 +245,17 @@ export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onTog
           <span className="min-w-0 truncate font-medium text-[color:var(--color-body-strong)]">
             {post.author.name || post.author.screenName || "Unknown"}
           </span>
-          <span className="ml-auto shrink-0 tabular-nums">{shortDate(post, lang)}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
+            {post.thread?.length ? (
+              <span
+                className="rounded-full bg-[color:var(--color-surface-card)] px-1.5 py-px text-[10px] font-medium text-[color:var(--color-body-strong)] sm:text-[11px]"
+                title={t("card.thread", { n: post.thread.length + 1 })}
+              >
+                🧵 {post.thread.length + 1}
+              </span>
+            ) : null}
+            {shortDate(post, lang)}
+          </span>
         </footer>
 
         {metrics.likes || metrics.views ? (

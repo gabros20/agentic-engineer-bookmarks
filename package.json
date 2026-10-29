@@ -14,7 +14,7 @@
     "test:operators": "node scripts/test-query-operators.mjs",
     "test:autosync": "node scripts/test-autosync.mjs",
     "migrate:archive": "node scripts/migrate-to-archive.mjs",
-    "sync": "node scripts/prepare-sync.mjs && xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000 && node scripts/backfill-articles.mjs && node scripts/sync-bge.mjs && node scripts/upload-r2.mjs",
+    "sync": "node scripts/prepare-sync.mjs && xrelay archive bookmarks --out public/data/all-bookmarks.json --limit 10000 --threads && node scripts/backfill-articles.mjs && node scripts/sync-bge.mjs && node scripts/upload-r2.mjs",
     "prepare-sync": "node scripts/prepare-sync.mjs",
     "autosync": "node scripts/autosync.mjs",
     "autosync:run": "node scripts/auto-sync.mjs",

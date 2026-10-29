@@ -1,6 +1,7 @@
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import type { GetBookmarkResult, SearchBookmarksInput, SearchBookmarksResult } from "@/lib/chat-tools";
 import type { QueryOperators } from "@/lib/query-operators";
+import { threadText } from "@/lib/thread-text";
 
 // ---------------------------------------------------------------------------
 // Pure post filters + tool-result mappers, shared by the browser UI
@@ -34,6 +35,7 @@ export function searchable(post: BookmarkPost): string {
     post.quotedTweet?.text,
     post.quotedTweet?.author?.name,
     post.quotedTweet?.author?.screenName,
+    threadText(post),
   ]
     .filter(Boolean)
     .join(" ")
@@ -95,6 +97,7 @@ export function toBookmarkDetail(post: BookmarkPost): NonNullable<GetBookmarkRes
     text: post.text ?? "",
     articleTitle: post.articleTitle,
     articleText: post.articleText,
+    ...(post.thread?.length ? { thread: post.thread.map((p) => p.text ?? "") } : {}),
     url: postUrl(post),
     createdAt: post.createdAtISO ?? post.createdAt,
     metrics: post.metrics,
