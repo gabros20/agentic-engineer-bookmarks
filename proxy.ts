@@ -12,8 +12,12 @@ import { getSessionCookie } from "better-auth/cookies";
 //
 // Allow-list (reachable without a session):
 //  - /login                 the login UI itself
+//  - /login/continue        where an app connection's magic link lands (forwards to the OAuth
+//                          authorize endpoint only; holds no data)
 //  - /api/auth/*            Better Auth (magic-link verify, sign-out, …)
 //  - /api/invite/*          invite-code reservation (login step 1)
+//  - /api/login/*           the login page's sign-in email (magic link + 6-digit code in one
+//                          email; same send-gate as the bare Better Auth endpoints)
 //  - /api/search            the search proxy (T4) — it runs its OWN authoritative
 //                          `auth.api.getSession` gate and must return a JSON 401
 //                          to fetch() callers, not an HTML /login redirect.
@@ -46,6 +50,7 @@ import { getSessionCookie } from "better-auth/cookies";
 const ALLOW_PREFIXES = [
   "/api/auth",
   "/api/invite",
+  "/api/login",
   "/api/search",
   "/api/digest",
   "/api/digests",
@@ -63,6 +68,7 @@ export function proxy(request: NextRequest) {
 
   if (
     pathname === "/login" ||
+    pathname === "/login/continue" ||
     ALLOW_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
   ) {
     return NextResponse.next();

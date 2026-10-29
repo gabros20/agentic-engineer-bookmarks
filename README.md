@@ -94,7 +94,7 @@ claude mcp add --transport http x-bookmarks https://xbookmarks.tamasgabor.com/ap
 - **Cursor / VS Code / others:** add it as a remote (HTTP) MCP server, e.g. `{"mcpServers": {"x-bookmarks": {"url": "https://xbookmarks.tamasgabor.com/api/mcp"}}}`.
 - **Debugging:** `npx @modelcontextprotocol/inspector` → Transport *Streamable HTTP* → the URL above.
 
-The first connection opens the normal login page (invite code + email → magic link). The magic link brings you straight back into the flow, then a **consent screen** asks you to allow the client read-only access. The client receives a 1-hour access token plus a refresh token, so it stays connected. Only invite-created accounts can finish this flow: the MCP server has no separate user list and adds no new way to create an account.
+The first connection opens the normal login page **in the browser on the computer running the client** (Claude Code waits for the result on a `localhost` port there). Finish the sign-in **on that computer**: open the email there, or — if you read it on your phone — type the 6-digit code from the email into the login page on the computer. A **consent screen** then asks you to allow the client read-only access. (Opened on a phone, the link/consent shows "Finish on your computer" instead of sending the phone to its own `localhost`.) The client receives a 1-hour access token plus a refresh token, so it stays connected. Only invite-created accounts can finish this flow: the MCP server has no separate user list and adds no new way to create an account.
 
 ### Tools
 
@@ -175,7 +175,7 @@ npm run db:migrate      # applies drizzle/*.sql   (needs DATABASE_URL_UNPOOLED)
 
 ### Signing in (and inviting people)
 
-Login is invite-gated: an account can only be created by an email that has first redeemed a valid invite code. The login screen asks for **an invite code + your email**, then emails a magic link.
+Login is invite-gated: an account can only be created by an email that has first redeemed a valid invite code. The login screen asks for **your email** (plus the **invite code the first time**), then sends **one email with a magic link and a 6-digit code**: tap the link to sign in on the device that opens it, or type the code on the device where you started — e.g. read the email on your phone, sign in on your computer. Both expire in 10 minutes and work once (the code is stored hashed, 5 attempts). Returning users don't need the invite code: the server only ever emails existing accounts or valid invite reservations, and account creation stays invite-gated either way.
 
 1. **Seed the owner's code** (idempotent — uses `DIGEST_UNLOCK_SECRET`): `npm run db:seed-invite`
 2. **Issue more invites** for other people:
@@ -188,7 +188,7 @@ Login is invite-gated: an account can only be created by an email that has first
 
    Share `<CODE>` with the person; they enter it + their email on the login screen to create their account.
 
-**Local magic links without email:** set `MAGIC_LINK_SINK=/tmp/magic.jsonl` when running `npm run dev` and the raw sign-in URL is appended to that file instead of being emailed (dev/test only — hard-disabled in production). Open the captured URL to complete login.
+**Local magic links without email:** set `MAGIC_LINK_SINK=/tmp/magic.jsonl` when running `npm run dev` and the raw sign-in URL and code are appended to that file instead of being emailed (dev/test only — hard-disabled in production). Open the captured URL, or type the code, to complete login.
 
 ## Syncing Fresh Bookmarks
 

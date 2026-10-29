@@ -23,19 +23,26 @@ function getClient(): Resend {
   return client;
 }
 
+/**
+ * The sign-in email: a magic link and/or a 6-digit code (see emails/magic-link-email.tsx).
+ * The login page sends both in one email (app/api/login/send); the bare Better Auth endpoints
+ * send one or the other.
+ */
 export async function sendMagicLinkEmail({
   email,
   url,
+  otp,
 }: {
   email: string;
-  url: string;
+  url?: string;
+  otp?: string;
 }): Promise<void> {
   const { error } = await getClient().emails.send({
     from: FROM,
     to: email,
-    subject: "Your sign-in link / Belépési linked",
-    text: buildText(url),
-    html: await render(MagicLinkEmail({ url })),
+    subject: otp ? `${otp} — X Bookmarks sign-in / belépés` : "Your sign-in link / Belépési linked",
+    text: buildText(url, otp),
+    html: await render(MagicLinkEmail({ url, otp })),
   });
   if (error) {
     // Surface a generic failure; do not leak provider internals to callers.
@@ -43,22 +50,29 @@ export async function sendMagicLinkEmail({
   }
 }
 
-function buildText(url: string): string {
+function buildText(url?: string, otp?: string): string {
+  const lines = (linkLine: string, codeLine: string, ignore: string) => [
+    ...(url ? [linkLine, url, ""] : []),
+    ...(otp ? [codeLine, otp, ""] : []),
+    ignore,
+  ];
   return [
     "Sign in to X Bookmarks",
     "",
-    `Click the link below to sign in. It expires in a few minutes and can be used once.`,
-    url,
-    "",
-    "If you didn't request this, you can ignore this email.",
+    ...lines(
+      "Open this link to sign in on this device (expires in 10 minutes, works once):",
+      "Signing in on another device (e.g. the computer running Claude Code)? Enter this code there:",
+      "If you didn't request this, you can ignore this email.",
+    ),
     "",
     "— — —",
     "",
     "Belépés az X Könyvjelzőkbe",
     "",
-    "Kattints az alábbi linkre a belépéshez. Néhány percen belül lejár, és egyszer használható.",
-    url,
-    "",
-    "Ha nem te kérted, nyugodtan hagyd figyelmen kívül ezt az e-mailt.",
+    ...lines(
+      "Nyisd meg ezt a linket a belépéshez ezen az eszközön (10 percig érvényes, egyszer használható):",
+      "Másik eszközön lépsz be (pl. a Claude Code-ot futtató számítógépen)? Ott írd be ezt a kódot:",
+      "Ha nem te kérted, nyugodtan hagyd figyelmen kívül ezt az e-mailt.",
+    ),
   ].join("\n");
 }
