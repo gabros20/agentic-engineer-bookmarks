@@ -7,7 +7,7 @@ truth; the README's "Syncing Fresh Bookmarks" section links here.
 
 - **Vercel** hosts the app + `/api` routes. Updated by a normal `git push` to `main`. **It no longer serves any data** — T8 removed `public/data/*` from git + the CDN (the files stay on disk locally, untracked, for dev/eval only).
 - **Private R2 bucket** (`bookmark-search-data`) holds ALL runtime data — the search index **and** the raw archive (`all-bookmarks.json`). Updated by **`npm run upload:r2`** (folded into `npm run sync`), NOT by a `git push`.
-- **The Cloudflare Worker** (`bookmark-search.*.workers.dev`) runs search and reads the data from **R2** via its `SEARCH_DATA` binding (cached per isolate). It also serves the archive to the logged-in browser at `GET /archive` (secret-gated, fronted by the session-gated `/api/archive`). It does **NOT** update on a `git push` — **redeploy it** (`npm run deploy:worker`) after any Worker/ranking change.
+- **The Cloudflare Worker** (`bookmark-search.*.workers.dev`) runs search and reads the data from **R2** via its `SEARCH_DATA` binding — through `manifest.json`, which names the live data version (cached per isolate, re-checked once a minute, so a new publish goes live without a redeploy; `/search` answers carry `x-data-version`). It also serves the archive to the logged-in browser at `GET /archive` (secret-gated, fronted by the session-gated `/api/archive`). It does **NOT** update on a `git push` — **redeploy it** (`npm run deploy:worker`) after any Worker/ranking change.
 
 > After a data sync you must **`npm run upload:r2`** (push the new corpus to R2) — a `git push` does
 > nothing for data anymore. If the Worker's *code* changed too, also `npm run deploy:worker`. This is
@@ -121,14 +121,16 @@ export CLOUDFLARE_API_TOKEN=<your-token>       # this shell only; create at
                                                # dashboard → API Tokens → "Edit Cloudflare Workers" (+ Workers AI)
 ```
 
-Auth is needed only for:
-- the **embed step of a sync** — and only when there are new/changed posts to embed (a no-op sync needs nothing),
+Auth is needed for:
+- the **embed step of a sync** — only when there are new/changed posts. With `CLOUDFLARE_API_TOKEN` it
+  embeds over the Workers AI REST API (token needs *Workers AI: Read*); with only a `wrangler login`
+  session it falls back to a throwaway local `wrangler dev` on a free port,
 - the **sync preflight** — only if an input file is missing and must be restored from R2 (normally a no-op),
-- **`npm run upload:r2`** (pushes the corpus to R2), and
+- **`npm run upload:r2`** (publishes the corpus to R2; token needs *Workers R2 Storage: Edit*), and
 - **`npm run deploy:worker`**.
 
-If auth is missing when the sync needs it, `scripts/sync-bge.mjs` fails fast with these exact instructions
-(it won't hang). Your X/Twitter auth for `xrelay` is separate (browser cookies) and already configured.
+The unattended autopilot keeps its token outside the repo (env file / 1Password / Keychain — see above).
+Your X/Twitter auth for `xrelay` is separate (browser cookies).
 
 ## The full loop
 
@@ -138,7 +140,7 @@ cd worker && npx wrangler login && cd ..        # or: export CLOUDFLARE_API_TOKE
 
 # 1. keep the bookmark CLI current, then pull + rebuild + push to R2
 npm i -g x-relay-mcp@latest
-npm run sync          # ends with `upload:r2` — the fresh corpus is now live in R2
+npm run sync          # ends with `upload:r2` — versioned publish; the Worker serves it within a minute
 
 # 2. (only if you changed the app / API / Worker code) ship code to Vercel
 git commit -am "…" && git push        # NOTE: public/data is untracked — data does NOT ride this push
