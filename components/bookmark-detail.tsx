@@ -3,9 +3,8 @@
 import { ArrowUpRight, BadgeCheck, BookOpenText, Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Quote, Sparkles, Star, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  MediaGrid,
   cleanText,
   displayHost,
   externalLinks,
@@ -14,6 +13,8 @@ import {
   openOnX,
   postUrl,
 } from "@/components/bookmark-card";
+import { DetailMedia } from "@/components/detail-media";
+import { MediaLightbox } from "@/components/media-lightbox";
 import { ResponsivePanel } from "@/components/ui/responsive-panel";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { useLanguage, type MessageKey } from "@/lib/i18n";
@@ -64,12 +65,20 @@ export function BookmarkDetail({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [articleOpen, setArticleOpen] = useState(false);
+  // Index of the media item open in the full-screen viewer.
+  const [viewing, setViewing] = useState<number | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
     setArticleOpen(false);
     setCopied(false);
+    setViewing(null);
   }, [post.id]);
+
+  const mediaSource = useCallback(
+    (i: number) => scrollRef.current?.querySelector<HTMLElement>(`[data-post-id="${post.id}"] [data-media-index="${i}"]`) ?? null,
+    [post.id],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -127,7 +136,7 @@ export function BookmarkDetail({
             </div>
           </div>
 
-          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div ref={scrollRef} data-detail-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <AnimatePresence mode="popLayout" initial={false} custom={direction}>
               <motion.div
                 key={post.id}
@@ -136,6 +145,7 @@ export function BookmarkDetail({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: direction * -28 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                data-post-id={post.id}
                 className="px-5 pb-8 pt-2 sm:px-8 sm:pt-4"
               >
                 <header className="flex items-center gap-3">
@@ -168,7 +178,7 @@ export function BookmarkDetail({
 
                 {post.media?.length ? (
                   <div className="mt-5">
-                    <MediaGrid media={post.media} detail />
+                    <DetailMedia media={post.media} onOpenMedia={setViewing} />
                   </div>
                 ) : null}
 
@@ -283,6 +293,10 @@ export function BookmarkDetail({
               <Sparkles size={17} />
             </FooterButton>
           </footer>
+
+          {viewing !== null && post.media?.length ? (
+            <MediaLightbox media={post.media} initialIndex={viewing} getSource={mediaSource} onClose={() => setViewing(null)} />
+          ) : null}
         </>
       )}
     </ResponsivePanel>
