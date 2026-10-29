@@ -1,5 +1,6 @@
 import lunr from "lunr";
 import type { BookmarkPost } from "@/lib/bookmark-types";
+import { threadText } from "@/lib/thread-text";
 
 // Task 14 single-sourcing: searchText used to be re-declared here, drifted from
 // scripts/lib/embed.mjs's copy (this one joined raw post.urls with "\n"; embed.mjs's
@@ -102,6 +103,7 @@ export function buildKeywordIndex(posts: BookmarkPost[]) {
     this.field("url");
     this.field("article", { boost: 3 });
     this.field("quoted", { boost: 2 });
+    this.field("thread", { boost: 2 });
 
     for (const post of posts) {
       this.add({
@@ -114,6 +116,7 @@ export function buildKeywordIndex(posts: BookmarkPost[]) {
         quoted: [post.quotedTweet?.text, post.quotedTweet?.author?.name, post.quotedTweet?.author?.screenName]
           .filter(Boolean)
           .join(" "),
+        thread: threadText(post).slice(0, ARTICLE_INDEX_CHAR_LIMIT),
       });
     }
   });

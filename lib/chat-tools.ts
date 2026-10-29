@@ -62,6 +62,8 @@ export const getBookmarkResultSchema = z.object({
       text: z.string(),
       articleTitle: z.string().optional(),
       articleText: z.string().optional(),
+      /** The author's own continuation (their thread), one string per post, oldest first. */
+      thread: z.array(z.string()).optional(),
       url: z.string(),
       createdAt: z.string().optional(),
       metrics: z

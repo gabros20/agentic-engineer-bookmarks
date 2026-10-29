@@ -46,6 +46,7 @@
 // reuse it without dragging in the `@huggingface/transformers` dynamic import below (T2).
 // Re-exported here so existing importers of lib/rerank keep working unchanged.
 import { RERANK_WINDOW, RerankCandidate, blendRerankScores, minMaxNormalize } from "@/lib/rerank-core";
+import { threadText } from "@/lib/thread-text";
 export { RERANK_WINDOW, minMaxNormalize };
 export type { RerankCandidate };
 
@@ -53,6 +54,7 @@ export const RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2";
 
 const ARTICLE_EXCERPT_CHARS = 300;
 const DOC_TEXT_CHAR_CAP = 1000;
+const THREAD_EXCERPT_CHARS = 300;
 
 // Minimal call-signature types for the two loaded objects, matching the existing codebase
 // convention (see embedQueries's `extractor` cast in components/bookmarks-app.tsx) rather
@@ -129,7 +131,8 @@ export async function scoreWithCrossEncoder(query: string, docTexts: string[]): 
 /**
  * Doc text fed to the cross-encoder as the "passage" half of the (query, passage) pair:
  * an "@screenName (author name): " authorship prefix, then post text + articleTitle +
- * first ARTICLE_EXCERPT_CHARS chars of articleText + quoted tweet text, whitespace-collapsed
+ * first ARTICLE_EXCERPT_CHARS chars of articleText + quoted tweet text + the first
+ * THREAD_EXCERPT_CHARS of the author's thread, whitespace-collapsed
  * and capped at DOC_TEXT_CHAR_CAP chars. The cross-encoder truncates at 512 tokens anyway,
  * so this cap is a cheap pre-truncation for tokenizer throughput, not a correctness
  * requirement.
@@ -148,6 +151,7 @@ export function buildRerankDocText(post: {
   articleText?: string;
   author?: { name?: string; screenName?: string };
   quotedTweet?: { text?: string };
+  thread?: Array<{ text?: string }>;
 }): string {
   const screenName = post.author?.screenName;
   const authorName = post.author?.name;
@@ -158,6 +162,7 @@ export function buildRerankDocText(post: {
     post.articleTitle,
     post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,
     post.quotedTweet?.text,
+    post.thread?.length ? threadText(post).slice(0, THREAD_EXCERPT_CHARS) : undefined,
   ].filter((part): part is string => Boolean(part));
   const collapsed = parts.join(" ").replace(/\s+/g, " ").trim();
   return collapsed.slice(0, DOC_TEXT_CHAR_CAP);

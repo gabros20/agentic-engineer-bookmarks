@@ -90,6 +90,12 @@ ignoring the schedule once) · `logs` · `notify-test`.
   `--op-service-account` to avoid Touch ID) or the Keychain (`set-token`). It's verified via the API (~1 s).
   X auth is xrelay's browser cookies: log into x.com again if `X login expired` is reported.
 - **xrelay updates:** at most weekly, only when npm has a newer version, rolled back if X auth breaks after.
+- **Author threads (xrelay ≥ 1.7):** the pull runs with `--threads` (each NEW bookmark's own thread — the
+  author's follow-up posts — stored as `thread`), then a best-effort backlog step looks up the threads of
+  older bookmarks: `xrelay archive repair <archive> --threads --limit <threadBackfillPerRun> --delay 3000`
+  (config `threadBackfillPerRun`, default 300 per run, `0` = off). It is resumable (`threadCheckedAt` on each
+  checked post), stops at an X rate limit, and never fails the sync; the run log says how many are left.
+  A post checked while < 48 h old is looked at once more (authors keep adding to fresh threads).
 - **macOS privacy (TCC):** the repo lives under `~/Documents`, so the first launchd run makes macOS ask whether
   `node` may access Documents. Allow it. The grant is tied to the node binary path, so after a Node upgrade
   run `install` again and allow once more.
@@ -154,7 +160,7 @@ npm run deploy:worker
 > `deploy:worker` are only for **code** changes now.
 
 ### What `npm run sync` does
-`prepare-sync.mjs` → `xrelay archive bookmarks` (incremental pull, `--limit 10000`) →
+`prepare-sync.mjs` → `xrelay archive bookmarks` (incremental pull, `--limit 10000 --threads`) →
 `backfill-articles.mjs` (fill X Article bodies) → `sync-bge.mjs` → `upload-r2.mjs`.
 
 **`prepare-sync.mjs` (preflight — the safety net).** Since the T8 lockdown, `public/data/*` is

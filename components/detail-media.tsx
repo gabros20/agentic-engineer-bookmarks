@@ -55,7 +55,19 @@ function aspectOf(item: MediaEntry) {
   return item.width && item.height ? item.width / item.height : 16 / 9;
 }
 
-export function DetailMedia({ media, onOpenMedia }: { media: MediaEntry[]; onOpenMedia: (index: number) => void }) {
+export function DetailMedia({
+  media,
+  scope,
+  bleed = true,
+  onOpenMedia,
+}: {
+  media: MediaEntry[];
+  /** Gallery id (data-media-scope): the viewer finds this gallery's items to zoom from / back to. */
+  scope: string;
+  /** Carousels run into the panel padding (edge to edge); off where something sits in that margin. */
+  bleed?: boolean;
+  onOpenMedia: (index: number) => void;
+}) {
   const { t } = useLanguage();
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -110,16 +122,16 @@ export function DetailMedia({ media, onOpenMedia }: { media: MediaEntry[]; onOpe
   return (
     // The root measures the content width; the carousel inside bleeds into the panel padding so
     // items scroll edge to edge (the peeking item reaches the panel edge, like x.com).
-    <div ref={rootRef} style={layout ? undefined : { minHeight: 220 }}>
-      <div className={cn("group/media relative", carousel && "-mx-5 sm:-mx-8")}>
+    <div ref={rootRef} data-media-scope={scope} style={layout ? undefined : { minHeight: 220 }}>
+      <div className={cn("group/media relative", carousel && bleed && "-mx-5 sm:-mx-8")}>
         {layout ? (
           <div
             ref={scrollerRef}
             onScroll={carousel ? updateEdges : undefined}
             className={cn(
               "flex",
-              carousel &&
-                "snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain px-5 [scrollbar-width:none] sm:scroll-px-8 sm:px-8 [&::-webkit-scrollbar]:hidden",
+              carousel && "snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              carousel && bleed && "scroll-px-5 px-5 sm:scroll-px-8 sm:px-8",
             )}
             style={{ gap: GAP }}
           >

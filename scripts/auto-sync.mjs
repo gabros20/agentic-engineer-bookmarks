@@ -405,6 +405,16 @@ async function checkCloudflare(env) {
   log(`Cloudflare token active · account ${account.accountId}`);
 }
 
+/** xrelay ≥ 1.7.0 captures the author's thread of each post (archive --threads / repair --threads). */
+const THREADS_MIN_XRELAY = [1, 7, 0];
+function supportsThreads(version) {
+  const parts = String(version ?? "").split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((parts[i] ?? 0) !== THREADS_MIN_XRELAY[i]) return (parts[i] ?? 0) > THREADS_MIN_XRELAY[i];
+  }
+  return true;
+}
+
 function installedXrelayVersion(env) {
   const npm = join(dirname(process.execPath), "npm");
   const rootRes = spawnSync(npm, ["root", "-g"], { encoding: "utf8", env });
@@ -516,10 +526,13 @@ async function main() {
   const beforePull = archiveStats();
   if (existsSync(ARCHIVE)) copyFileSync(ARCHIVE, ARCHIVE_BACKUP);
 
+  // xrelay ≥ 1.7: also capture the author's thread of each NEW bookmark in the same pull
+  // (one gentle logged-in lookup per new post with replies; never fails the pull itself).
+  const threads = supportsThreads(installedXrelayVersion(env));
+  if (!threads) warn("xrelay < 1.7.0 — author threads are not captured (npm i -g x-relay-mcp@latest)");
+  const pullArgs = ["archive", "bookmarks", "--out", ARCHIVE, "--limit", "10000", ...(threads ? ["--threads", "--delay", "3000"] : [])];
   await step("xrelay archive bookmarks (incremental pull)", () =>
-    withRetry("xrelay archive", 3, 60_000, () =>
-      run("xrelay", ["archive", "bookmarks", "--out", ARCHIVE, "--limit", "10000"], { timeoutMs: 20 * MIN, env }),
-    ),
+    withRetry("xrelay archive", 3, 60_000, () => run("xrelay", pullArgs, { timeoutMs: 20 * MIN, env })),
   );
 
   // Truncation guard, part 2: the archive must never shrink or become unreadable.
@@ -530,6 +543,22 @@ async function main() {
   }
   if (existsSync(ARCHIVE_BACKUP)) rmSync(ARCHIVE_BACKUP);
   log(`pulled: ${afterPull.count - beforePull.count} new bookmark(s)`);
+
+  // Author threads of OLDER bookmarks: a gentle chunk per run until the backlog is done
+  // (resumable — each checked post is stamped; a rate limit just ends the chunk early).
+  const perRun = Number(config.threadBackfillPerRun ?? 300);
+  if (threads && perRun > 0) {
+    const res = await step(
+      `author threads backlog (≤${perRun} lookups)`,
+      () => run("xrelay", ["archive", "repair", ARCHIVE, "--threads", "--limit", String(perRun), "--delay", "3000"], { timeoutMs: 35 * MIN, env }),
+      { fatal: false }, // best-effort: never blocks today's new bookmarks
+    );
+    const num = (key) => Number(res?.output?.match(new RegExp(`"${key}":\\s*(\\d+)`))?.[1] ?? NaN);
+    if (Number.isFinite(num("checked"))) {
+      record.threads = { checked: num("checked"), withThread: num("withThread"), remaining: num("remaining") };
+      log(`threads: checked ${record.threads.checked}, ${record.threads.withThread} with a thread, ${record.threads.remaining} left in the backlog`);
+    }
+  }
 
   await step("backfill X Article bodies", () => run(node, ["scripts/backfill-articles.mjs"], { timeoutMs: 20 * MIN, env }), {
     fatal: false, // a flaky article is retried next run; don't block today's new bookmarks

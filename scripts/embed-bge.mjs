@@ -50,6 +50,7 @@ import { fileURLToPath } from "node:url";
 import { normalizeBookmarkPayload } from "./lib/archive.mjs";
 import { searchText, chunkArticle, quantizeEmbedding } from "./lib/embed.mjs";
 import { FatalEmbedError, localTransport, restTransport } from "./lib/embed-transport.mjs";
+import { threadText } from "./lib/search-core.mjs";
 
 const MODEL = "@cf/baai/bge-m3";
 const DIMENSIONS = 1024;
@@ -133,6 +134,17 @@ function rawItemsForPost(post) {
     const chunks = chunkArticle(post.articleText, post.articleTitle);
     chunks.forEach((chunk, i) => {
       items.push({ id: post.id, part: i + 1, text: safe(chunk) });
+    });
+  }
+  // The author's thread (xrelay archive --threads): its own chunk vectors, numbered after
+  // any article chunks, anchored to the opening post the way article chunks are to their
+  // title. The main vector stays the post itself, so posts without a thread are untouched.
+  const thread = threadText(post);
+  if (thread) {
+    const anchor = (post.text ?? "").replace(/\s*https?:\/\/t\.co\/\w+/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const offset = items.length - 1;
+    chunkArticle(thread, anchor).forEach((chunk, i) => {
+      items.push({ id: post.id, part: offset + i + 1, text: safe(chunk) });
     });
   }
   return items;

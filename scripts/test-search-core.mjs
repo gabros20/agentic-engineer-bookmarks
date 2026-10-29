@@ -32,6 +32,7 @@ import {
   minMaxNormalize,
   multiVectorSearch,
   rerankResults,
+  threadText,
   vectorSearch,
 } from "./lib/search-core.mjs";
 
@@ -828,7 +829,7 @@ test("F2 drift guard: buildKeywordIndex field/boost config matches between lib/b
     "scripts/lib/search-core.mjs's buildKeywordIndex field/boost config has drifted from lib/bookmark-search.ts (the source of truth the client and the Worker's lunr-index.json must both match) — update search-core.mjs to match",
   );
   // Pin the values too, so a coordinated-but-wrong edit of BOTH files still fails loudly.
-  assert.deepEqual(tsBoosts, { text: 4, title: 5, author: 2, url: null, article: 3, quoted: 2 });
+  assert.deepEqual(tsBoosts, { text: 4, title: 5, author: 2, url: null, article: 3, quoted: 2, thread: 2 });
 });
 
 test("F2 drift guard: ARTICLE_INDEX_CHAR_LIMIT matches between lib/bookmark-search.ts and search-core.mjs", () => {
@@ -849,6 +850,21 @@ test("F2 drift guard: rerank doc-text char caps match between lib/rerank.ts and 
   assert.equal(mjsCap, tsCap, "search-core.mjs's DOC_TEXT_CHAR_CAP has drifted from lib/rerank.ts");
   assert.equal(tsExcerpt, 300);
   assert.equal(tsCap, 1000);
+});
+
+test("F2 drift guard: THREAD_EXCERPT_CHARS (rerank thread excerpt) matches between lib/rerank.ts and search-core.mjs", () => {
+  const ts = extractConst(readSrc("lib/rerank.ts"), "THREAD_EXCERPT_CHARS");
+  const mjs = extractConst(readSrc("scripts/lib/search-core.mjs"), "THREAD_EXCERPT_CHARS");
+  assert.equal(mjs, ts, "search-core.mjs's THREAD_EXCERPT_CHARS has drifted from lib/rerank.ts");
+  assert.equal(ts, 300);
+});
+
+test("threadText: one paragraph per thread post, t.co links stripped, empty without a thread", () => {
+  assert.equal(threadText({}), "");
+  assert.equal(
+    threadText({ thread: [{ text: "2/3 more detail https://t.co/abc123" }, { text: "" }, { text: "3/3 the end" }] }),
+    "2/3 more detail\n\n3/3 the end",
+  );
 });
 
 test("F2 drift guard: build-lunr-index.mjs / build-rerank-docs.mjs import from search-core.mjs instead of hand-copying", () => {

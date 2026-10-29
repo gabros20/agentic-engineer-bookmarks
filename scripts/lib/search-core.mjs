@@ -55,6 +55,17 @@ export const QUERY_EXPANSIONS = {
 // covering the lead of the article (where distinctive phrasing tends to live).
 const ARTICLE_INDEX_CHAR_LIMIT = 2000;
 
+/**
+ * The author's thread under a post as plain text — verbatim mirror of lib/thread-text.ts:
+ * each continuation post's text, t.co links stripped, one paragraph per post.
+ */
+export function threadText(post) {
+  return (post.thread ?? [])
+    .map((p) => (p.text ?? "").replace(/\s*https?:\/\/t\.co\/\w+/g, "").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function buildKeywordIndex(posts) {
   return lunr(function build() {
     this.ref("id");
@@ -64,6 +75,7 @@ export function buildKeywordIndex(posts) {
     this.field("url");
     this.field("article", { boost: 3 });
     this.field("quoted", { boost: 2 });
+    this.field("thread", { boost: 2 });
 
     for (const post of posts) {
       this.add({
@@ -73,6 +85,7 @@ export function buildKeywordIndex(posts) {
         author: `${post.author.name} ${post.author.screenName}`,
         url: (post.urls ?? []).join(" "),
         article: (post.articleText ?? "").slice(0, ARTICLE_INDEX_CHAR_LIMIT),
+        thread: threadText(post).slice(0, ARTICLE_INDEX_CHAR_LIMIT),
         quoted: [post.quotedTweet?.text, post.quotedTweet?.author?.name, post.quotedTweet?.author?.screenName]
           .filter(Boolean)
           .join(" "),
@@ -345,6 +358,7 @@ const CE_BLEND_WEIGHT = 0.6;
 const HYBRID_BLEND_WEIGHT = 0.4;
 const ARTICLE_EXCERPT_CHARS = 300;
 const DOC_TEXT_CHAR_CAP = 1000;
+const THREAD_EXCERPT_CHARS = 300;
 
 let rerankerPromise = null;
 
@@ -427,6 +441,7 @@ export function buildRerankDocText(post) {
     post.articleTitle,
     post.articleText ? post.articleText.slice(0, ARTICLE_EXCERPT_CHARS) : undefined,
     post.quotedTweet?.text,
+    post.thread?.length ? threadText(post).slice(0, THREAD_EXCERPT_CHARS) : undefined,
   ].filter(Boolean);
   const collapsed = parts.join(" ").replace(/\s+/g, " ").trim();
   return collapsed.slice(0, DOC_TEXT_CHAR_CAP);

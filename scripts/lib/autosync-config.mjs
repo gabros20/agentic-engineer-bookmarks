@@ -41,6 +41,7 @@ export const DEFAULT_CONFIG = {
   staleDays: 3, // notify when there has been no successful sync for this long
   notify: "changes", // "always" | "changes" (new bookmarks or failure) | "failure" | "never"
   updateXrelay: true, // weekly: install a newer x-relay-mcp only if npm has one; rolled back if X auth breaks
+  threadBackfillPerRun: 300, // author threads of older bookmarks looked up per run (logged-in X calls, ~4s each); 0 = off
   workerUrl: null, // deployed search Worker, e.g. https://bookmark-search.<sub>.workers.dev — enables publish verification
   siteUrl: null, // the app, linked from the status page
   cloudflareAccountId: null, // set if your API token can see more than one account (wrangler would prompt)
