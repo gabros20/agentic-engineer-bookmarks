@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { VideoMedia, isMotionMedia, pbsSrcSet, pbsVariant, type MediaEntry } from "@/components/bookmark-card";
+import { VideoMedia, isMotionMedia, pbsSrcSet, pbsVariant, type MediaEntry } from "@/components/bookmarks/bookmark-card";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { OtherDeviceNotice, isHandheld, isLoopbackRedirect } from "@/components/other-device-notice";
+import { OtherDeviceNotice, isHandheld, isLoopbackRedirect } from "@/components/auth/other-device-notice";
 
 const AUTHORIZE_PATH = "/api/auth/oauth2/authorize";
 

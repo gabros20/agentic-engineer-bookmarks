@@ -4,7 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, Film, X } from "lucide-react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject, type SyntheticEvent } from "react";
-import { isGifMedia, isMotionMedia, pbsVariant, type MediaEntry } from "@/components/bookmark-card";
+import { isGifMedia, isMotionMedia, pbsVariant, type MediaEntry } from "@/components/bookmarks/bookmark-card";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

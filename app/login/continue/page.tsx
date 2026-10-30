@@ -1,4 +1,4 @@
-import { ContinueAuthorize } from "@/components/continue-authorize";
+import { ContinueAuthorize } from "@/components/auth/continue-authorize";
 import { LanguageProvider } from "@/lib/i18n";
 
 // Where an app connection's magic link lands after signing in (components/login-form.tsx). Public

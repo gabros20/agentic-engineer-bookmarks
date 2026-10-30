@@ -23,6 +23,8 @@ export type SavedDigest = {
   deeperReads?: Digest["deeperReads"];
   sourceCount: number;
   createdAt: string;
+  /** The language it was written in (absent on rows saved before it was recorded). */
+  language?: "en" | "hu";
 };
 
 // Minimal view of a `saved_digests` row — kept local so this module (imported by client
@@ -32,6 +34,7 @@ type SavedDigestRow = {
   query: string;
   content: unknown;
   sourceIds: unknown;
+  language?: string | null;
   createdAt: Date | string;
 };
 
@@ -58,6 +61,7 @@ export function rowToSavedDigest(row: SavedDigestRow): SavedDigest {
     deeperReads: content.deeperReads,
     sourceCount,
     createdAt,
+    language: row.language === "en" || row.language === "hu" ? row.language : undefined,
   };
 }
 

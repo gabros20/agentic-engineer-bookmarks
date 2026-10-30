@@ -1,4 +1,4 @@
-import { LoginForm } from "@/components/login-form";
+import { LoginForm } from "@/components/auth/login-form";
 import { LanguageProvider } from "@/lib/i18n";
 
 // Public route (allow-listed in proxy.ts). Wrapped in LanguageProvider so the
