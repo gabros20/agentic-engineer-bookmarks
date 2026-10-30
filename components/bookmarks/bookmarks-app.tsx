@@ -94,11 +94,6 @@ async function migrateLegacyOnce(): Promise<boolean> {
   }
 }
 
-const formatter = new Intl.NumberFormat("en");
-
-function number(value?: number) {
-  return formatter.format(value ?? 0);
-}
 
 // T4.1: render an operator Date back to the granularity the brief's examples use — a
 // `YYYY-MM` token (before:/after: parsed to the 1st of that month) displays compactly as
@@ -151,10 +146,16 @@ function inScope(post: BookmarkPost, scope: string, favorites: Set<string>) {
 // Header row height (h-16). The filter rail sticks right under it.
 const HEADER_PX = 64;
 
-const compactFormatter = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
 export function BookmarksApp() {
   const { t, lang } = useLanguage();
+  // Numbers follow the UI language: 7,219 / 7.2K in English, 7219 / 7,2 E in Hungarian.
+  const { number, compact } = useMemo(() => {
+    const locale = lang === "hu" ? "hu-HU" : "en";
+    const plain = new Intl.NumberFormat(locale);
+    const short = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+    return { number: (value?: number) => plain.format(value ?? 0), compact: (value: number) => short.format(value) };
+  }, [lang]);
   const [payload, setPayload] = useState<unknown>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -890,7 +891,7 @@ export function BookmarksApp() {
                   tabIndex={condensed ? 0 : -1}
                   aria-label={t("search.placeholder")}
                   placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
-                  className="h-full min-w-0 flex-1 appearance-none bg-transparent font-display text-[18px] text-[color:var(--color-ink)] outline-none placeholder:italic placeholder:text-[color:var(--color-muted-soft)] sm:text-[21px] [&::-webkit-search-cancel-button]:hidden"
+                  className="h-full min-w-0 flex-1 appearance-none text-ellipsis bg-transparent font-display text-[18px] text-[color:var(--color-ink)] outline-none placeholder:italic placeholder:text-[color:var(--color-muted-soft)] sm:text-[21px] [&::-webkit-search-cancel-button]:hidden"
                 />
                 {query ? (
                   <button
@@ -1004,7 +1005,7 @@ export function BookmarksApp() {
               autoCorrect="off"
               spellCheck={false}
               placeholder={posts.length ? t("search.hero", { n: number(posts.length) }) : t("search.placeholder")}
-              className="w-full appearance-none rounded-none border-b border-[color:var(--color-hairline)] bg-transparent pb-3 pr-11 font-display text-[32px] leading-[1.15] text-[color:var(--color-ink)] caret-[color:var(--color-ink)] outline-none transition-colors duration-300 placeholder:italic placeholder:text-[color:var(--color-muted-soft)] focus:border-[color:var(--color-ink)] sm:text-[52px] lg:text-[60px] [&::-webkit-search-cancel-button]:hidden"
+              className={`w-full appearance-none text-ellipsis rounded-none border-b border-[color:var(--color-hairline)] bg-transparent pb-3 ${query ? "pr-11" : "sm:pr-11"} font-display text-[clamp(26px,8.5vw,32px)] leading-[1.15] text-[color:var(--color-ink)] caret-[color:var(--color-ink)] outline-none transition-colors duration-300 placeholder:italic placeholder:text-[color:var(--color-muted-soft)] focus:border-[color:var(--color-ink)] sm:text-[52px] lg:text-[60px] [&::-webkit-search-cancel-button]:hidden`}
             />
             <SearchSweep active={semanticPending} className="inset-x-0 -bottom-[2px]" />
             <div className="absolute bottom-3.5 right-0 sm:bottom-5">
@@ -1149,7 +1150,7 @@ export function BookmarksApp() {
                   >
                     <span className="relative">{t(label)}</span>
                     {payload !== null ? (
-                      <span className="relative text-[11px] tabular-nums opacity-55">{compactFormatter.format(scopeCounts[value] ?? 0)}</span>
+                      <span className="relative text-[11px] tabular-nums opacity-55">{compact(scopeCounts[value] ?? 0)}</span>
                     ) : null}
                   </button>
                 );

@@ -271,7 +271,7 @@ export const messages = {
     "scope.text": "Csak szöveg",
 
     "chip.all": "Összes",
-    "search.hero": "Keresés {n} könyvjelző között…",
+    "search.hero": "Keress {n} könyvjelzőben…",
     "search.clear": "Keresés törlése",
     "status.count": "{n} könyvjelző",
     "status.matches": "{n} találat",
