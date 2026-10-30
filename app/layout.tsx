@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Inter } from "next/font/google";
-import { ScrollTopOnLoad } from "@/components/scroll-top-on-load";
+import { QueryProvider } from "@/components/shell/query-provider";
+import { ScrollTopOnLoad } from "@/components/shell/scroll-top-on-load";
 import "./globals.css";
 
 // Inter is a variable font — omit `weight` so Next pulls the single
@@ -55,7 +56,7 @@ export default function RootLayout({
       </head>
       <body>
         <ScrollTopOnLoad />
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );

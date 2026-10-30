@@ -5,13 +5,14 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { BookmarkCard, estimateCardHeight, isMotionMedia } from "@/components/bookmark-card";
-import { MasonryGrid, type MasonryEntry } from "@/components/masonry-grid";
-import type { ChatContextSnapshot } from "@/components/command-k-chat";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { BookmarkCard, estimateCardHeight, isMotionMedia } from "@/components/bookmarks/bookmark-card";
+import { MasonryGrid, type MasonryEntry } from "@/components/bookmarks/masonry-grid";
+import type { ChatContextSnapshot } from "@/components/chat/chat-panel";
+import { LanguageSwitcher } from "@/components/shell/language-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -20,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { OptionSelect } from "@/components/ui/select";
-import { fetchSavedChats, readLegacyChats, type SavedChat } from "@/lib/chat-history";
+import { readLegacyChats, type SavedChat } from "@/lib/chat-history";
 import type {
   GetBookmarkInput,
   GetBookmarkResult,
@@ -28,7 +29,9 @@ import type {
   SearchBookmarksResult,
 } from "@/lib/chat-tools";
 import { authClient } from "@/lib/auth-client";
-import { fetchDigestByQuery, fetchSavedDigests, readLegacyDigests, type SavedDigest } from "@/lib/digest-cache";
+import { fetchDigestByQuery, readLegacyDigests, type SavedDigest } from "@/lib/digest-cache";
+import { useSavedChats, useSavedDigests } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { toDigestSource } from "@/lib/digest-source";
 import type { DigestSource } from "@/lib/digest-schema";
 import { fetchQueryRewrites } from "@/lib/expand-client";
@@ -67,15 +70,16 @@ const DIGEST_SOURCE_LIMIT = 50;
 // is left intact as a fallback), and the server route is itself idempotent. A failure leaves
 // the flag unset so it retries on the next load.
 const MIGRATED_FLAG = "agentic-engineer-bookmarks:migrated";
-async function migrateLegacyOnce() {
-  if (typeof window === "undefined") return;
+/** Resolves true when it actually moved data (so the saved lists should refetch). */
+async function migrateLegacyOnce(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
   try {
-    if (window.localStorage.getItem(MIGRATED_FLAG)) return;
+    if (window.localStorage.getItem(MIGRATED_FLAG)) return false;
     const digests = readLegacyDigests();
     const chats = readLegacyChats();
     if (digests.length === 0 && chats.length === 0) {
       window.localStorage.setItem(MIGRATED_FLAG, "1");
-      return;
+      return false;
     }
     const res = await fetch("/api/migrate", {
       method: "POST",
@@ -83,8 +87,10 @@ async function migrateLegacyOnce() {
       body: JSON.stringify({ digests, chats }),
     });
     if (res.ok) window.localStorage.setItem(MIGRATED_FLAG, "1");
+    return res.ok;
   } catch {
     // Leave the flag unset — the migration retries on the next load.
+    return false;
   }
 }
 
@@ -110,13 +116,13 @@ function formatOperatorDate(date: Date) {
 // Open-on-demand panels are split out of the first-load bundle (it was 3.3 MB raw / 916 KB gzip,
 // mostly the chat's Streamdown + mermaid/math/code renderers). The light ones are prefetched
 // when the browser goes idle; the heavy chat on intent (hovering/focusing Ask, or ⌘K).
-const loadDetail = () => import("@/components/bookmark-detail");
-const loadChat = () => import("@/components/command-k-chat");
-const loadDigest = () => import("@/components/digest-panel");
-const loadSavedDigests = () => import("@/components/saved-digests-panel");
-const loadSavedChats = () => import("@/components/saved-chats-panel");
+const loadDetail = () => import("@/components/bookmarks/bookmark-detail");
+const loadChat = () => import("@/components/chat/chat-panel");
+const loadDigest = () => import("@/components/digest/digest-panel");
+const loadSavedDigests = () => import("@/components/digest/saved-digests-panel");
+const loadSavedChats = () => import("@/components/chat/saved-chats-panel");
 const BookmarkDetail = dynamic(() => loadDetail().then((m) => m.BookmarkDetail), { ssr: false });
-const CommandKChat = dynamic(() => loadChat().then((m) => m.CommandKChat), { ssr: false });
+const ChatPanel = dynamic(() => loadChat().then((m) => m.ChatPanel), { ssr: false });
 const DigestPanel = dynamic(() => loadDigest().then((m) => m.DigestPanel), { ssr: false });
 const SavedDigestsPanel = dynamic(() => loadSavedDigests().then((m) => m.SavedDigestsPanel), { ssr: false });
 const SavedChatsPanel = dynamic(() => loadSavedChats().then((m) => m.SavedChatsPanel), { ssr: false });
@@ -174,7 +180,6 @@ export function BookmarksApp() {
     initialCached?: SavedDigest;
   } | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
-  const [savedCount, setSavedCount] = useState(0);
   // T1 (digest engine upgrade): true while the CTA is re-querying the Worker at limit 50
   // (deeper sourcing) before opening the panel.
   const [digestSourcing, setDigestSourcing] = useState(false);
@@ -184,7 +189,6 @@ export function BookmarksApp() {
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | null>(null);
-  const [savedChatsCount, setSavedChatsCount] = useState(0);
   // T6: the previously-generated digest for the current query, fetched from the DB to enrich
   // the chat's context block. Replaces the old synchronous localStorage getDigest() lookup.
   const [contextDigest, setContextDigest] = useState<SavedDigest | null>(null);
@@ -218,40 +222,23 @@ export function BookmarksApp() {
     }
   }
 
-  // T6: header badge counts come from the DB (cross-device) — refreshed on mount (after the
-  // one-shot localStorage migration) and again whenever a panel closes (a delete or save may
-  // have changed them). M4 fix: both triggers share ONE seq-guarded refresher so two in-flight
-  // fetches can't race — only the most-recently-STARTED fetch may write state, so a slow earlier
-  // request (e.g. the mount fetch that waited on migration) can never clobber a fresher count.
-  const countSeqRef = useRef(0);
-  const refreshCounts = useCallback(async () => {
-    const token = ++countSeqRef.current;
-    try {
-      const [digests, chats] = await Promise.all([fetchSavedDigests(), fetchSavedChats()]);
-      if (token !== countSeqRef.current) return; // superseded by a newer refresh
-      setSavedCount(digests.length);
-      setSavedChatsCount(chats.length);
-    } catch {
-      // Leave counts as-is on failure.
-    }
-  }, []);
+  // Header badge counts come from the shared TanStack Query cache (lib/queries.ts): the saved
+  // panels, the digest panel and the chat update it, so the counts follow without refetch
+  // choreography — and the lists are already warm when a saved panel opens. The one-shot localStorage → DB migration runs first, then the cache refetches.
+  const queryClient = useQueryClient();
+  const savedCount = useSavedDigests().data?.length ?? 0;
+  const savedChatsCount = useSavedChats().data?.length ?? 0;
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      await migrateLegacyOnce();
-      if (!alive) return;
-      await refreshCounts();
+      const migrated = await migrateLegacyOnce();
+      if (alive && migrated) await queryClient.invalidateQueries();
     })();
     return () => {
       alive = false;
     };
-  }, [refreshCounts]);
-
-  useEffect(() => {
-    if (savedOpen || digestOpen || chatOpen || chatHistoryOpen) return;
-    void refreshCounts();
-  }, [savedOpen, digestOpen, chatOpen, chatHistoryOpen, refreshCounts]);
+  }, [queryClient]);
 
   // One rAF-throttled scroll reader drives all scroll-dependent chrome. The floating search
   // condenses when the hero input slides under the header, with a 24px dead zone: the old
@@ -308,7 +295,7 @@ export function BookmarksApp() {
   // thread on a 10 MB string. Rendering-only data — the search index never reaches the
   // client anymore (T4): the Cloudflare Worker owns vectors, keyword index, and rerank docs.
   useEffect(() => {
-    const worker = new Worker(new URL("../lib/data-worker.ts", import.meta.url), {
+    const worker = new Worker(new URL("../../lib/data-worker.ts", import.meta.url), {
       type: "module",
     });
     worker.onmessage = (event: MessageEvent<DataWorkerMessage>) => {
@@ -561,7 +548,7 @@ export function BookmarksApp() {
 
   // T6: keep the chat's context digest in sync with the current query, from the DB.
   // I1 fix: fetch LAZILY — only while the chat panel is open. `contextDigest` feeds only
-  // `chatContext` (consumed by CommandKChat, rendered only when `chatOpen`), and `displayQuery`
+  // `chatContext` (consumed by ChatPanel, rendered only when `chatOpen`), and `displayQuery`
   // recomputes per keystroke, so the old unconditional effect ran a full user-digest scan on
   // every character typed. Gating on `chatOpen` means idle typing fires ZERO /api/digests
   // requests; the fetch runs when the chat opens (focus is trapped in the modal, so
@@ -952,44 +939,40 @@ export function BookmarksApp() {
               </HeaderIconButton>
 
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={t("nav.menu")}
-                    className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)]"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
+                <DropdownMenuTrigger aria-label={t("nav.menu")} className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] data-popup-open:bg-[color:var(--color-surface-cream-strong)]">
+                  <MoreHorizontal size={18} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="w-56 rounded-xl border-[color:var(--color-hairline)] p-1.5 shadow-[var(--shadow-float)]">
-                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onSelect={() => setSavedOpen(true)}>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onClick={() => setSavedOpen(true)}>
                     <Layers size={15} />
                     <span className="flex-1">{t("nav.digests")}</span>
                     {savedCount ? <span className="text-xs tabular-nums text-[color:var(--color-muted)]">{number(savedCount)}</span> : null}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onSelect={() => setChatHistoryOpen(true)}>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onClick={() => setChatHistoryOpen(true)}>
                     <MessagesSquare size={15} />
                     <span className="flex-1">{t("nav.chats")}</span>
                     {savedChatsCount ? <span className="text-xs tabular-nums text-[color:var(--color-muted)]">{number(savedChatsCount)}</span> : null}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="sm:hidden" />
-                  <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[color:var(--color-muted)]">
-                    {t("theme.label")}
-                  </DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={themePref} onValueChange={(value) => setThemePref(value as ThemePref)}>
-                    {(["system", "light", "dark"] as const).map((value) => (
-                      <DropdownMenuRadioItem key={value} value={value} className="rounded-lg py-2">
-                        {t(`theme.${value}`)}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[color:var(--color-muted)]">
+                      {t("theme.label")}
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={themePref} onValueChange={(value) => setThemePref(value as ThemePref)}>
+                      {(["system", "light", "dark"] as const).map((value) => (
+                        <DropdownMenuRadioItem key={value} value={value} className="rounded-lg py-2">
+                          {t(`theme.${value}`)}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <div className="flex items-center justify-between gap-3 px-2 py-1.5">
                     <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[color:var(--color-muted)]">{t("lang.label")}</span>
                     <LanguageSwitcher />
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2" disabled={signingOut} onSelect={() => void handleSignOut()}>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg py-2" disabled={signingOut} onClick={() => void handleSignOut()}>
                     <LogOut size={15} />
                     {t("auth.signOut")}
                   </DropdownMenuItem>
@@ -1116,7 +1099,7 @@ export function BookmarksApp() {
                     disabled={digestSourcing}
                     aria-busy={digestSourcing}
                     onClick={() => void startDigest()}
-                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] disabled:cursor-wait disabled:opacity-70 sm:flex-none"
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] disabled:cursor-wait disabled:opacity-70 sm:flex-none"
                   >
                     <Sparkles size={15} className={digestSourcing ? "animate-pulse" : undefined} />
                     {t("action.aiDigest")}
@@ -1129,7 +1112,7 @@ export function BookmarksApp() {
                       setChatInitialPrompt(t("chat.shortlistPrompt", { q: displayQuery }));
                       setChatOpen(true);
                     }}
-                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-inset ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-soft)] sm:flex-none"
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[color:var(--color-canvas)] px-4 text-sm font-medium text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-inset ring-[color:var(--color-hairline)] transition hover:bg-[color:var(--color-surface-soft)] sm:flex-none"
                   >
                     <ListOrdered size={15} />
                     {t("action.aiShortlist")}
@@ -1277,7 +1260,7 @@ export function BookmarksApp() {
 
         <AnimatePresence>
           {chatOpen ? (
-            <CommandKChat
+            <ChatPanel
               key={chatHistoryMessages ? "chat-history" : chatInitialPrompt ? `chat-shortlist-${chatInitialPrompt}` : "chat-live"}
               context={chatContext}
               runSearch={runChatSearch}

@@ -3,7 +3,7 @@
 import { Laptop } from "lucide-react";
 import { motion } from "motion/react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { LanguageSwitcher } from "@/components/shell/language-switcher";
 import { useLanguage } from "@/lib/i18n";
 
 /** Phones and tablets (iPadOS reports a Mac UA, but has touch points). */

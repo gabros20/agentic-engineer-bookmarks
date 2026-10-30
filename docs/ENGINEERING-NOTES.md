@@ -243,3 +243,19 @@ which was the one manual prerequisite.
 results (full R2→embed→lunr→rerank pipeline intact); `/archive` → byte-identical 9,173,483-byte stream;
 Worker `GET /archive` gate returns 401 (no/wrong secret) / 405 (non-GET) / 200 (authed). Ranking code +
 data are unchanged, so search results are identical to the CDN path — only the *source* moved.
+
+## 10. AI UX refresh (2026-10) — design decisions
+
+Research: Mobbin (ChatGPT, Perplexity, Copilot, DeepSeek, Raycast, Grok, Dropbox Dash, ClickUp) + a 375px WebKit audit in EN/HU of the old panels. What changed and why:
+
+- **One activity row instead of a card per tool call** (`components/ai/agent-trace.tsx`). Live: shimmering status ("Searching “…” · 4s"); done: "Searched 4× · 116 results · read 3 · 16s", expandable into reasoning + per-search counts. Old UI stacked four English "search_bookmarks · Completed" cards.
+- **Answer without a bubble, cited bookmarks as numbered chips + a swipeable source strip** (Perplexity). Citations are derived client-side: links whose x.com status id is in this message's tool results, numbered by first mention, de-duplicated by author+text.
+- **Follow-ups** come from the model: the system prompt ends every answer with `<followups>…</followups>`; `splitFollowups` hides it (also mid-stream and half-typed tags).
+- **Composer**: auto-growing textarea (1→6 lines), 16px (no iOS zoom), search context as a removable chip (the transport body is a function, so dropping it affects the next turn), send↔stop morph. Return = newline on touch, Enter = send with a keyboard.
+- **Welcome** is outside the stick-to-bottom log (it read top-down but opened scrolled to the bottom).
+- **Digest**: TL;DR as the lede, "where to start" callout, numbered themes with divided source rows (no cards in cards), skeleton + "Reading N bookmarks…" while streaming; a digest saved in the other language shows a "Rewrite in …" notice (`SavedDigest.language`).
+- **Hungarian copy**: buttons ≤2 words ("AI-összegzés", "AI-rövidlista"); starter questions use "ebben a témában: {q}" to avoid a/az article agreement with arbitrary queries.
+- Dropped Streamdown math/mermaid/CJK plugins and shiki (answers never need them; heaviest chunks).
+
+Known follow-ups: client-side tool round-trips each POST /api/chat, so one multi-search question spends several of the 40 daily chat turns — moving `search_bookmarks` server-side (the MCP path already has `lib/server/bookmark-service.ts`) would fix both quota accounting and latency. Cited sources open x.com; opening the in-app detail view would be nicer.
+

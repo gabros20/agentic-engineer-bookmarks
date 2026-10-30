@@ -6,8 +6,8 @@ import { Check, Loader2, PlugZap, X as XIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
-import { OtherDeviceNotice, isHandheld } from "@/components/other-device-notice";
+import { LanguageSwitcher } from "@/components/shell/language-switcher";
+import { OtherDeviceNotice, isHandheld } from "@/components/auth/other-device-notice";
 import { MCP_SCOPE } from "@/lib/mcp-scope";
 import { type MessageKey, useLanguage } from "@/lib/i18n";
 

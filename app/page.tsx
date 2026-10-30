@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { BookmarksApp } from "@/components/bookmarks-app";
+import { BookmarksApp } from "@/components/bookmarks/bookmarks-app";
 import { auth } from "@/lib/auth";
 import { LanguageProvider } from "@/lib/i18n";
 

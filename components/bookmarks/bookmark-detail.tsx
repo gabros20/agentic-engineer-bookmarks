@@ -12,9 +12,9 @@ import {
   longDate,
   openOnX,
   postUrl,
-} from "@/components/bookmark-card";
-import { DetailMedia } from "@/components/detail-media";
-import { MediaLightbox } from "@/components/media-lightbox";
+} from "@/components/bookmarks/bookmark-card";
+import { DetailMedia } from "@/components/bookmarks/detail-media";
+import { MediaLightbox } from "@/components/bookmarks/media-lightbox";
 import { ResponsivePanel } from "@/components/ui/responsive-panel";
 import type { BookmarkPost } from "@/lib/bookmark-types";
 import { useLanguage, type MessageKey } from "@/lib/i18n";

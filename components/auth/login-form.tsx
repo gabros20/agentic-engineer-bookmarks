@@ -4,7 +4,7 @@ import { ArrowLeft, Check, KeyRound, Loader2, Mail, MailCheck } from "lucide-rea
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { LanguageSwitcher } from "@/components/shell/language-switcher";
 import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n";
 

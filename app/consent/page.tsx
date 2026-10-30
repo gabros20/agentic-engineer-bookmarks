@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { ConsentForm } from "@/components/consent-form";
+import { ConsentForm } from "@/components/auth/consent-form";
 import { auth } from "@/lib/auth";
 import { LanguageProvider } from "@/lib/i18n";
 
