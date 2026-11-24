@@ -1,7 +1,10 @@
 // Shared config/paths for the bookmark-sync autopilot (scripts/auto-sync.mjs + scripts/autosync.mjs).
 // Everything machine-specific lives OUTSIDE the repo:
 //   ~/.config/xbookmarks-sync/config.json   schedule + behavior (written by `npm run autosync -- install`)
-//   ~/Library/Logs/xbookmarks-sync/          per-run logs, last-run.json, launchd stdout/stderr
+//   ~/.local/state/xbookmarks-sync/          run history (runs.jsonl), last-run.json, status.html, and
+//                                            logs/ (per-run logs, launchd stdout/stderr). NOT ~/Library/Logs:
+//                                            Mac cleaners (CleanMyMac Smart Scan, `mo clean`) empty that
+//                                            folder, which took the history and the status page with it.
 //   ~/.config/xbookmarks-sync/env            optional secrets file (chmod 600): KEY=VALUE lines loaded into
 //                                            every run — CLOUDFLARE_API_TOKEN, XRELAY_COOKIES, … Best for a
 //                                            headless box (Mac mini): no keychain unlock, no 1Password prompt.
@@ -21,12 +24,13 @@ export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..
 export const LABEL = "com.xbookmarks.sync";
 export const CONFIG_DIR = join(homedir(), ".config", "xbookmarks-sync");
 export const CONFIG_PATH = join(CONFIG_DIR, "config.json");
-export const LOG_DIR = join(homedir(), "Library", "Logs", "xbookmarks-sync");
-export const LAST_RUN_PATH = join(LOG_DIR, "last-run.json");
+export const STATE_DIR = join(homedir(), ".local", "state", "xbookmarks-sync");
+export const LOG_DIR = join(STATE_DIR, "logs");
+export const LAST_RUN_PATH = join(STATE_DIR, "last-run.json");
 export const LOCK_PATH = join(CONFIG_DIR, "sync.lock");
 export const STATE_PATH = join(CONFIG_DIR, "state.json"); // scheduling + last-published state (lib/sync-state.mjs)
 export const RUN_NOW_MARKER = join(CONFIG_DIR, "run-now"); // one-shot "ignore the schedule" (autosync -- run)
-export const RUNS_PATH = join(LOG_DIR, "runs.jsonl"); // run history for status + the status page
+export const RUNS_PATH = join(STATE_DIR, "runs.jsonl"); // run history for status + the status page
 export const ENV_FILE_PATH = join(CONFIG_DIR, "env");
 export const PLIST_PATH = join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
 export const KEYCHAIN_SERVICE = "xbookmarks-sync";
@@ -34,9 +38,8 @@ export const KEYCHAIN_TOKEN_ACCOUNT = "CLOUDFLARE_API_TOKEN";
 export const KEYCHAIN_OP_SA_ACCOUNT = "OP_SERVICE_ACCOUNT_TOKEN";
 
 export const DEFAULT_CONFIG = {
-  hour: 14, // local time — the daily slot; launchd ticks hourly, so a missed slot (asleep/off) is caught up later
-  minute: 0,
-  maxAttemptsPerDay: 4, // failed runs are retried the same day…
+  slots: ["11:00", "14:00"], // local times a sync is due; launchd also ticks hourly, so a missed slot (asleep/off) is caught up later
+  maxAttemptsPerDay: 6, // failed runs are retried the same day (successful slot runs count too)…
   retryHours: 2, // …this many hours apart (offline: every tick, without using up attempts)
   staleDays: 3, // notify when there has been no successful sync for this long
   notify: "changes", // "always" | "changes" (new bookmarks or failure) | "failure" | "never"
@@ -52,11 +55,19 @@ export const DEFAULT_CONFIG = {
 
 export function loadConfig() {
   if (!existsSync(CONFIG_PATH)) return { ...DEFAULT_CONFIG };
+  let raw;
   try {
-    return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(CONFIG_PATH, "utf8")) };
+    raw = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
   } catch (err) {
     throw new Error(`invalid ${CONFIG_PATH}: ${err.message}`);
   }
+  // Pre-slots config: one daily { hour, minute } slot — keep that time until `install --slots` changes it.
+  if (!Array.isArray(raw.slots) && Number.isInteger(raw.hour)) {
+    raw.slots = [`${String(raw.hour).padStart(2, "0")}:${String(raw.minute ?? 0).padStart(2, "0")}`];
+  }
+  delete raw.hour;
+  delete raw.minute;
+  return { ...DEFAULT_CONFIG, ...raw };
 }
 
 export function saveConfig(config) {

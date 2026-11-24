@@ -9,6 +9,7 @@ import { BookmarkCard, estimateCardHeight, isMotionMedia } from "@/components/bo
 import { MasonryGrid, type MasonryEntry } from "@/components/bookmarks/masonry-grid";
 import type { ChatContextSnapshot } from "@/components/chat/chat-panel";
 import { LanguageSwitcher } from "@/components/shell/language-switcher";
+import { SyncStatusLine, useSyncHealth } from "@/components/shell/sync-status";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -230,6 +231,7 @@ export function BookmarksApp() {
   const queryClient = useQueryClient();
   const savedCount = useSavedDigests().data?.length ?? 0;
   const savedChatsCount = useSavedChats().data?.length ?? 0;
+  const syncHealth = useSyncHealth();
 
   useEffect(() => {
     let alive = true;
@@ -945,6 +947,10 @@ export function BookmarksApp() {
               <DropdownMenu>
                 <DropdownMenuTrigger aria-label={t("nav.menu")} className="touch-target relative grid size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] data-popup-open:bg-[color:var(--color-surface-cream-strong)]">
                   <MoreHorizontal size={20} />
+                  {syncHealth?.stale ? (
+                    // The sync stopped: a dot on the menu that holds the "Synced N days ago" warning.
+                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[color:var(--color-accent-amber)] ring-2 ring-[color:var(--color-page)]" />
+                  ) : null}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="w-56 rounded-xl border-[color:var(--color-hairline)] p-1.5 shadow-[var(--shadow-float)]">
                   <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onClick={() => setSavedOpen(true)}>
@@ -980,6 +986,12 @@ export function BookmarksApp() {
                     <LogOut size={15} />
                     {t("auth.signOut")}
                   </DropdownMenuItem>
+                  {syncHealth ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <SyncStatusLine health={syncHealth} />
+                    </>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

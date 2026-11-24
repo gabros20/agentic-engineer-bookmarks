@@ -180,6 +180,9 @@ export const messages = {
     "lang.en": "English",
     "lang.hu": "Magyar",
 
+    "sync.synced": "Synced {ago}",
+    "sync.staleHint": "New bookmarks aren't coming in — the sync on the Mac has stopped.",
+
     "time.justNow": "just now",
     "time.minutes": "{n}m ago",
     "time.hours": "{n}h ago",
@@ -403,6 +406,9 @@ export const messages = {
     "lang.label": "Nyelv",
     "lang.en": "English",
     "lang.hu": "Magyar",
+
+    "sync.synced": "Szinkronizálva: {ago}",
+    "sync.staleHint": "Nem érkeznek új könyvjelzők — leállt a szinkronizálás a Macen.",
 
     "time.justNow": "épp most",
     "time.minutes": "{n} perce",

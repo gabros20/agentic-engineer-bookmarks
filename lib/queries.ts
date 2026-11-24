@@ -24,11 +24,26 @@ export function makeQueryClient() {
 }
 
 export const queryKeys = {
+  syncStatus: ["sync-status"] as const,
   digests: ["digests"] as const,
   digest: (query: string) => ["digests", "by-query", normalize(query)] as const,
   chats: ["chats"] as const,
   chat: (id: string) => ["chats", id] as const,
 };
+
+/** When the bookmark sync last succeeded (app/api/sync-status). */
+export type SyncStatus = { syncedAt: string | null; count: number | null; publishedAt: string | null };
+
+async function fetchSyncStatus(): Promise<SyncStatus> {
+  const res = await fetch("/api/sync-status", { cache: "no-store" });
+  if (!res.ok) throw new Error(`sync status ${res.status}`);
+  return res.json();
+}
+
+/** Checked once per page load and again every 30 min while the tab stays open. */
+export function useSyncStatus() {
+  return useQuery({ queryKey: queryKeys.syncStatus, queryFn: fetchSyncStatus, staleTime: 30 * 60_000, refetchInterval: 30 * 60_000 });
+}
 
 export function useSavedDigests() {
   return useQuery({ queryKey: queryKeys.digests, queryFn: fetchSavedDigests });

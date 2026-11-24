@@ -36,6 +36,8 @@ import { getSessionCookie } from "better-auth/cookies";
 //  - /api/archive          the T8 archive proxy — the browser's data Web Worker fetches the
 //                          raw bookmark archive here; it runs its OWN `requireUser` gate and
 //                          must return a JSON 401 to the fetch() caller, not an HTML redirect.
+//  - /api/sync-status      when the bookmark sync last succeeded (the "Synced 2 h ago" line);
+//                          runs its OWN `requireUser` gate → JSON 401 for the fetch() caller.
 //  - /api/mcp             the MCP server — authenticated by an OAuth bearer token (requireMcpAuth),
 //                          not a cookie; a missing/invalid token must get the JSON-RPC 401 +
 //                          WWW-Authenticate challenge that starts the client's OAuth flow.
@@ -59,6 +61,7 @@ const ALLOW_PREFIXES = [
   "/api/migrate",
   "/api/expand",
   "/api/archive",
+  "/api/sync-status",
   "/api/mcp",
   "/.well-known",
 ];

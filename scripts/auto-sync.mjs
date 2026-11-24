@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Unattended bookmark sync — the autopilot around the SAME steps as `npm run sync`
 // (prepare-sync → xrelay archive → backfill-articles → sync-bge → upload-r2). launchd runs it every
-// hour + at login with --scheduled (`npm run autosync -- install`); by hand: `npm run autosync:run`.
+// hour, at each slot + at login with --scheduled (`npm run autosync -- install`); by hand: `npm run autosync:run`.
 //
 // Built to fix itself, because nobody is watching:
-//   • scheduling (lib/sync-state.mjs): a tick only RUNS when due — once a day from config.hour:minute,
-//     retried every config.retryHours after a failure (max config.maxAttemptsPerDay), a missed day is
-//     caught up at the next wake/login, offline ticks don't burn attempts. `autosync -- run` forces one.
+//   • scheduling (lib/sync-state.mjs): a tick only RUNS when due — at each daily slot (config.slots,
+//     default 11:00 + 14:00), retried every config.retryHours after a failure (max
+//     config.maxAttemptsPerDay), a missed slot is caught up at the next wake/login, offline ticks don't
+//     burn attempts. `autosync -- run` forces one.
 //   • atomic O_EXCL lock; `caffeinate` keeps the Mac awake for the run
 //   • preflight before touching data: disk space, network, X auth (xrelay whoami), Cloudflare token
 //     (API verify, not a 20-second `npx wrangler whoami`), account id auto-resolved + cached
@@ -19,6 +20,9 @@
 //   • failures classified (lib/sync-errors.mjs) → one notification per cause per day with the actual
 //     fix, only when retrying won't help or it's the day's last attempt; "no sync for N days" alert
 //   • branded clickable notifications + a status page (lib/notifier.mjs); runs.jsonl history
+//   • heartbeat: every success writes sync-status.json to R2 (even with no new bookmarks); the Worker's
+//     /sync-status → the app's /api/sync-status shows "Synced 2 h ago" and flags a sync that stopped,
+//     so a dead agent is visible from the site itself, not only from this Mac
 //
 // Flags: --scheduled (launchd tick) · --dry-run (preflight only) · --force-upload · --no-notify
 //        · --update-xrelay (check now) · --embed=rest|local
@@ -479,6 +483,22 @@ async function verifyPublish(env, version) {
   warn(`live Worker still answers ${served ?? "nothing"} instead of v${version} — is the latest Worker deployed? (npm run deploy:worker)`);
 }
 
+/** sync-status.json in R2: when this sync last succeeded. Written on every success, even when nothing
+ *  changed (the data itself is only re-published on change), so the site can tell "no new bookmarks"
+ *  from "the sync stopped". Best-effort: a failed heartbeat never fails the sync. */
+async function publishHeartbeat(env) {
+  const file = join(CONFIG_DIR, "sync-status.json");
+  const count = archiveStats().count;
+  writeFileSync(file, `${JSON.stringify({ syncedAt: new Date().toISOString(), count: count >= 0 ? count : null, slots: config.slots })}\n`);
+  const pinned = join(REPO_ROOT, "worker", "node_modules", ".bin", "wrangler");
+  const [cmd, pre] = existsSync(pinned) ? [pinned, []] : ["npx", ["--yes", "wrangler"]];
+  await step(
+    "heartbeat (sync-status.json → R2)",
+    () => run(cmd, [...pre, "r2", "object", "put", "bookmark-search-data/sync-status.json", "--file", file, "--content-type", "application/json", "--remote"], { timeoutMs: 2 * MIN, env }),
+    { fatal: false },
+  );
+}
+
 // ------------------------------------------------------------------ main
 
 async function main() {
@@ -546,8 +566,13 @@ async function main() {
 
   // Author threads of OLDER bookmarks: a gentle chunk per run until the backlog is done
   // (resumable — each checked post is stamped; a rate limit just ends the chunk early).
+  // Once a day, not per slot: two daily slots must not double the logged-in X lookups.
   const perRun = Number(config.threadBackfillPerRun ?? 300);
-  if (threads && perRun > 0) {
+  if (threads && perRun > 0 && state.threadsBacklogDay === localDay(now)) {
+    log("author threads backlog already ran today — skipped");
+  } else if (threads && perRun > 0) {
+    state.threadsBacklogDay = localDay(now);
+    saveState(STATE_PATH, state);
     const res = await step(
       `author threads backlog (≤${perRun} lookups)`,
       () => run("xrelay", ["archive", "repair", ARCHIVE, "--threads", "--limit", String(perRun), "--delay", "3000"], { timeoutMs: 35 * MIN, env }),
@@ -592,6 +617,7 @@ async function main() {
     log("live data already matches the local data — nothing to publish");
   }
 
+  await publishHeartbeat(env);
   record.ok = true;
   log(`done: +${record.added} (total ${record.after.count})${record.uploaded ? `, published v${record.version}` : ""}`);
 }

@@ -247,7 +247,7 @@ responses carry an `x-data-version` header). `npm run deploy:worker` is only for
 
 ### Autopilot: unattended sync with launchd
 
-Syncing runs on its own on macOS. A launchd agent ticks `scripts/auto-sync.mjs` every hour and at login; a tick only syncs when one is due — once a day from 14:00, retried every 2 h after a failure (up to 4 times), a missed day caught up as soon as the Mac is awake. It does the same steps as `npm run sync` with extra safety, because nobody is watching.
+Syncing runs on its own on macOS. A launchd agent ticks `scripts/auto-sync.mjs` every hour and at login; a tick only syncs when one is due — twice a day, at 11:00 and 14:00, retried every 2 h after a failure (up to 6 attempts a day), a missed slot caught up as soon as the Mac is awake. It does the same steps as `npm run sync` with extra safety, because nobody is watching.
 
 ```bash
 npm run autosync -- setup            # one-time (and to repair): xrelay, X auth, Cloudflare token, schedule,
@@ -260,7 +260,7 @@ npm run autosync -- logs             # latest run log
 npm run autosync -- notify-test      # test notification (and the one-time macOS permission prompt)
 npm run autosync -- set-token        # Cloudflare API token → login Keychain (or --env-file / --1password op://… / --op-service-account)
 npm run autosync -- set-cookies      # X cookies (auth_token + ct0) → env file, for a box without a logged-in browser
-npm run autosync -- install          # options: --hour 9 --minute 30 --notify changes|always|failure|never
+npm run autosync -- install          # options: --slots 11:00,14:00 --max-attempts 6 --notify changes|always|failure|never
                                      #   --browser chrome --account-id <cf-id> --worker-url <url> --site-url <url>
 npm run autosync -- uninstall
 npm run autosync:run -- --dry-run    # preflight only, in your terminal (also: --force-upload, --no-notify, --embed=local)
@@ -273,7 +273,9 @@ What the autopilot adds on top of `npm run sync`:
 - **Checks before touching data.** Disk space, network, X auth (`xrelay whoami`) and the Cloudflare token (verified via the API, ~1 s).
 - **Cloudflare auth from an env file, 1Password or the Keychain.** An API token that is never stored in the repo, from the first source that works: `CLOUDFLARE_API_TOKEN` in the environment or in `~/.config/xbookmarks-sync/env` (mode 600; it can also hold `XRELAY_COOKIES`), then `op read <op:// reference>` (1Password — via the app with Touch ID, or unattended through a service account whose token is kept in the Keychain), then the macOS Keychain (service `xbookmarks-sync`). The token needs *Workers R2 Storage: Edit*, *Workers AI: Read* and *Account Settings: Read*.
 - **Safe publishing.** The archive is backed up before the pull and restored if it would shrink (nothing is published). Data is published whenever it differs from what was **last published**, so a failed upload is retried. The publish is versioned: files go to `v/<hash>/…` and `manifest.json` is switched last, so the site never serves a half-uploaded mix; the run then confirms the live Worker serves the new version.
-- **History.** `~/Library/Logs/xbookmarks-sync/`: one log per run (last 30), `runs.jsonl`, `last-run.json`, `status.html`. Config and state live in `~/.config/xbookmarks-sync/`.
+- **History.** `~/.local/state/xbookmarks-sync/`: `runs.jsonl`, `last-run.json`, `status.html`, and `logs/` (one log per run, last 30, plus launchd's output). Not `~/Library/Logs`: Mac cleaners (CleanMyMac, `mo clean`) empty that folder. Config and state live in `~/.config/xbookmarks-sync/`.
+- **Visible from the site.** Every successful run writes a heartbeat (`sync-status.json` in R2); the app's menu shows "Synced 2 hours ago" and, after 3 days without a sync, an amber dot and a warning — so a stopped agent shows up even when it can't notify.
+- **If it stops entirely:** macOS lists the agent as **"node"** under System Settings → General → Login Items & Extensions → *Allow in the Background*. Switched off there, it never loads; `status`/`doctor` say so. Turn it back on, then `npm run autosync -- install`.
 
 #### Running it on a headless Mac mini
 

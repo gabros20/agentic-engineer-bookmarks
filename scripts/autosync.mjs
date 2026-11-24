@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Control the bookmark-sync autopilot: a per-user launchd agent that ticks scripts/auto-sync.mjs every
-// hour and at login (--scheduled); each tick decides whether a sync is due (daily slot, same-day
-// retries, missed-day catch-up — scripts/lib/sync-state.mjs). LaunchAgents load at login, so the
-// schedule survives restarts; missed ticks while asleep coalesce into one on wake.
+// hour, at each sync slot and at login (--scheduled); each tick decides whether a sync is due (daily
+// slots — default 11:00 + 14:00 —, same-day retries, missed-slot catch-up — scripts/lib/sync-state.mjs).
+// LaunchAgents load at login, so the schedule survives restarts; missed ticks while asleep coalesce
+// into one on wake. macOS lists the agent under Login Items → "Allow in the Background" as "node":
+// switched off there, it never loads (doctor + install say so).
 //
 //   npm run autosync -- setup            guided, idempotent first-time setup (+ re-run any time to repair)
 //   npm run autosync -- doctor           read-only health check: ✓/⚠/✖ per dependency, with the fix
@@ -11,7 +13,7 @@
 //   npm run autosync -- open             open the status page (also what clicking a notification does)
 //   npm run autosync -- notify-test      post a test notification (and trigger the macOS permission prompt)
 //   npm run autosync -- logs             print the latest run log
-//   npm run autosync -- install [--hour 14] [--minute 0] [--notify changes|always|failure|never]
+//   npm run autosync -- install [--slots 11:00,14:00] [--max-attempts 6] [--notify changes|always|failure|never]
 //                               [--browser chrome] [--account-id <cf-account>] [--worker-url <url>] [--site-url <url>]
 //   npm run autosync -- set-token        store the Cloudflare API token in the login Keychain, OR
 //                       set-token --env-file                       ~/.config/xbookmarks-sync/env (chmod 600; headless box)
@@ -26,6 +28,7 @@ import { dirname, join } from "node:path";
 
 import {
   CONFIG_PATH,
+  STATE_DIR,
   ENV_FILE_PATH,
   KEYCHAIN_OP_SA_ACCOUNT,
   KEYCHAIN_SERVICE,
@@ -49,7 +52,7 @@ import {
 } from "./lib/autosync-config.mjs";
 import { probeRest, resolveAccountId } from "./lib/embed-transport.mjs";
 import { APP_PATH, STATUS_PAGE, buildNotifierApp, notifierInstalled, notify } from "./lib/notifier.mjs";
-import { formatWhen, loadState, nextRunAt } from "./lib/sync-state.mjs";
+import { attemptsToday, describeSlots, formatSlot, formatWhen, loadState, nextRunAt, parseSlots, tickMinutes } from "./lib/sync-state.mjs";
 
 const [command = "status", ...rest] = process.argv.slice(2);
 const uid = process.getuid();
@@ -71,14 +74,14 @@ function xmlEscape(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const pad = (n) => String(n).padStart(2, "0");
-
-function plist({ node, minute }) {
+function plist({ node, config }) {
   // Real path of the node binary: version managers (fnm/nvm) hand shells a per-session symlink that
   // disappears; launchd needs the stable install path. Its bin dir also holds npm + global xrelay.
   const path = [dirname(node), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
-  // One tick per hour (cheap no-op unless a sync is due) + RunAtLoad for a catch-up at login.
-  const ticks = Array.from({ length: 24 }, (_, hour) => `    <dict><key>Hour</key><integer>${hour}</integer><key>Minute</key><integer>${minute}</integer></dict>`).join("\n");
+  // A tick every hour + at each slot (cheap no-op unless a sync is due) + RunAtLoad for a catch-up at login.
+  const ticks = tickMinutes(config)
+    .map((m) => `    <dict><key>Hour</key><integer>${Math.floor(m / 60)}</integer><key>Minute</key><integer>${m % 60}</integer></dict>`)
+    .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -110,19 +113,23 @@ ${ticks}
 `;
 }
 
+/** Opens System Settings at Login Items & Extensions (only shows the pane; changes nothing). */
+const LOGIN_ITEMS_PANE = "x-apple.systempreferences:com.apple.LoginItems-Settings.extension";
+const BLOCKED_HINT =
+  'macOS is blocking it: System Settings → General → Login Items & Extensions → "Allow in the Background" → turn on "node" (that is this sync), then run: npm run autosync -- install';
+
 function install() {
   const config = loadConfig();
-  const hour = flag("hour") !== undefined ? Number(flag("hour")) : config.hour;
-  const minute = flag("minute") !== undefined ? Number(flag("minute")) : config.minute;
-  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
-    throw new Error("--hour must be 0-23 and --minute 0-59");
-  }
+  const slots = flag("slots") !== undefined ? flag("slots").split(",").map((s) => s.trim()).filter(Boolean) : config.slots;
+  parseSlots(slots); // throws on a malformed slot
+  const maxAttempts = flag("max-attempts") !== undefined ? Number(flag("max-attempts")) : config.maxAttemptsPerDay;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < slots.length) throw new Error(`--max-attempts must be a whole number ≥ the number of slots (${slots.length})`);
   const notifyMode = flag("notify") ?? config.notify;
   if (!["always", "changes", "failure", "never"].includes(notifyMode)) throw new Error("--notify: always|changes|failure|never");
   const next = {
     ...config,
-    hour,
-    minute,
+    slots: parseSlots(slots).map(formatSlot),
+    maxAttemptsPerDay: maxAttempts,
     notify: notifyMode,
     xrelayBrowser: flag("browser") ?? config.xrelayBrowser,
     cloudflareAccountId: flag("account-id") ?? config.cloudflareAccountId,
@@ -135,15 +142,18 @@ function install() {
   console.log(built.ok ? `✓ notifier app  ${APP_PATH}` : `! notifier app could not be built (${built.error}) — falling back to plain notifications`);
 
   const node = realpathSync(process.execPath);
-  mkdirSync(LOG_DIR, { recursive: true });
+  mkdirSync(LOG_DIR, { recursive: true }); // launchd writes its stdout/stderr here and won't create the folder
   mkdirSync(dirname(PLIST_PATH), { recursive: true });
-  writeFileSync(PLIST_PATH, plist({ node, minute }));
+  writeFileSync(PLIST_PATH, plist({ node, config: next }));
 
   launchctl("bootout", service); // ignore "not loaded"
   const res = launchctl("bootstrap", domain, PLIST_PATH);
-  if (res.status !== 0) throw new Error(`launchctl bootstrap failed: ${(res.stderr || res.stdout).trim()}`);
+  if (res.status !== 0 || launchctl("print", service).status !== 0) {
+    spawnSync("/usr/bin/open", [LOGIN_ITEMS_PANE]);
+    throw new Error(`the agent did not load (${(res.stderr || res.stdout).trim() || "not running after bootstrap"}).\n  ${BLOCKED_HINT}`);
+  }
 
-  console.log(`✓ installed ${LABEL}: syncs daily from ${pad(hour)}:${pad(minute)} (hourly checks, same-day retries, catch-up at login)`);
+  console.log(`✓ installed ${LABEL}: syncs daily at ${describeSlots(next)} (hourly checks, same-day retries, catch-up at login)`);
   console.log(`  node   ${node}`);
   console.log(`  plist  ${PLIST_PATH}`);
   console.log(`  config ${CONFIG_PATH}`);
@@ -155,7 +165,7 @@ function install() {
 function uninstall() {
   launchctl("bootout", service);
   if (existsSync(PLIST_PATH)) rmSync(PLIST_PATH);
-  console.log(`✓ removed ${LABEL} (config ${CONFIG_PATH}, logs ${LOG_DIR} and ${APP_PATH} kept)`);
+  console.log(`✓ removed ${LABEL} (config ${CONFIG_PATH}, history + logs ${STATE_DIR} and ${APP_PATH} kept)`);
 }
 
 const TOKEN_HELP =
@@ -292,14 +302,14 @@ function status() {
   const state = loadState(STATE_PATH);
   const installed = existsSync(PLIST_PATH);
   console.log(`Autopilot    ${installed ? "installed" : "NOT installed — run: npm run autosync -- setup"} (${LABEL})`);
-  console.log(`Schedule     daily from ${pad(config.hour)}:${pad(config.minute)} · retries every ${config.retryHours} h (max ${config.maxAttemptsPerDay}/day) · notify: ${config.notify}`);
+  console.log(`Schedule     daily at ${describeSlots(config)} · retries every ${config.retryHours} h (max ${config.maxAttemptsPerDay}/day) · notify: ${config.notify}`);
   if (installed) {
     const printed = launchctl("print", service);
     if (printed.status === 0) {
       const pick = (key) => printed.stdout.match(new RegExp(`\\n\\s*${key} = ([^\\n]+)`))?.[1]?.trim();
       console.log(`Agent        loaded · state ${pick("state") ?? "?"} · last exit ${pick("last exit code") ?? "n/a"}`);
     } else {
-      console.log("Agent        plist present but NOT loaded — run: npm run autosync -- install");
+      console.log(`Agent        plist present but NOT loaded — ${BLOCKED_HINT}`);
     }
     const plistText = readFileSync(PLIST_PATH, "utf8");
     const node = plistText.match(/<array>\s*<string>([^<]+)<\/string>/)?.[1];
@@ -307,7 +317,7 @@ function status() {
     if (!plistText.includes("--scheduled")) console.log("! old single-daily schedule — upgrade: npm run autosync -- install");
   }
   console.log(`Last success ${ago(state.lastSuccessAt)}${state.consecutiveFailures ? ` · ${state.consecutiveFailures} failed attempt(s) since` : ""}`);
-  console.log(`Next attempt ${formatWhen(nextRunAt(state, config))} · attempts today ${state.attemptsToday ?? 0}/${config.maxAttemptsPerDay}`);
+  console.log(`Next attempt ${formatWhen(nextRunAt(state, config))} · attempts today ${attemptsToday(state)}/${config.maxAttemptsPerDay}`);
   if (state.lastFailure) console.log(`Last failure [${state.lastFailure.code}] ${state.lastFailure.title} — ${state.lastFailure.hint}`);
   if (state.lastUploaded) console.log(`Live data    v${state.lastUploaded.version ?? "?"} · published ${ago(state.lastUploaded.at)}`);
   // Describe the token source without reading it (an op read could trigger a Touch ID prompt).
@@ -376,10 +386,11 @@ async function runChecks() {
     const loaded = launchctl("print", service).status === 0;
     const text = readFileSync(PLIST_PATH, "utf8");
     const node = text.match(/<array>\s*<string>([^<]+)<\/string>/)?.[1];
-    if (!loaded) add("error", "Schedule", "agent installed but not loaded", "npm run autosync -- install");
+    if (!loaded) add("error", "Schedule", "agent installed but not loaded — macOS doesn't run it", BLOCKED_HINT);
     else if (node && !existsSync(node)) add("error", "Schedule", `node binary gone (${node})`, "npm run autosync -- install");
     else if (!text.includes("--scheduled")) add("warn", "Schedule", "old once-a-day schedule (no retries/catch-up)", "npm run autosync -- install");
-    else add("ok", "Schedule", `hourly checks, daily from ${pad(config.hour)}:${pad(config.minute)}`);
+    else if (!slotMinutesInPlist(text, config)) add("warn", "Schedule", `the agent's wake-up times predate the ${describeSlots(config)} slots`, "npm run autosync -- install");
+    else add("ok", "Schedule", `daily at ${describeSlots(config)}, hourly checks for retries/catch-up`);
   }
 
   // xrelay + X auth
@@ -452,6 +463,11 @@ async function runChecks() {
     add(days < config.staleDays ? "ok" : "error", "Last sync", detail, days < config.staleDays ? undefined : state.lastFailure?.hint);
   }
   return results;
+}
+
+/** Every slot has a matching launchd wake-up in the installed plist. */
+function slotMinutesInPlist(text, config) {
+  return tickMinutes(config).every((m) => text.includes(`<key>Hour</key><integer>${Math.floor(m / 60)}</integer><key>Minute</key><integer>${m % 60}</integer>`));
 }
 
 function printChecks(results) {

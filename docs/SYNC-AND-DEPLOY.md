@@ -75,11 +75,27 @@ when macOS asks) and runs the health check. Then `npm run autosync -- run` for t
 with the fix) · `open` (status page — also what clicking any notification opens) · `run` (sync now,
 ignoring the schedule once) · `logs` · `notify-test`.
 
-- **Schedule:** launchd ticks every hour (at the configured minute) and at login; each tick is a no-op
-  unless a sync is due (`scripts/lib/sync-state.mjs`): once a day from `hour:minute` (default 14:00), a
-  failed run retried every `retryHours` (2) up to `maxAttemptsPerDay` (4), a missed day (Mac off/asleep)
-  caught up at the next tick, offline ticks retried hourly without using attempts. `caffeinate` keeps the
-  Mac awake during a run. State: `~/.config/xbookmarks-sync/state.json`; history: `runs.jsonl` in the logs dir.
+- **Schedule:** launchd ticks every hour, at each slot and at login; each tick is a no-op unless a sync is
+  due (`scripts/lib/sync-state.mjs`): at each daily slot in `slots` (default `["11:00","14:00"]`; change with
+  `install --slots 11:00,14:00`), a failed run retried every `retryHours` (2) up to `maxAttemptsPerDay` (6,
+  slot runs included), a missed slot (Mac off/asleep) caught up at the next tick, offline ticks retried
+  hourly without using attempts. A success up to 90 min before a slot (at most half the gap between slots)
+  counts for it, so a login catch-up at 10:40 doesn't trigger another run at 11:00. The author-threads
+  backlog runs once a day, not per slot. `caffeinate` keeps the Mac awake during a run. A pre-slots config
+  (`hour`/`minute`) reads as one slot. State: `~/.config/xbookmarks-sync/state.json`.
+- **History + logs:** `~/.local/state/xbookmarks-sync/` — `runs.jsonl`, `last-run.json`, `status.html`,
+  `logs/` (per-run logs + launchd stdout/stderr). They used to live in `~/Library/Logs`, which Mac cleaners
+  empty (CleanMyMac Smart Scan truncated the logs and deleted the status page; `mo clean` removed the
+  whole folder, run history included).
+- **Heartbeat → the site:** every success writes `sync-status.json` (`syncedAt`, `count`) to R2, even when
+  nothing changed. The Worker's secret-gated `GET /sync-status` (+ the manifest's `publishedAt`) → the
+  session-gated `/api/sync-status` → the menu line "Synced 2 hours ago"; after 3 days an amber dot on the
+  menu + a warning. This is the alarm that still works when the agent itself isn't running.
+- **Agent not loaded** (`status`/`doctor`: "macOS is blocking it"): macOS lists the agent as **"node"**
+  under System Settings → General → Login Items & Extensions → *Allow in the Background*; switched off
+  there, launchd never loads it (Nov 2026: off for 5 days, unnoticed). Turn it on, then
+  `npm run autosync -- install` (which opens that settings pane when the load fails). It stays "node"
+  rather than a branded wrapper on purpose: the Documents (TCC) grant belongs to the node binary.
 - **Notifications** come from `~/Applications/X Bookmarks Sync.app` (own name + icon). Success: "+N new
   bookmarks". Failures are classified (`scripts/lib/sync-errors.mjs`) and name the fix; retryable ones stay
   quiet until the day's last attempt, auth problems notify at once, one per cause per day; "No bookmark sync

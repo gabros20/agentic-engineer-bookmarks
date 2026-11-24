@@ -5,26 +5,30 @@
 // Sync.app — with the X Bookmarks icon (scripts/assets/sync-icon.png). The sync writes the message
 // to notify.json and launches the applet, which posts it AS ITSELF (name + icon) and quits.
 // Clicking a notification relaunches the applet with no pending message, so it opens the status
-// page (status.html, regenerated after every run). If the applet is missing, it falls back to
-// plain osascript.
+// page (status.html in ~/.local/state/xbookmarks-sync, regenerated after every run; its path is
+// baked into the applet at build time). If the applet is missing, it falls back to plain osascript.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CONFIG_DIR, LOG_DIR, REPO_ROOT } from "./autosync-config.mjs";
+import { CONFIG_DIR, REPO_ROOT, STATE_DIR } from "./autosync-config.mjs";
+import { attemptsToday, describeSlots } from "./sync-state.mjs";
 
 export const APP_NAME = "X Bookmarks Sync";
 export const APP_PATH = join(homedir(), "Applications", `${APP_NAME}.app`);
 export const APP_BUNDLE_ID = "com.xbookmarks.sync.notifier";
 export const NOTIFY_PAYLOAD = join(CONFIG_DIR, "notify.json");
-export const STATUS_PAGE = join(LOG_DIR, "status.html");
+export const STATUS_PAGE = join(STATE_DIR, "status.html");
 const ICON_PNG = join(REPO_ROOT, "scripts", "assets", "sync-icon.png");
 
+const appleString = (s) => `"${String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
 const APPLET_SOURCE = `
+property statusPath : ${appleString(STATUS_PAGE)}
+
 on run
 	set payloadPath to POSIX path of (path to home folder) & ".config/xbookmarks-sync/notify.json"
-	set statusPath to POSIX path of (path to home folder) & "Library/Logs/xbookmarks-sync/status.html"
 	set hasPayload to false
 	try
 		do shell script "test -s " & quoted form of payloadPath
@@ -43,7 +47,7 @@ on run
 end run
 
 on reopen
-	my openStatus(POSIX path of (path to home folder) & "Library/Logs/xbookmarks-sync/status.html")
+	my openStatus(statusPath)
 end reopen
 
 on openStatus(statusPath)
@@ -171,7 +175,7 @@ ${failure ? `<div class="fix" style="margin-top:14px"><b>${escapeHtml(failure.ti
 <div class="card grid">
 <div><div class="k">Last successful sync</div><div class="v">${escapeHtml(ago(state.lastSuccessAt))}</div></div>
 <div><div class="k">Next attempt</div><div class="v">${escapeHtml(nextAttempt)}</div></div>
-<div><div class="k">Attempts today</div><div class="v">${state.attemptsToday ?? 0} / ${config.maxAttemptsPerDay}</div></div>
+<div><div class="k">Attempts today</div><div class="v">${attemptsToday(state)} / ${config.maxAttemptsPerDay}</div></div>
 <div><div class="k">Live data version</div><div class="v">${escapeHtml(state.lastUploaded?.version ?? "—")}</div></div>
 </div>
 <div class="card"><div class="k">Run it now</div><p style="margin:6px 0"><code>npm run autosync -- run</code> <button onclick="navigator.clipboard.writeText('npm run autosync -- run')">Copy</button> &nbsp; Health check: <code>npm run autosync -- doctor</code></p>
@@ -179,7 +183,7 @@ ${config.siteUrl ? `<p style="margin:6px 0"><a href="${escapeHtml(config.siteUrl
 <div class="card"><div class="k">Recent runs</div><table>${rows || '<tr><td class="muted">No runs yet</td></tr>'}</table></div>
 ${logTail ? `<div class="card"><div class="k">Latest log</div><pre>${escapeHtml(logTail)}</pre></div>` : ""}
 </main></body></html>`;
-  mkdirSync(LOG_DIR, { recursive: true });
+  mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(STATUS_PAGE, html);
 }
 
@@ -188,7 +192,7 @@ export function computeHealth(state, config, now = Date.now()) {
   const lastSuccess = state.lastSuccessAt ? Date.parse(state.lastSuccessAt) : null;
   const ageDays = lastSuccess ? (now - lastSuccess) / 86_400_000 : Infinity;
   if (state.consecutiveFailures === 0 && ageDays < 2) {
-    return { level: "ok", summary: `Synced ${ago(state.lastSuccessAt, now)}. Runs daily at ${String(config.hour).padStart(2, "0")}:${String(config.minute).padStart(2, "0")}, retries on its own.` };
+    return { level: "ok", summary: `Synced ${ago(state.lastSuccessAt, now)}. Runs daily at ${describeSlots(config)}, retries on its own.` };
   }
   if (ageDays >= config.staleDays || state.lastFailure?.retryable === false) {
     return { level: "error", summary: lastSuccess ? `No successful sync for ${Math.floor(ageDays)} day(s).` : "No successful sync yet." };

@@ -87,7 +87,7 @@ type LoadedData = {
   keywordIndex: lunr.Index;
 };
 
-type Manifest = { version: string; files: Record<string, string> };
+type Manifest = { version: string; files: Record<string, string>; publishedAt?: string };
 type DataCache = { data: LoadedData; version: string; manifestEtag: string | null; checkedAt: number };
 
 const MANIFEST_KEY = "manifest.json";
@@ -438,9 +438,35 @@ async function handleArchive(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// GET /sync-status — when the Mac's sync autopilot last succeeded (sync-status.json, written on every
+// successful run, even one with no new bookmarks) and when the live search data was published (the
+// manifest). Lets the app show "Synced 2 h ago" and flag a sync that silently stopped. Same
+// X-Proxy-Secret gate as /search and /archive; only timestamps + a count leave the bucket.
+async function handleSyncStatus(request: Request, env: Env): Promise<Response> {
+  if (!env.SEARCH_PROXY_SECRET || request.headers.get("X-Proxy-Secret") !== env.SEARCH_PROXY_SECRET) {
+    return json({ error: "unauthorized" }, 401);
+  }
+  const headers = { ...CORS_HEADERS, "cache-control": "no-store" };
+  if (!env.SEARCH_DATA) return json({ syncedAt: null, count: null, publishedAt: null }, 200, headers);
+  try {
+    const [status, manifest] = await Promise.all([env.SEARCH_DATA.get("sync-status.json"), env.SEARCH_DATA.get(MANIFEST_KEY)]);
+    const sync = status ? await status.json<{ syncedAt?: string; count?: number }>().catch(() => null) : null;
+    const live = manifest ? await manifest.json<Manifest>().catch(() => null) : null;
+    return json({ syncedAt: sync?.syncedAt ?? null, count: sync?.count ?? null, publishedAt: live?.publishedAt ?? null }, 200, headers);
+  } catch (err) {
+    console.error("sync-status failed:", err);
+    return json({ error: "sync-status failed" }, 500);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/sync-status") {
+      if (request.method === "GET") return handleSyncStatus(request, env);
+      return json({ error: "method not allowed" }, 405);
+    }
 
     if (url.pathname === "/search") {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -476,6 +502,6 @@ export default {
       }
     }
 
-    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "GET /archive", "POST /embed"] }, 200);
+    return json({ ok: true, routes: ["POST /search", "OPTIONS /search", "GET /archive", "GET /sync-status", "POST /embed"] }, 200);
   },
 };

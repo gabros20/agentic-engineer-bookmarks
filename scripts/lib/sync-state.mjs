@@ -1,17 +1,20 @@
 // Persistent autopilot state (~/.config/xbookmarks-sync/state.json) + the pure "should this tick
 // run?" decision, the O_EXCL run lock, and the run history (runs.jsonl).
 //
-// launchd fires the job every hour (and at login). Each tick asks shouldRun():
-//   • already synced today                       → skip
-//   • before today's slot (config.hour:minute)   → skip, unless the last success is > 26h old
-//                                                  (the Mac was off/asleep yesterday — catch up now)
-//   • out of attempts for today                  → skip (max config.maxAttemptsPerDay)
-//   • too soon after a failed attempt            → skip (config.retryHours; offline: next tick)
-//   • otherwise                                  → run
+// The day has sync SLOTS (config.slots, local "HH:MM", default 11:00 + 14:00). launchd fires the
+// job every hour, at each slot and at login. Each tick asks shouldRun() about the most recent slot
+// at or before now — today's, or before today's first slot, yesterday's last:
+//   • a sync succeeded since that slot (or just before it) → skip
+//   • out of attempts for today                            → skip (max config.maxAttemptsPerDay)
+//   • too soon after a failed attempt                      → skip (config.retryHours; offline: next tick)
+//   • otherwise                                            → run (a missed slot is caught up at the
+//                                                            next tick the Mac is awake)
 // A manual `npm run autosync -- run` sets a one-shot force marker that bypasses all of this.
 import { closeSync, existsSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 
 const HOUR = 3_600_000;
+const MINUTE = 60_000;
+const DAY_MINUTES = 24 * 60;
 
 export const EMPTY_STATE = {
   day: null, // local YYYY-MM-DD the attempt counter belongs to
@@ -23,9 +26,62 @@ export const EMPTY_STATE = {
   lastFailure: null, // { code, title, message, at }
   lastUploaded: null, // { fingerprint, version, at }
   lastXrelayCheckAt: null,
+  threadsBacklogDay: null, // local day the author-threads backlog last ran (once a day, not per slot)
   notified: {}, // { "<code>:<day>": true } — one failure notification per cause per day
   staleNotifiedAt: null,
 };
+
+// ------------------------------------------------------------------ slots
+
+/** "HH:MM" strings → sorted, de-duplicated minutes after midnight. Throws on a malformed slot. */
+export function parseSlots(slots) {
+  const minutes = slots.map((slot) => {
+    const m = String(slot).trim().match(/^(\d{1,2}):(\d{2})$/);
+    const value = m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw new Error(`invalid sync slot "${slot}" — use HH:MM, e.g. 11:00`);
+    return value;
+  });
+  if (!minutes.length) throw new Error("at least one sync slot is needed");
+  return [...new Set(minutes)].sort((a, b) => a - b);
+}
+
+/** The config's slots as minutes; a pre-slots config ({ hour, minute }) is one daily slot. */
+export function slotMinutes(config) {
+  if (Array.isArray(config.slots) && config.slots.length) return parseSlots(config.slots);
+  return [(config.hour ?? 14) * 60 + (config.minute ?? 0)];
+}
+
+export const formatSlot = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** "11:00 and 14:00" */
+export function describeSlots(config) {
+  const labels = slotMinutes(config).map(formatSlot);
+  return labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+}
+
+function atMinutes(date, minutes) {
+  const d = new Date(date);
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return d;
+}
+
+/** The most recent slot instant at or before `now`: today's, or yesterday's last before today's first. */
+export function lastSlotAt(slots, now) {
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const today = slots.filter((s) => s <= mins);
+  if (today.length) return atMinutes(now, today.at(-1));
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return atMinutes(yesterday, slots.at(-1));
+}
+
+/** How long before a slot a success still counts for it — a login catch-up at 10:40 covers 11:00, a
+ *  13:20 retry covers 14:00. Half the shortest gap between slots (so one run never covers two), ≤ 90 min. */
+export function slotGraceMs(slots) {
+  if (slots.length === 1) return 90 * MINUTE;
+  const gaps = slots.map((s, i) => (i === 0 ? s + DAY_MINUTES - slots.at(-1) : s - slots[i - 1]));
+  return Math.min(90, Math.floor(Math.min(...gaps) / 2)) * MINUTE;
+}
 
 export function localDay(date) {
   const d = new Date(date);
@@ -56,41 +112,55 @@ export function rollDay(state, now) {
   return state;
 }
 
+/** Attempts counted against today (the stored counter belongs to `state.day`). */
+export function attemptsToday(state, now = new Date()) {
+  return state.day === localDay(now) ? state.attemptsToday : 0;
+}
+
 /**
- * Pure scheduling decision. `now` is a Date; config has hour, minute, maxAttemptsPerDay, retryHours.
+ * Pure scheduling decision. `now` is a Date; config has slots, maxAttemptsPerDay, retryHours.
  * Returns { run, reason }.
  */
 export function shouldRun(state, config, now) {
-  const today = localDay(now);
-  const attempts = state.day === today ? state.attemptsToday : 0;
+  const slots = slotMinutes(config);
+  const due = lastSlotAt(slots, now);
   const lastSuccess = state.lastSuccessAt ? new Date(state.lastSuccessAt) : null;
+  const label = formatSlot(due.getHours() * 60 + due.getMinutes());
 
-  if (lastSuccess && localDay(lastSuccess) === today) return { run: false, reason: "already synced today" };
+  if (lastSuccess && lastSuccess.getTime() >= due.getTime() - slotGraceMs(slots)) {
+    return { run: false, reason: `up to date for the ${label} slot` };
+  }
 
-  const slot = new Date(now);
-  slot.setHours(config.hour, config.minute, 0, 0);
-  const overdue = !lastSuccess || now - lastSuccess > 26 * HOUR;
-  if (now < slot && !overdue) return { run: false, reason: `waiting for today's ${String(config.hour).padStart(2, "0")}:${String(config.minute).padStart(2, "0")} slot` };
-
+  const attempts = attemptsToday(state, now);
   if (attempts >= config.maxAttemptsPerDay) return { run: false, reason: `gave up for today after ${attempts} attempts` };
 
   if (state.lastAttemptAt && state.lastAttemptCode) {
     // Offline: try again on the very next tick. Anything else: wait retryHours between attempts.
     const spacing = state.lastAttemptCode === "OFFLINE" ? 0.75 * HOUR : config.retryHours * HOUR;
     const since = now - new Date(state.lastAttemptAt);
-    if (since < spacing) return { run: false, reason: `retrying ${Math.ceil((spacing - since) / 60_000)} min after the last failure` };
+    if (since < spacing) return { run: false, reason: `retrying ${Math.ceil((spacing - since) / MINUTE)} min after the last failure` };
   }
-  return { run: true, reason: overdue && now < slot ? "catching up a missed day" : "due" };
+  return { run: true, reason: localDay(due) === localDay(now) ? `due (${label} slot)` : `catching up yesterday's ${label} slot` };
 }
 
-/** When the next scheduled (hourly, at config.minute) tick would actually run, or null within 3 days. */
+/** launchd's wake-up times: every hour on the hour plus each slot (minutes after midnight). */
+export function tickMinutes(config) {
+  const hourly = Array.from({ length: 24 }, (_, h) => h * 60);
+  return [...new Set([...hourly, ...slotMinutes(config)])].sort((a, b) => a - b);
+}
+
+/** When the next launchd tick would actually run a sync, or null within 3 days. */
 export function nextRunAt(state, config, from = new Date()) {
-  const tick = new Date(from);
-  tick.setMinutes(config.minute, 0, 0);
-  if (tick <= from) tick.setTime(tick.getTime() + HOUR);
-  for (let i = 0; i < 72; i += 1, tick.setTime(tick.getTime() + HOUR)) {
-    const simulated = rollDay(structuredClone(state), tick);
-    if (shouldRun(simulated, config, tick).run) return new Date(tick);
+  const ticks = tickMinutes(config);
+  for (let day = 0; day < 3; day += 1) {
+    const date = new Date(from);
+    date.setDate(date.getDate() + day);
+    for (const minutes of ticks) {
+      const tick = atMinutes(date, minutes);
+      if (tick <= from) continue;
+      const simulated = rollDay(structuredClone(state), tick);
+      if (shouldRun(simulated, config, tick).run) return tick;
+    }
   }
   return null;
 }
