@@ -199,7 +199,7 @@ function CarouselButton({
       onClick={onClick}
       tabIndex={hidden ? -1 : 0}
       className={cn(
-        "absolute top-1/2 grid size-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-[color:var(--color-canvas)]/90 text-[color:var(--color-ink)] shadow-[var(--shadow-float)] ring-1 ring-[color:var(--color-hairline)] backdrop-blur transition duration-200 hover:scale-105 [@media(hover:none)]:hidden",
+        "absolute top-1/2 grid size-10 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-[color:var(--color-canvas)]/90 text-[color:var(--color-ink)] shadow-[var(--shadow-float)] ring-1 ring-[color:var(--color-hairline)] backdrop-blur transition duration-200 hover:scale-105 [@media(hover:none)]:hidden",
         side === "left" ? "left-3 sm:left-5" : "right-3 sm:right-5",
         hidden ? "pointer-events-none opacity-0" : "opacity-0 group-hover/media:opacity-100 focus-visible:opacity-100",
       )}

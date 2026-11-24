@@ -48,10 +48,12 @@ type Props = {
   initialMessages?: UIMessage[];
   /** When set, this prompt is auto-sent once on mount as the first user message. */
   initialPrompt?: string;
+  /** Language a saved chat was written in (history mode); defaults to the UI language. */
+  language?: "en" | "hu";
   onClose: () => void;
 };
 
-export function ChatPanel({ context, runSearch, getBookmark, initialMessages, initialPrompt, onClose }: Props) {
+export function ChatPanel({ context, runSearch, getBookmark, initialMessages, initialPrompt, language, onClose }: Props) {
   const { t, lang } = useLanguage();
   const isHistory = !!initialMessages;
 
@@ -169,7 +171,7 @@ export function ChatPanel({ context, runSearch, getBookmark, initialMessages, in
               <Welcome query={query} count={context?.sources.length ?? 0} onPick={send} />
             </div>
           ) : (
-            <Conversation>
+            <Conversation lang={language ?? lang}>
               <ConversationContent>
                 {messages.map((message, index) => {
                   const last = index === messages.length - 1;
@@ -257,7 +259,7 @@ function UserMessage({ message }: { message: UIMessage }) {
     <motion.div
       initial={{ opacity: 0, y: reduce ? 0 : 8 }}
       animate={{ opacity: 1, y: 0, transition: enter }}
-      className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-[color:var(--color-surface-card)] px-4 py-2.5 text-[15px] leading-[1.5] text-[color:var(--color-ink)]"
+      className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-[20px] rounded-br-md bg-[color:var(--color-surface-card)] px-4 py-2.5 text-[16px] leading-[1.5] text-[color:var(--color-ink)] sm:text-[17px]"
     >
       {answerText(message)}
     </motion.div>

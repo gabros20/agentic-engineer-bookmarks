@@ -189,6 +189,7 @@ export function BookmarksApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryMessages, setChatHistoryMessages] = useState<UIMessage[] | null>(null);
+  const [chatHistoryLang, setChatHistoryLang] = useState<SavedChat["language"] | null>(null);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | null>(null);
   // T6: the previously-generated digest for the current query, fetched from the DB to enrich
   // the chat's context block. Replaces the old synchronous localStorage getDigest() lookup.
@@ -867,7 +868,7 @@ export function BookmarksApp() {
                 transition (compositor-only, no remount). Bound to the same query as the hero. */}
             <div
               aria-hidden={!condensed}
-              className={`absolute left-[3.25rem] right-[5.75rem] top-[calc(50%-1.375rem)] h-11 transition-[opacity,translate,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:left-1/2 sm:right-auto sm:top-[calc(50%-1.5rem)] sm:h-12 sm:w-[min(40rem,46vw)] sm:-translate-x-1/2 ${
+              className={`absolute left-[3.25rem] right-[6.5rem] top-[calc(50%-1.375rem)] h-11 transition-[opacity,translate,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:left-1/2 sm:right-auto sm:top-[calc(50%-1.5rem)] sm:h-12 sm:w-[min(40rem,46vw)] sm:-translate-x-1/2 ${
                 condensed ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-2 scale-[0.97] opacity-0"
               }`}
             >
@@ -902,7 +903,7 @@ export function BookmarksApp() {
                       floatingRef.current?.focus();
                     }}
                     aria-label={t("search.clear")}
-                    className="grid size-8 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
+                    className="touch-target relative grid size-8 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)]"
                   >
                     <XIcon size={15} />
                   </button>
@@ -923,11 +924,13 @@ export function BookmarksApp() {
                 onTouchStart={() => void loadChat()}
                 title={t("chat.openHint")}
                 aria-label={t("nav.ask")}
-                className={`flex h-9 items-center gap-1.5 rounded-full bg-[color:var(--color-primary)] pl-3 pr-3.5 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] ${
-                  condensed ? "max-sm:px-2.5" : ""
+                // Condensed on a phone it drops its label and becomes a 40px circle (44px hit area),
+                // the same size as the menu button next to it.
+                className={`touch-target relative flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[color:var(--color-primary)] pl-3.5 pr-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] ${
+                  condensed ? "max-sm:w-10 max-sm:px-0" : ""
                 }`}
               >
-                <Sparkles size={14} />
+                <Sparkles size={16} className="shrink-0" />
                 <span className={condensed ? "max-sm:hidden" : undefined}>{t("nav.ask")}</span>
                 <kbd className="ml-0.5 hidden rounded bg-[color:var(--color-on-primary)]/15 px-1.5 py-px font-mono text-[10px] lg:inline">⌘K</kbd>
               </motion.button>
@@ -940,8 +943,8 @@ export function BookmarksApp() {
               </HeaderIconButton>
 
               <DropdownMenu>
-                <DropdownMenuTrigger aria-label={t("nav.menu")} className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] data-popup-open:bg-[color:var(--color-surface-cream-strong)]">
-                  <MoreHorizontal size={18} />
+                <DropdownMenuTrigger aria-label={t("nav.menu")} className="touch-target relative grid size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] outline-none transition hover:bg-[color:var(--color-surface-cream-strong)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-ink)] data-popup-open:bg-[color:var(--color-surface-cream-strong)]">
+                  <MoreHorizontal size={20} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="w-56 rounded-xl border-[color:var(--color-hairline)] p-1.5 shadow-[var(--shadow-float)]">
                   <DropdownMenuItem className="gap-2.5 rounded-lg py-2 sm:hidden" onClick={() => setSavedOpen(true)}>
@@ -1023,7 +1026,7 @@ export function BookmarksApp() {
                       searchRef.current?.focus();
                     }}
                     aria-label={t("search.clear")}
-                    className="grid size-9 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition hover:bg-[color:var(--color-surface-cream-strong)]"
+                    className="touch-target relative grid size-10 shrink-0 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition hover:bg-[color:var(--color-surface-cream-strong)]"
                   >
                     <XIcon size={16} />
                   </motion.button>
@@ -1267,6 +1270,7 @@ export function BookmarksApp() {
               runSearch={runChatSearch}
               getBookmark={getChatBookmark}
               initialMessages={chatHistoryMessages ?? undefined}
+              language={chatHistoryMessages ? (chatHistoryLang ?? undefined) : undefined}
               initialPrompt={chatInitialPrompt ?? undefined}
               onClose={() => {
                 setChatOpen(false);
@@ -1283,6 +1287,7 @@ export function BookmarksApp() {
               onClose={() => setChatHistoryOpen(false)}
               onOpenChat={(saved) => {
                 setChatHistoryMessages(saved.messages as UIMessage[]);
+                setChatHistoryLang(saved.language);
                 setChatHistoryOpen(false);
                 setChatOpen(true);
               }}
@@ -1303,7 +1308,7 @@ export function BookmarksApp() {
               whileTap={{ scale: 0.92 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
-              className="fixed right-4 z-30 grid size-11 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[var(--shadow-float)] transition-colors hover:bg-[color:var(--color-primary-active)] sm:right-6"
+              className="fixed right-4 z-30 grid size-11 shrink-0 place-items-center rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] shadow-[var(--shadow-float)] transition-colors hover:bg-[color:var(--color-primary-active)] sm:right-6"
             >
               <ArrowUp size={18} />
             </motion.button>
@@ -1373,7 +1378,7 @@ function HeaderIconButton({
       aria-label={count ? `${label} (${count})` : label}
       title={label}
       onClick={onClick}
-      className={`relative size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)] ${className ?? "grid"}`}
+      className={`relative size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-cream-strong)] ${className ?? "grid"}`}
     >
       {children}
       {count ? (

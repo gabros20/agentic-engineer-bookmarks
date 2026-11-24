@@ -106,7 +106,7 @@ export function SavedRow({
           aria-label={deleteLabel}
           title={deleteLabel}
           onClick={onDelete}
-          className="absolute right-0 top-2.5 grid size-10 place-items-center rounded-full text-[color:var(--color-muted)] transition-[opacity,background-color,color] duration-150 hover:bg-[color:var(--color-error)]/10 hover:text-[color:var(--color-error)] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:focus-visible:opacity-100"
+          className="touch-target absolute right-0 top-2.5 grid size-10 place-items-center rounded-full text-[color:var(--color-muted)] transition-[opacity,background-color,color] duration-150 hover:bg-[color:var(--color-error)]/10 hover:text-[color:var(--color-error)] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:focus-visible:opacity-100"
         >
           <Trash2 size={15} />
         </button>

@@ -292,7 +292,7 @@ export const messages = {
     "media.unavailable": "A megtekintéshez nyisd meg a posztot.",
     "media.view": "Megnyitás teljes képernyőn",
     "lightbox.title": "Médianézegető",
-    "detail.openOnX": "Megnyitás az X-en",
+    "detail.openOnX": "Megnyitás X-en",
     "detail.copyLink": "Link másolása",
     "detail.copied": "Kimásolva",
     "detail.ask": "Kérdezd az AI-t",

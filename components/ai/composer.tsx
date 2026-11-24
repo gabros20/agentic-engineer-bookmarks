@@ -107,7 +107,7 @@ function ContextChip({ label, clearLabel, onClear }: { label: string; clearLabel
           onClick={onClear}
           aria-label={clearLabel}
           title={clearLabel}
-          className="grid size-6 shrink-0 place-items-center rounded-full text-[color:var(--color-muted)] transition-colors hover:bg-[color:var(--color-surface-cream-strong)] hover:text-[color:var(--color-ink)]"
+          className="touch-target relative grid size-6 shrink-0 place-items-center rounded-full text-[color:var(--color-muted)] [@media(pointer:coarse)]:size-7 transition-colors hover:bg-[color:var(--color-surface-cream-strong)] hover:text-[color:var(--color-ink)]"
         >
           <X size={12} />
         </button>
@@ -150,7 +150,7 @@ function SendButton({
       aria-label={label}
       title={label}
       whileTap={{ scale: 0.92 }}
-      className="relative ml-auto grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] transition-[background-color,opacity] duration-200 hover:bg-[color:var(--color-primary-active)] disabled:cursor-default disabled:bg-[color:var(--color-surface-cream-strong)] disabled:text-[color:var(--color-muted)]"
+      className="relative ml-auto grid size-10 shrink-0 place-items-center overflow-hidden rounded-full [@media(pointer:coarse)]:size-11 bg-[color:var(--color-primary)] text-[color:var(--color-on-primary)] transition-[background-color,opacity] duration-200 hover:bg-[color:var(--color-primary-active)] disabled:cursor-default disabled:bg-[color:var(--color-surface-cream-strong)] disabled:text-[color:var(--color-muted)]"
     >
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span key={busy ? "stop" : "send"} {...swap} transition={{ duration: DURATION.fast, ease: EASE_OUT }} className="grid place-items-center">

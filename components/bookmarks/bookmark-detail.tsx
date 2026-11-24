@@ -178,7 +178,7 @@ export function BookmarkDetail({
                 ) : null}
 
                 {text ? (
-                  <p className="mt-5 whitespace-pre-line break-words text-[16px] leading-[1.6] text-[color:var(--color-body-strong)] sm:text-[17px]">
+                  <p lang={contentLang(post.lang)} className="mt-5 whitespace-pre-line text-read">
                     {text}
                   </p>
                 ) : null}
@@ -190,17 +190,17 @@ export function BookmarkDetail({
                 ) : null}
 
                 {post.articleText ? (
-                  <section className="mt-6 rounded-2xl bg-[color:var(--color-surface-soft)] p-4 ring-1 ring-[color:var(--color-hairline-soft)] sm:p-5">
+                  <section className="mt-7 border-t border-[color:var(--color-hairline)] pt-5">
                     <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-muted)]">
                       <BookOpenText size={13} />
                       {t("detail.article")}
                     </div>
-                    <div className={`relative mt-3 ${articleOpen ? "" : "max-h-72 overflow-hidden"}`}>
-                      <div className="text-[15px] leading-[1.65] text-[color:var(--color-body)] [&_a]:underline [&_a]:underline-offset-2 [&_h1]:mb-2 [&_h1]:mt-5 [&_h1]:font-display [&_h1]:text-[24px] [&_h1]:text-[color:var(--color-ink)] [&_h2]:mb-2 [&_h2]:mt-5 [&_h2]:font-display [&_h2]:text-[21px] [&_h2]:text-[color:var(--color-ink)] [&_h3]:mt-4 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5">
-                        <Streamdown>{post.articleText}</Streamdown>
+                    <div className={`relative mt-4 ${articleOpen ? "" : "max-h-96 overflow-hidden"}`}>
+                      <div lang={contentLang(post.lang)} className="text-read [&_a]:text-[color:var(--color-ink)] [&_a]:underline [&_a]:decoration-[color:var(--color-muted-soft)] [&_a]:underline-offset-[3px]">
+                        <Streamdown className="prose-read">{post.articleText}</Streamdown>
                       </div>
                       {articleOpen ? null : (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[color:var(--color-surface-soft)] to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[color:var(--color-canvas)] to-transparent" />
                       )}
                     </div>
                     <button
@@ -229,7 +229,7 @@ export function BookmarkDetail({
                       {quoted.author?.name}{" "}
                       <span className="font-normal text-[color:var(--color-muted)]">@{quoted.author?.screenName}</span>
                     </div>
-                    <p className="mt-1 line-clamp-6 whitespace-pre-line text-[14px] leading-[1.55] text-[color:var(--color-body)]">
+                    <p className="mt-1 line-clamp-6 whitespace-pre-line break-words text-[15px] leading-[1.55] text-[color:var(--color-body)]">
                       {cleanText(quoted.text)}
                     </p>
                   </a>
@@ -289,10 +289,10 @@ export function BookmarkDetail({
               type="button"
               whileTap={{ scale: 0.97 }}
               onClick={() => openOnX(post)}
-              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)]"
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[color:var(--color-primary)] px-4 text-sm font-medium text-[color:var(--color-on-primary)] transition-colors hover:bg-[color:var(--color-primary-active)] max-[359px]:px-3"
             >
-              {t("detail.openOnX")}
-              <ArrowUpRight size={16} />
+              <span className="truncate">{t("detail.openOnX")}</span>
+              <ArrowUpRight size={16} className="shrink-0 max-[359px]:hidden" />
             </motion.button>
             <FooterButton
               label={isFavorite ? t("card.unstar") : t("card.star")}
@@ -324,6 +324,12 @@ export function BookmarkDetail({
   );
 }
 
+/** X's language tag for a post, as a lang attribute (drives hyphenation + screen-reader voice).
+ *  X also uses non-language tags ("und", "zxx", "qme"…), which are left out. */
+function contentLang(code: string | undefined) {
+  return code && /^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(code) ? code : undefined;
+}
+
 /**
  * The author's own continuation of the post (xrelay archive --threads), read like X shows
  * it: one post after another on a thin rail, each with its own media (same layout + viewer).
@@ -352,7 +358,9 @@ function ThreadSection({
               {last ? null : <span aria-hidden className="absolute bottom-0 left-[4px] top-4 w-px bg-[color:var(--color-hairline)]" />}
               <span aria-hidden className="absolute left-0 top-[9px] size-[9px] rounded-full bg-[color:var(--color-muted-soft)] ring-4 ring-[color:var(--color-canvas)]" />
               {body ? (
-                <p className="whitespace-pre-line break-words text-[16px] leading-[1.6] text-[color:var(--color-body-strong)] sm:text-[17px]">{body}</p>
+                <p lang={contentLang(item.lang)} className="whitespace-pre-line text-read">
+                  {body}
+                </p>
               ) : null}
               {item.media?.length ? (
                 <div className={body ? "mt-4" : ""}>
@@ -360,7 +368,7 @@ function ThreadSection({
                 </div>
               ) : null}
               {item.quotedTweet?.text ? (
-                <p className="mt-3 line-clamp-4 whitespace-pre-line rounded-xl px-3 py-2 text-[14px] leading-[1.5] text-[color:var(--color-body)] ring-1 ring-[color:var(--color-hairline)]">
+                <p className="mt-3 line-clamp-4 whitespace-pre-line break-words rounded-xl px-3 py-2 text-[15px] leading-[1.5] text-[color:var(--color-body)] ring-1 ring-[color:var(--color-hairline)]">
                   <span className="font-semibold text-[color:var(--color-ink)]">@{item.quotedTweet.author?.screenName}</span> {cleanText(item.quotedTweet.text)}
                 </p>
               ) : null}
@@ -380,7 +388,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="grid size-9 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:pointer-events-none disabled:opacity-30"
+      className="touch-target relative grid size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-ink)] transition hover:bg-[color:var(--color-surface-card)] disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>

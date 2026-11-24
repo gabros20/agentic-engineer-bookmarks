@@ -825,8 +825,8 @@ function LightboxBody({ media, initialIndex, getSource, onClose, closeRef }: Med
                 {index + 1} / {count}
               </span>
             ) : null}
-            <div className={cn("ml-auto flex items-center gap-2", visibleChrome ? "pointer-events-auto" : "")}>
-              <ChromeButton label={t("detail.close")} onClick={() => requestClose()}>
+            <div className="ml-auto flex items-center gap-2">
+              <ChromeButton label={t("detail.close")} onClick={() => requestClose()} interactive={visibleChrome}>
                 <X size={18} />
               </ChromeButton>
             </div>
@@ -834,13 +834,15 @@ function LightboxBody({ media, initialIndex, getSource, onClose, closeRef }: Med
 
           {count > 1 ? (
             <>
-              <div className={cn("absolute inset-y-0 left-4 place-items-center", fineOnly, visibleChrome ? "pointer-events-auto" : "")}>
-                <ChromeButton label={t("detail.prev")} onClick={() => goTo(index - 1)} disabled={index === 0} large>
+              {/* The full-height columns only center the arrows: they stay click-through, or the right
+                  one covers the close button above it (and swallows backdrop clicks). */}
+              <div className={cn("pointer-events-none absolute inset-y-0 left-4 place-items-center", fineOnly)}>
+                <ChromeButton label={t("detail.prev")} onClick={() => goTo(index - 1)} disabled={index === 0} large interactive={visibleChrome}>
                   <ChevronLeft size={22} />
                 </ChromeButton>
               </div>
-              <div className={cn("absolute inset-y-0 right-4 place-items-center", fineOnly, visibleChrome ? "pointer-events-auto" : "")}>
-                <ChromeButton label={t("detail.next")} onClick={() => goTo(index + 1)} disabled={index === count - 1} large>
+              <div className={cn("pointer-events-none absolute inset-y-0 right-4 place-items-center", fineOnly)}>
+                <ChromeButton label={t("detail.next")} onClick={() => goTo(index + 1)} disabled={index === count - 1} large interactive={visibleChrome}>
                   <ChevronRight size={22} />
                 </ChromeButton>
               </div>
@@ -1041,12 +1043,15 @@ function ChromeButton({
   onClick,
   disabled,
   large,
+  interactive,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   large?: boolean;
+  /** Takes clicks (the controls layer itself is click-through); false while the controls are hidden. */
+  interactive: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -1057,7 +1062,8 @@ function ChromeButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "grid cursor-pointer place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/15 backdrop-blur-md transition hover:bg-white/20 hover:text-white focus-visible:outline-2 focus-visible:outline-white/70 disabled:pointer-events-none disabled:opacity-0",
+        "touch-target relative grid shrink-0 cursor-pointer place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/15 backdrop-blur-md transition hover:bg-white/20 hover:text-white focus-visible:outline-2 focus-visible:outline-white/70 disabled:pointer-events-none disabled:opacity-0",
+        interactive ? "pointer-events-auto" : "pointer-events-none",
         large ? "size-11" : "size-10",
       )}
     >

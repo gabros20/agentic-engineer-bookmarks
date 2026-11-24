@@ -60,7 +60,7 @@ export function IconButton({
       title={label}
       whileTap={{ scale: 0.92 }}
       className={cn(
-        "relative grid size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-muted)] transition-colors hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)] disabled:pointer-events-none disabled:opacity-40 [@media(pointer:coarse)]:after:absolute [@media(pointer:coarse)]:after:-inset-0.5",
+        "touch-target relative grid size-10 shrink-0 place-items-center rounded-full text-[color:var(--color-muted)] transition-colors hover:bg-[color:var(--color-surface-card)] hover:text-[color:var(--color-ink)] disabled:pointer-events-none disabled:opacity-40",
         className,
       )}
       {...props}

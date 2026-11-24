@@ -51,12 +51,7 @@ const components = { a: CitedLink };
 export const Markdown = memo(function Markdown({ children, streaming, className }: { children: string; streaming: boolean; className?: string }) {
   return (
     <Streamdown
-      className={cn(
-        "min-w-0 text-[15px] leading-[1.65] text-[color:var(--color-body-strong)] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        "[&_h1]:font-body [&_h2]:font-body [&_h3]:font-body [&_h4]:font-body [&_h1]:text-[17px] [&_h2]:text-[16px] [&_h3]:text-[15px] [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold",
-        "[&_li]:my-1 [&_ol]:pl-5 [&_ul]:pl-5 [&_p]:my-3",
-        className,
-      )}
+      className={cn("min-w-0 text-read-sm prose-read", !streaming && "prose-settled", className)}
       plugins={plugins}
       components={components}
       linkSafety={{ enabled: false }}

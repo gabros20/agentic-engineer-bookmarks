@@ -283,7 +283,7 @@ export const BookmarkCard = memo(function BookmarkCard({ post, isFavorite, onTog
         aria-label={isFavorite ? t("card.unstar") : t("card.star")}
         title={isFavorite ? t("card.unstar") : t("card.star")}
         onClick={() => onToggleFavorite(post.id)}
-        className={`absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[color:var(--color-canvas)]/85 text-[color:var(--color-ink)] shadow-sm backdrop-blur transition-opacity duration-200 focus-visible:opacity-100 ${
+        className={`touch-target absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[color:var(--color-canvas)]/85 text-[color:var(--color-ink)] shadow-sm backdrop-blur transition-opacity duration-200 focus-visible:opacity-100 ${
           isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:hidden"
         }`}
       >

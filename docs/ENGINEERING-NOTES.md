@@ -259,3 +259,20 @@ Research: Mobbin (ChatGPT, Perplexity, Copilot, DeepSeek, Raycast, Grok, Dropbox
 
 Known follow-ups: client-side tool round-trips each POST /api/chat, so one multi-search question spends several of the 40 daily chat turns — moving `search_bookmarks` server-side (the MCP path already has `lib/server/bookmark-service.ts`) would fix both quota accounting and latency. Cited sources open x.com; opening the in-app detail view would be nicer.
 
+
+## 11. Reading typography (2026-10)
+
+Research: the Interfaces typography cheat sheet (60–75 characters per line, `text-wrap: pretty` only off long-form, grayscale antialiasing, `overflow-wrap: break-word`), Perplexity's answer CSS (prose capped at 65ch; articles 18px/1.6; lighter font weights in dark mode, e.g. sans regular 400 → 350–370; headings get more space above than below), and iOS's 17pt Body default. Long text now uses two tokens in `app/globals.css`, not per-file sizes:
+
+- `text-read` (posts, threads, X articles, digest TL;DR): 17px/1.55 on phones and 18px/1.6 from `sm`. `text-read-sm` (chat answers, theme summaries, callouts): 16px/1.6, then 17px. Both are capped at `34em`, which gives about 40 characters per line at 375px and 68–73 on desktop (measured).
+- `--color-read` is zinc-800 in light mode and zinc-200 in dark mode, a step below ink so long passages don't glare. `--font-weight-read` is 400, or 370 in dark mode, where light-on-dark text blooms. The body uses grayscale antialiasing.
+- `prose-read` handles rendered markdown (the Streamdown root):
+  - Blocks are 0.85em apart. Headings get 1.7em above and 0.4em below.
+  - Section heads are set in Inter semibold. The serif is kept for titles.
+  - Lists use outside markers in the muted color. This overrides Streamdown's `list-inside`, which wrapped text under the bullet, and its `py-1` on `li`.
+  - The rules carry an element in their selectors so they outrank Streamdown's utility classes.
+- `prose-settled` adds `text-wrap: pretty` only once a chat answer has finished streaming, because re-breaking lines mid-stream looks like jitter. It is not used on X articles, which are long-form.
+- Hyphenation is Hungarian only (`:lang(hu)`) and only below `sm`. English at that width came out with about one hyphen every two lines. WebKit ignores `hyphenate-limit-chars`, so the `-webkit-hyphenate-limit-*` properties are set as well.
+  - Language tags: post text gets X's `lang` (`contentLang` drops values such as `und`/`zxx`); the digest body gets the saved digest's `language`; a saved chat's log gets its `language`.
+- The X article is no longer a tinted inset card. It is a hairline section at full column width with a longer preview (`max-h-96`).
+- Inter's `opsz` axis was skipped on purpose. Without it every size uses the 14pt text cut, which is the right design for body copy, and the font stays smaller.

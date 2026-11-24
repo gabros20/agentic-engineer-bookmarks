@@ -33,7 +33,7 @@ export function ScrollToBottom({ label }: { label: string }) {
           animate={{ opacity: 1, scale: 1, y: 0, transition: enter }}
           exit={{ opacity: 0, scale: reduce ? 1 : 0.9, transition: exit }}
           whileTap={{ scale: 0.94 }}
-          className="absolute bottom-3 left-1/2 z-10 -ml-[18px] grid size-9 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] shadow-[var(--shadow-float)] ring-1 ring-[color:var(--color-hairline)]"
+          className="touch-target absolute bottom-3 left-1/2 z-10 -ml-5 grid size-10 place-items-center rounded-full bg-[color:var(--color-canvas)] text-[color:var(--color-ink)] shadow-[var(--shadow-float)] ring-1 ring-[color:var(--color-hairline)]"
         >
           <ArrowDown size={16} />
         </motion.button>

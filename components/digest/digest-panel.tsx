@@ -135,6 +135,7 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
           />
 
           <div
+            lang={cached?.language ?? lang}
             className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-5 sm:px-6"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
           >
@@ -166,15 +167,15 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
               {view.tldr ? (
                 <Section key="tldr">
                   <Eyebrow>{t("digest.tldr")}</Eyebrow>
-                  <p className="text-[16px] leading-[1.6] text-[color:var(--color-ink)] sm:text-[17px]">{view.tldr}</p>
+                  <p className="text-read">{view.tldr}</p>
                 </Section>
               ) : null}
 
               {view.overall ? (
                 <Section key="overall">
                   <div className="flex gap-3 rounded-xl bg-[color:var(--color-surface-card)] p-3.5">
-                    <ArrowRight size={16} className="mt-[3px] shrink-0 text-[color:var(--color-muted)]" />
-                    <p className="text-[14.5px] leading-[1.55] text-[color:var(--color-body-strong)]">
+                    <ArrowRight size={16} className="mt-[5px] shrink-0 text-[color:var(--color-muted)] sm:mt-1.5" />
+                    <p className="text-read-sm">
                       <span className="font-semibold text-[color:var(--color-ink)]">{t("digest.startHere")}</span>
                       {view.overall}
                     </p>
@@ -185,17 +186,17 @@ export function DigestPanel({ query, sources, initialCached, onClose }: Props) {
               {view.themes.length ? (
                 <Section key="themes">
                   <Eyebrow>{t("digest.themes")}</Eyebrow>
-                  <ol className="space-y-7">
+                  <ol className="space-y-9">
                     {view.themes.map((theme, i) => (
                       <motion.li key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: enter }}>
                         <div className="flex items-baseline gap-3">
                           <span className="shrink-0 text-[12px] font-medium tabular-nums text-[color:var(--color-muted-soft)]">
                             {String(i + 1).padStart(2, "0")}
                           </span>
-                          <h3 className="min-w-0 font-display text-[21px] leading-[1.2] text-[color:var(--color-ink)]">{theme?.title || "…"}</h3>
+                          <h3 className="min-w-0 text-balance font-display text-[22px] leading-[1.15] text-[color:var(--color-ink)] sm:text-[24px]">{theme?.title || "…"}</h3>
                         </div>
-                        {theme?.summary ? <p className="mt-1.5 text-[15px] leading-[1.6] text-[color:var(--color-body)]">{theme.summary}</p> : null}
-                        <ul className="mt-2.5 divide-y divide-[color:var(--color-hairline)] border-y border-[color:var(--color-hairline)]">
+                        {theme?.summary ? <p className="mt-2 text-read-sm">{theme.summary}</p> : null}
+                        <ul className="mt-3 divide-y divide-[color:var(--color-hairline)] border-y border-[color:var(--color-hairline)]">
                           {(theme?.sources ?? []).map((source, j) =>
                             source?.url ? (
                               <li key={j}>
@@ -273,12 +274,12 @@ function SourceLink({ href, author, body, title, index }: { href: string; author
       className="-mx-2 flex gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-[color:var(--color-surface-soft)] active:bg-[color:var(--color-surface-card)]"
     >
       {index !== undefined ? (
-        <span className="mt-px shrink-0 text-[13px] font-medium tabular-nums text-[color:var(--color-muted-soft)]">{index + 1}</span>
+        <span className="mt-px shrink-0 text-[13px] font-medium leading-[1.5] tabular-nums text-[color:var(--color-muted-soft)]">{index + 1}</span>
       ) : null}
       <span className="min-w-0">
-        {title ? <span className="block text-[15px] font-medium leading-snug text-[color:var(--color-ink)]">{title}</span> : null}
+        {title ? <span className="block text-balance text-[16px] font-medium leading-snug text-[color:var(--color-ink)]">{title}</span> : null}
         <span className="block text-[13px] font-semibold text-[color:var(--color-ink)]">{author || "…"}</span>
-        <span className="mt-0.5 block text-[14px] leading-[1.5] text-[color:var(--color-body)]">{body || "…"}</span>
+        <span className="mt-0.5 block text-[15px] leading-[1.5] text-[color:var(--color-body)]">{body || "…"}</span>
       </span>
     </a>
   );
